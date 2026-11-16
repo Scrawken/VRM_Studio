@@ -23,12 +23,10 @@ import { validateVrmBinary } from './src/shared/vrmValidator';
 import { interpretCharacterDescription } from './server/geminiInterpreter';
 import { resolveGeometryProviderExecution } from './server/generationProviders';
 import {
-  buildTenStagePipelineSummary,
   duplicateProject,
   getProject,
   getProjectFilePath,
   getProjectsRoot,
-  getSafeProjectDir,
   listProjects,
   saveProjectArtifacts,
   seedInitialProjectsIfEmpty,
@@ -175,9 +173,10 @@ async function startServer() {
           error: 'No generated humanoid GLB available to import into Blender.',
         });
       }
+      const outDir = resolveSafePathWithinRoot(getProjectsRoot(), '_blender_test');
+      fs.mkdirSync(outDir, { recursive: true });
+      const reportPath = resolveSafePathWithinRoot(outDir, 'milestone2_report.json');
       try {
-        const outDir = resolveSafePathWithinRoot(getProjectsRoot(), '_blender_test');
-        fs.mkdirSync(outDir, { recursive: true });
         const stdout = execFileSync(
           blender.executablePath,
           [
@@ -192,7 +191,6 @@ async function startServer() {
           ],
           { timeout: 60000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
         );
-        const reportPath = resolveSafePathWithinRoot(outDir, 'milestone2_report.json');
         const report = fs.existsSync(reportPath)
           ? JSON.parse(fs.readFileSync(reportPath, 'utf8'))
           : null;
@@ -200,19 +198,37 @@ async function startServer() {
           executed: Boolean(report?.status === 'ok'),
           mode: 'blender_live',
           blenderVersion: blender.version,
+          riggingSuccess: Boolean(report?.rigging_success),
+          materialPreserved: Boolean(report?.material_preserved),
+          texturePreserved: Boolean(report?.texture_preserved),
           vrmAddonInstalled: Boolean(report?.vrm_addon_installed),
-          vrmExported: Boolean(report?.vrm_exported),
-          vrmReloadValid: Boolean(report?.vrm_reload_valid),
+          vrmExported: Boolean(report?.vrm_export_success ?? report?.vrm_exported),
+          vrmReloadValid: Boolean(report?.vrm_reload_success ?? report?.vrm_reload_valid),
           deformationMaxDelta: report?.deformation_max_delta ?? null,
           report,
           stdout,
           blendFileExists: fs.existsSync(resolveSafePathWithinRoot(outDir, 'milestone2_test.blend')),
         });
       } catch (err) {
-        return res.status(500).json({
+        const report = fs.existsSync(reportPath)
+          ? JSON.parse(fs.readFileSync(reportPath, 'utf8'))
+          : null;
+        const e = err as { stdout?: string; stderr?: string; message: string };
+        return res.status(report ? 200 : 500).json({
           executed: false,
-          mode: 'blender_error',
-          error: (err as Error).message,
+          mode: 'blender_live',
+          blenderVersion: blender.version,
+          riggingSuccess: Boolean(report?.rigging_success),
+          materialPreserved: Boolean(report?.material_preserved),
+          texturePreserved: Boolean(report?.texture_preserved),
+          vrmAddonInstalled: Boolean(report?.vrm_addon_installed),
+          vrmExported: Boolean(report?.vrm_export_success ?? report?.vrm_exported),
+          vrmReloadValid: Boolean(report?.vrm_reload_success ?? report?.vrm_reload_valid),
+          deformationMaxDelta: report?.deformation_max_delta ?? null,
+          report,
+          stdout: e.stdout || e.stderr || '',
+          error: report?.vrm_note || e.message,
+          blendFileExists: fs.existsSync(resolveSafePathWithinRoot(outDir, 'milestone2_test.blend')),
         });
       }
     }
@@ -289,7 +305,7 @@ async function startServer() {
           : undefined;
       const qualityConfig = req.body?.qualityConfig as Partial<QualityConfig> | undefined;
 
-      const t0 = Date.now();
+      const tInterp0 = performance.now();
       const interpreted = await interpretCharacterDescription(prompt, {
         mode,
         interpreterProvider,
@@ -297,10 +313,12 @@ async function startServer() {
         artStyle,
         qualityConfig,
       });
-      const tInterpret = Math.max(8, Date.now() - t0);
+      const interpretMs = Math.max(1, Math.round(performance.now() - tInterp0));
 
       // Priority 3: Pre-geometry fidelity gate before calling 3D provider / synthesis
+      const tGate0 = performance.now();
       const specValidation = validateCharacterSpecification(interpreted.spec);
+      const designValidationMs = Math.max(1, Math.round(performance.now() - tGate0));
       if (!specValidation.valid) {
         return res.status(422).json({
           error: `Specification fidelity gate rejected generation: ${specValidation.violations.join('; ')}`,
@@ -308,29 +326,13 @@ async function startServer() {
         });
       }
 
+      const tGeom0 = performance.now();
       const adapterExec = await resolveGeometryProviderExecution(
         interpreted.spec,
         geometryProvider
       );
+      const geometryResolveMs = Math.max(1, Math.round(performance.now() - tGeom0));
       interpreted.spec.geometryProvider = adapterExec.executedProvider;
-
-      const preEstimates = estimateCharacterMetrics(interpreted.spec);
-      const initialStages = buildTenStagePipelineSummary(
-        interpreted.spec,
-        `${interpreted.providerUsed}: ${interpreted.note}`,
-        adapterExec.detail,
-        {
-          sourceTriangles: adapterExec.externalParsedMesh?.triangleCount ?? preEstimates.sourceTriangles,
-          optimizedTriangles:
-            adapterExec.externalParsedMesh?.triangleCount ?? preEstimates.optimizedTriangles,
-          textureTargetPx: preEstimates.textureTargetPx,
-          packedTexturePx: preEstimates.packedTexturePx,
-          boneCount: 65,
-          expressionCount: 17,
-          springBoneJointCount: 10,
-        },
-        tInterpret
-      );
 
       const externalGeom =
         adapterExec.externalGenerationSucceeded &&
@@ -345,29 +347,19 @@ async function startServer() {
       const project = saveProjectArtifacts(
         interpreted.spec,
         mode,
-        initialStages,
+        {
+          interpretMs,
+          interpretUsedFallback: interpreted.usedFallback,
+          interpreterNote: `${interpreted.providerUsed}: ${interpreted.note}`,
+          designValidationMs,
+          geometryResolveMs,
+          geometryUsedFallback: adapterExec.usedFallback,
+          externalGenerationSucceeded: adapterExec.externalGenerationSucceeded,
+          adapterDetail: adapterExec.detail,
+        },
         `Generated in ${mode} mode via ${adapterExec.executedProvider} (${interpreted.spec.qualityConfig.geometryQuality} / ${interpreted.spec.qualityConfig.textureResolution})`,
         externalGeom
       );
-
-      // Update stage metrics with exact built binary counts
-      project.stages = buildTenStagePipelineSummary(
-        project.spec,
-        `${interpreted.providerUsed}: ${interpreted.note}`,
-        adapterExec.detail,
-        {
-          sourceTriangles: project.estimates.sourceTriangles,
-          optimizedTriangles: project.estimates.optimizedTriangles,
-          textureTargetPx: project.estimates.textureTargetPx,
-          packedTexturePx: project.estimates.packedTexturePx,
-          boneCount: project.validation.boneCount,
-          expressionCount: project.validation.nonEmptyExpressions.length,
-          springBoneJointCount: project.validation.springBoneJointCount,
-        },
-        tInterpret
-      );
-      const projDir = getSafeProjectDir(project.id);
-      fs.writeFileSync(resolveSafePathWithinRoot(projDir, 'meta.json'), JSON.stringify(project, null, 2));
 
       res.json({
         project,
@@ -389,34 +381,29 @@ async function startServer() {
       if (!existing) {
         return res.status(404).json({ error: 'Project not found' });
       }
+      const tPatch0 = performance.now();
       const updatedSpec = applyCharacterEdits(existing.spec, req.body || {});
       const specValidation = validateCharacterSpecification(updatedSpec);
+      const patchMs = Math.max(1, Math.round(performance.now() - tPatch0));
       if (!specValidation.valid) {
         return res.status(422).json({
           error: `Customization rejected by fidelity gate: ${specValidation.violations.join('; ')}`,
           violations: specValidation.violations,
         });
       }
-      const preEstimates = estimateCharacterMetrics(updatedSpec);
-      const stages = buildTenStagePipelineSummary(
-        updatedSpec,
-        `Non-destructive patch applied (v${updatedSpec.version})`,
-        `Sculpted Anatomical VRM Engine (${updatedSpec.qualityConfig.geometryQuality})`,
-        {
-          sourceTriangles: preEstimates.sourceTriangles,
-          optimizedTriangles: preEstimates.optimizedTriangles,
-          textureTargetPx: preEstimates.textureTargetPx,
-          packedTexturePx: preEstimates.packedTexturePx,
-          boneCount: existing.validation.boneCount,
-          expressionCount: existing.validation.nonEmptyExpressions.length,
-          springBoneJointCount: existing.validation.springBoneJointCount,
-        },
-        8
-      );
       const project = saveProjectArtifacts(
         updatedSpec,
         existing.mode,
-        stages,
+        {
+          interpretMs: patchMs,
+          interpretUsedFallback: false,
+          interpreterNote: `Non-destructive patch applied (v${updatedSpec.version})`,
+          designValidationMs: 1,
+          geometryResolveMs: 0,
+          geometryUsedFallback: false,
+          externalGenerationSucceeded: false,
+          adapterDetail: `Sculpted Anatomical VRM Engine (${updatedSpec.qualityConfig.geometryQuality})`,
+        },
         `Customized traits & quality (v${updatedSpec.version})`
       );
       res.json({ project });
@@ -430,11 +417,13 @@ async function startServer() {
       const existing = getProject(req.params.id);
       if (!existing) return res.status(404).json({ error: 'Project not found' });
       const rawSpec = req.body?.spec as Partial<CharacterSpecification>;
+      const tSpec0 = performance.now();
       const normalized = normalizeCharacterSpec(
         { ...rawSpec, id: existing.id, version: existing.spec.version + 1 },
         existing.spec.sourcePrompt
       );
       const specValidation = validateCharacterSpecification(normalized);
+      const specMs = Math.max(1, Math.round(performance.now() - tSpec0));
       if (!specValidation.valid) {
         return res.status(422).json({
           error: `Specification update failed validation: ${specValidation.violations.join('; ')}`,
@@ -444,7 +433,16 @@ async function startServer() {
       const project = saveProjectArtifacts(
         normalized,
         existing.mode,
-        existing.stages,
+        {
+          interpretMs: specMs,
+          interpretUsedFallback: false,
+          interpreterNote: `Direct CharacterSpecification JSON edit (v${normalized.version})`,
+          designValidationMs: 1,
+          geometryResolveMs: 0,
+          geometryUsedFallback: false,
+          externalGenerationSucceeded: false,
+          adapterDetail: `Sculpted Anatomical VRM Engine (${normalized.qualityConfig.geometryQuality})`,
+        },
         `Updated character spec JSON (v${normalized.version})`
       );
       res.json({ project });

@@ -557,9 +557,9 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               <span className="tabular-nums">{activeProject.spec.proportions.heightMeters.toFixed(2)}m</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 py-2 border-y border-[#262d38] text-xs">
+            <div className="grid grid-cols-4 gap-2 py-2 border-y border-[#262d38] text-xs">
               <div>
-                <div className="text-slate-500">VRM Triangles</div>
+                <div className="text-slate-500">Tris</div>
                 <div className="font-mono text-slate-200 tabular-nums mt-0.5">
                   {activeProject.validation.triangleCount.toLocaleString()}
                 </div>
@@ -571,9 +571,15 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Expressions</div>
+                <div className="text-slate-500">Expr</div>
                 <div className="font-mono text-slate-200 tabular-nums mt-0.5">
-                  {activeProject.validation.nonEmptyExpressions.length} active
+                  {activeProject.validation.nonEmptyExpressions.length}
+                </div>
+              </div>
+              <div>
+                <div className="text-slate-500">Mats/Tex</div>
+                <div className="font-mono text-slate-200 tabular-nums mt-0.5">
+                  {activeProject.validation.materialCount}/{activeProject.validation.textureCount}
                 </div>
               </div>
             </div>
@@ -618,17 +624,43 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               10-Stage Pipeline Execution
             </h2>
             <ol className="flex flex-col gap-2">
-              {stagesToShow.map((st) => (
-                <li key={st.id} className="text-xs flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-slate-200 font-medium truncate">{st.label}</div>
-                    <div className="text-slate-500 text-[11px] truncate">{st.detail}</div>
-                  </div>
-                  <span className="font-mono text-[11px] text-emerald-400 tabular-nums shrink-0">
-                    {st.durationMs}ms
-                  </span>
-                </li>
-              ))}
+              {stagesToShow.map((st) => {
+                const badgeClass =
+                  st.status === 'completed'
+                    ? 'text-emerald-400'
+                    : st.status === 'fallback' || st.status === 'warning'
+                      ? 'text-amber-400'
+                      : st.status === 'error'
+                        ? 'text-red-400'
+                        : st.status === 'running'
+                          ? 'text-sky-400'
+                          : 'text-slate-500';
+                const badgeText =
+                  st.status === 'skipped'
+                    ? 'SKIPPED'
+                    : st.status === 'fallback'
+                      ? `FALLBACK · ${st.durationMs}ms`
+                      : st.status === 'warning'
+                        ? `WARN · ${st.durationMs}ms`
+                        : st.status === 'error'
+                          ? 'FAILED'
+                          : st.status === 'running'
+                            ? 'RUNNING'
+                            : st.status === 'pending'
+                              ? 'PENDING'
+                              : `${st.durationMs}ms`;
+                return (
+                  <li key={st.id} className="text-xs flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-slate-200 font-medium truncate">{st.label}</div>
+                      <div className="text-slate-500 text-[11px] truncate">{st.detail}</div>
+                    </div>
+                    <span className={`font-mono text-[11px] tabular-nums shrink-0 ${badgeClass}`}>
+                      {badgeText}
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
           </div>
         )}

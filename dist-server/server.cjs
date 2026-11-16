@@ -48647,6 +48647,847 @@ function buildHighDetailCharacterGeometry(spec, bones, budgetOverride) {
   ].filter((p) => p.positions.length > 0 && p.indices.length > 0);
 }
 
+// src/shared/externalRigging.ts
+var CANONICAL_BONE_ALIASES = {
+  hips: ["hips", "hip", "pelvis", "root_hips", "mixamorighips", "bip01pelvis", "cog"],
+  spine: ["spine", "spine01", "spine_01", "spine1", "abdomen", "mixamorigspine", "bip01spine"],
+  chest: ["chest", "spine02", "spine_02", "spine2", "ribcage", "thorax", "mixamorigspine1", "mixamorigspine2", "bip01spine1"],
+  upperChest: ["upperchest", "upper_chest", "spine03", "spine_03", "spine3", "mixamorigspine2", "bip01spine2"],
+  neck: ["neck", "neck01", "neck_01", "mixamorigneck", "bip01neck"],
+  head: ["head", "headtop", "mixamorighead", "bip01head"],
+  leftEye: ["lefteye", "eye_l", "eye.l", "l_eye", "mixamoriglefteye"],
+  rightEye: ["righteye", "eye_r", "eye.r", "r_eye", "mixamorigrighteye"],
+  jaw: ["jaw", "chin", "mixamorigjaw"],
+  leftShoulder: ["leftshoulder", "shoulder_l", "shoulder.l", "clavicle_l", "clavicle.l", "l_clavicle", "mixamorigleftshoulder", "bip01lclavicle"],
+  leftUpperArm: ["leftupperarm", "upperarm_l", "upper_arm.l", "upper_arm_l", "arm_l", "l_upperarm", "mixamorigleftarm", "bip01lupperarm"],
+  leftLowerArm: ["leftlowerarm", "lowerarm_l", "forearm.l", "forearm_l", "lower_arm.l", "l_forearm", "mixamorigleftforearm", "bip01lforearm"],
+  leftHand: ["lefthand", "hand_l", "hand.l", "wrist_l", "l_hand", "mixamoriglefthand", "bip01lhand"],
+  rightShoulder: ["rightshoulder", "shoulder_r", "shoulder.r", "clavicle_r", "clavicle.r", "r_clavicle", "mixamorigrightshoulder", "bip01rclavicle"],
+  rightUpperArm: ["rightupperarm", "upperarm_r", "upper_arm.r", "upper_arm_r", "arm_r", "r_upperarm", "mixamorigrightarm", "bip01rupperarm"],
+  rightLowerArm: ["rightlowerarm", "lowerarm_r", "forearm.r", "forearm_r", "lower_arm.r", "r_forearm", "mixamorigrightforearm", "bip01rforearm"],
+  rightHand: ["righthand", "hand_r", "hand.r", "wrist_r", "r_hand", "mixamorigrighthand", "bip01rhand"],
+  leftUpperLeg: ["leftupperleg", "upperleg_l", "thigh.l", "thigh_l", "l_thigh", "mixamorigleftupleg", "bip01lthigh"],
+  leftLowerLeg: ["leftlowerleg", "lowerleg_l", "shin.l", "shin_l", "calf_l", "l_calf", "mixamorigleftleg", "bip01lcalf"],
+  leftFoot: ["leftfoot", "foot_l", "foot.l", "ankle_l", "l_foot", "mixamorigleftfoot", "bip01lfoot"],
+  leftToes: ["lefttoes", "toe_l", "toes.l", "l_toe", "mixamoriglefttoebase", "bip01ltoe0"],
+  rightUpperLeg: ["rightupperleg", "upperleg_r", "thigh.r", "thigh_r", "r_thigh", "mixamorigrightupleg", "bip01rthigh"],
+  rightLowerLeg: ["rightlowerleg", "lowerleg_r", "shin.r", "shin_r", "calf_r", "r_calf", "mixamorigrightleg", "bip01rcalf"],
+  rightFoot: ["rightfoot", "foot_r", "foot.r", "ankle_r", "r_foot", "mixamorigrightfoot", "bip01rfoot"],
+  rightToes: ["righttoes", "toe_r", "toes.r", "r_toe", "mixamorigrighttoebase", "bip01rtoe0"]
+};
+function normalizeBoneToken(name) {
+  return name.toLowerCase().replace(/[^a-z0-9._]/g, "").replace(/mixamorig:/g, "mixamorig");
+}
+function mapExistingSkinToVrmHumanoid(skin, existingVrmHumanoid) {
+  const humanBoneToJointIndex = {};
+  const usedJoints = /* @__PURE__ */ new Set();
+  if (existingVrmHumanoid) {
+    for (const [vrmBone, nodeName] of Object.entries(existingVrmHumanoid)) {
+      const idx = skin.joints.findIndex((j) => j.name === nodeName);
+      if (idx >= 0 && !usedJoints.has(idx)) {
+        humanBoneToJointIndex[vrmBone] = idx;
+        usedJoints.add(idx);
+      }
+    }
+  }
+  const normalizedJointNames = skin.joints.map((j) => normalizeBoneToken(j.name));
+  for (const [vrmBone, aliases] of Object.entries(CANONICAL_BONE_ALIASES)) {
+    if (humanBoneToJointIndex[vrmBone] !== void 0) continue;
+    let foundIdx = -1;
+    for (let j = 0; j < normalizedJointNames.length; j++) {
+      if (usedJoints.has(j)) continue;
+      const stripped = normalizedJointNames[j].replace(/[._]/g, "");
+      if (aliases.some((a) => a.replace(/[._]/g, "") === stripped)) {
+        foundIdx = j;
+        break;
+      }
+    }
+    if (foundIdx >= 0) {
+      humanBoneToJointIndex[vrmBone] = foundIdx;
+      usedJoints.add(foundIdx);
+    }
+  }
+  const missingRequired = VRM_REQUIRED_HUMANOID_BONES.filter(
+    (req) => humanBoneToJointIndex[req] === void 0
+  );
+  return {
+    humanBoneToJointIndex,
+    missingRequired,
+    allRequiredPresent: missingRequired.length === 0
+  };
+}
+function fitArmatureToExternalGeometry(spec, asset, baseHumanoidBones) {
+  const [minX, minY, minZ] = asset.boundsMin;
+  const [maxX, maxY, maxZ] = asset.boundsMax;
+  const srcHeight = Math.max(1e-3, maxY - minY);
+  const targetHeight = spec.proportions.heightMeters;
+  const scale = targetHeight / srcHeight;
+  const offsetX = -(minX + maxX) * 0.5;
+  const offsetY = -minY;
+  const offsetZ = -(minZ + maxZ) * 0.5;
+  const pos = asset.positions;
+  const totalVerts = Math.floor(pos.length / 3);
+  const stride = Math.max(1, Math.floor(totalVerts / 4e3));
+  let maxAbsXMid = 0;
+  let leftElbowY = 0, leftElbowCount = 0;
+  let rightElbowY = 0, rightElbowCount = 0;
+  let leftWristY = 0, leftWristCount = 0;
+  let rightWristY = 0, rightWristCount = 0;
+  let torsoHalfW = 0.16;
+  let hipColXSum = 0, hipColCount = 0;
+  let headFrontZSum = 0, headFrontCount = 0;
+  let headBackZSum = 0, headBackCount = 0;
+  for (let i2 = 0; i2 < totalVerts; i2 += stride) {
+    const x2 = (pos[i2 * 3] + offsetX) * scale;
+    const y = (pos[i2 * 3 + 1] + offsetY) * scale;
+    const z = (pos[i2 * 3 + 2] + offsetZ) * scale;
+    const hNorm = y / targetHeight;
+    const ax = Math.abs(x2);
+    if (hNorm >= 0.45 && hNorm <= 0.86) {
+      if (ax > maxAbsXMid) maxAbsXMid = ax;
+    }
+    if (hNorm >= 0.58 && hNorm <= 0.72 && ax < 0.25) {
+      torsoHalfW = Math.max(torsoHalfW, Math.min(0.22, ax));
+    }
+    if (hNorm >= 0.22 && hNorm <= 0.46 && ax > 0.02 && ax < 0.22) {
+      hipColXSum += ax;
+      hipColCount++;
+    }
+    if (hNorm >= 0.87 && hNorm <= 0.96) {
+      if (z > 0.02) {
+        headFrontZSum += z;
+        headFrontCount++;
+      } else if (z < -0.02) {
+        headBackZSum += Math.abs(z);
+        headBackCount++;
+      }
+    }
+  }
+  const armOuterStart = Math.max(torsoHalfW * 0.95, maxAbsXMid * 0.36);
+  const elbowBandMin = armOuterStart;
+  const elbowBandMax = maxAbsXMid * 0.72;
+  const wristBandMin = maxAbsXMid * 0.72;
+  if (maxAbsXMid > 0.28) {
+    for (let i2 = 0; i2 < totalVerts; i2 += stride) {
+      const x2 = (pos[i2 * 3] + offsetX) * scale;
+      const y = (pos[i2 * 3 + 1] + offsetY) * scale;
+      const hNorm = y / targetHeight;
+      if (hNorm < 0.35 || hNorm > 0.88) continue;
+      const ax = Math.abs(x2);
+      if (ax >= elbowBandMin && ax < elbowBandMax) {
+        if (x2 > 0) {
+          leftElbowY += y;
+          leftElbowCount++;
+        } else {
+          rightElbowY += y;
+          rightElbowCount++;
+        }
+      } else if (ax >= wristBandMin) {
+        if (x2 > 0) {
+          leftWristY += y;
+          leftWristCount++;
+        } else {
+          rightWristY += y;
+          rightWristCount++;
+        }
+      }
+    }
+  }
+  const fitted = baseHumanoidBones.map((b) => ({
+    ...b,
+    localPos: [...b.localPos],
+    worldPos: [...b.worldPos]
+  }));
+  const byName = /* @__PURE__ */ new Map();
+  fitted.forEach((b, i2) => byName.set(b.name, i2));
+  if (maxAbsXMid > 0.3) {
+    const shIdx = byName.get("leftShoulder");
+    const shoulderY = shIdx !== void 0 ? fitted[shIdx].worldPos[1] : targetHeight * 0.81;
+    const upperArmX = Math.max(0.14, Math.min(0.22, armOuterStart * 0.92));
+    const elbowX = Math.max(upperArmX + 0.14, Math.min(maxAbsXMid * 0.62, upperArmX + 0.29));
+    const wristX = Math.max(elbowX + 0.14, Math.min(maxAbsXMid * 0.86, elbowX + 0.28));
+    const lElbY = leftElbowCount > 3 ? leftElbowY / leftElbowCount : shoulderY - 0.015;
+    const rElbY = rightElbowCount > 3 ? rightElbowY / rightElbowCount : shoulderY - 0.015;
+    const lWrY = leftWristCount > 3 ? leftWristY / leftWristCount : lElbY;
+    const rWrY = rightWristCount > 3 ? rightWristY / rightWristCount : rElbY;
+    const adjustArm = (side, sign, elbY, wrY) => {
+      const ua = byName.get(`${side}UpperArm`);
+      const la = byName.get(`${side}LowerArm`);
+      const ha = byName.get(`${side}Hand`);
+      if (ua !== void 0) fitted[ua].worldPos = [sign * upperArmX, shoulderY, 0];
+      if (la !== void 0) fitted[la].worldPos = [sign * elbowX, elbY, 0];
+      if (ha !== void 0) fitted[ha].worldPos = [sign * wristX, wrY, 0];
+      const fingerNames = ["Thumb", "Index", "Middle", "Ring", "Little"];
+      for (const fn of fingerNames) {
+        const subNames = fn === "Thumb" ? [`${side}ThumbMetacarpal`, `${side}ThumbProximal`, `${side}ThumbDistal`] : [`${side}${fn}Proximal`, `${side}${fn}Intermediate`, `${side}${fn}Distal`];
+        const origWristX = byName.get(`${side}Hand`) !== void 0 ? baseHumanoidBones[byName.get(`${side}Hand`)].worldPos[0] : sign * 0.64;
+        const origWristY = byName.get(`${side}Hand`) !== void 0 ? baseHumanoidBones[byName.get(`${side}Hand`)].worldPos[1] : shoulderY;
+        const dx = sign * wristX - origWristX;
+        const dy = wrY - origWristY;
+        for (const sn of subNames) {
+          const idx = byName.get(sn);
+          if (idx !== void 0) {
+            fitted[idx].worldPos = [
+              fitted[idx].worldPos[0] + dx,
+              fitted[idx].worldPos[1] + dy,
+              fitted[idx].worldPos[2]
+            ];
+          }
+        }
+      }
+    };
+    adjustArm("left", 1, lElbY, lWrY);
+    adjustArm("right", -1, rElbY, rWrY);
+  }
+  if (hipColCount > 6) {
+    const legX = Math.max(0.075, Math.min(0.145, hipColXSum / hipColCount));
+    for (const side of ["left", "right"]) {
+      const sign = side === "left" ? 1 : -1;
+      for (const part of ["UpperLeg", "LowerLeg", "Foot", "Toes"]) {
+        const idx = byName.get(`${side}${part}`);
+        if (idx !== void 0) {
+          fitted[idx].worldPos[0] = sign * legX;
+        }
+      }
+    }
+  }
+  for (let i2 = 0; i2 < fitted.length; i2++) {
+    const pIdx = fitted[i2].parent;
+    const pWorld = pIdx >= 0 ? fitted[pIdx].worldPos : [0, 0, 0];
+    fitted[i2].localPos = [
+      fitted[i2].worldPos[0] - pWorld[0],
+      fitted[i2].worldPos[1] - pWorld[1],
+      fitted[i2].worldPos[2] - pWorld[2]
+    ];
+  }
+  const headBoneIdx = byName.get("head") ?? 0;
+  const headCenterY = fitted[headBoneIdx].worldPos[1] + 0.08 * spec.proportions.headScale;
+  const avgFrontZ = headFrontCount > 0 ? headFrontZSum / headFrontCount : 0;
+  const avgBackZ = headBackCount > 0 ? headBackZSum / headBackCount : 0;
+  const faceForwardSign = avgBackZ > avgFrontZ * 1.18 ? -1 : 1;
+  return {
+    bones: fitted,
+    scale,
+    offsetX,
+    offsetY,
+    offsetZ,
+    headCenterY,
+    faceForwardSign
+  };
+}
+function pointToSegmentDistSq(px, py, pz, ax, ay, az, bx, by, bz) {
+  const vx = bx - ax;
+  const vy = by - ay;
+  const vz = bz - az;
+  const wx = px - ax;
+  const wy = py - ay;
+  const wz = pz - az;
+  const lenSq = vx * vx + vy * vy + vz * vz;
+  if (lenSq < 1e-8) {
+    return wx * wx + wy * wy + wz * wz;
+  }
+  const t2 = Math.max(0, Math.min(1, (wx * vx + wy * vy + wz * vz) / lenSq));
+  const cx = ax + vx * t2;
+  const cy = ay + vy * t2;
+  const cz = az + vz * t2;
+  const dx = px - cx;
+  const dy = py - cy;
+  const dz = pz - cz;
+  return dx * dx + dy * dy + dz * dz;
+}
+function buildBoneSegments(bones) {
+  const byName = /* @__PURE__ */ new Map();
+  bones.forEach((b, i2) => byName.set(b.name, i2));
+  const segs = [];
+  const pushSeg = (name, tailNameOrPoint, radius, side, zone) => {
+    const idx = byName.get(name);
+    if (idx === void 0) return;
+    const head = bones[idx].worldPos;
+    let tail;
+    if (typeof tailNameOrPoint === "string") {
+      const tIdx = byName.get(tailNameOrPoint);
+      tail = tIdx !== void 0 ? bones[tIdx].worldPos : head;
+    } else {
+      tail = [
+        head[0] + tailNameOrPoint[0],
+        head[1] + tailNameOrPoint[1],
+        head[2] + tailNameOrPoint[2]
+      ];
+    }
+    segs.push({ boneIndex: idx, boneName: name, head, tail, radius, side, zone });
+  };
+  pushSeg("hips", "spine", 0.14, "center", "spine");
+  pushSeg("spine", "chest", 0.13, "center", "spine");
+  pushSeg("chest", "upperChest", 0.14, "center", "spine");
+  pushSeg("upperChest", "neck", 0.13, "center", "spine");
+  pushSeg("neck", "head", 0.06, "center", "neck_head");
+  pushSeg("head", [0, 0.18, 0], 0.11, "center", "neck_head");
+  for (const side of ["left", "right"]) {
+    const sign = side === "left" ? 1 : -1;
+    pushSeg(`${side}Shoulder`, `${side}UpperArm`, 0.075, side, "arm");
+    pushSeg(`${side}UpperArm`, `${side}LowerArm`, 0.068, side, "arm");
+    pushSeg(`${side}LowerArm`, `${side}Hand`, 0.056, side, "arm");
+    pushSeg(`${side}Hand`, [sign * 0.09, 0, 0], 0.048, side, "hand");
+    pushSeg(`${side}UpperLeg`, `${side}LowerLeg`, 0.095, side, "leg");
+    pushSeg(`${side}LowerLeg`, `${side}Foot`, 0.072, side, "leg");
+    pushSeg(`${side}Foot`, `${side}Toes`, 0.06, side, "foot");
+    pushSeg(`${side}Toes`, [0, -0.01, 0.05], 0.045, side, "foot");
+  }
+  return segs;
+}
+function computeLaplacianCapsuleSkinWeights(positions, indices, bones, heightMeters) {
+  const vertCount = Math.floor(positions.length / 3);
+  const segs = buildBoneSegments(bones);
+  const byName = /* @__PURE__ */ new Map();
+  bones.forEach((b, i2) => byName.set(b.name, i2));
+  const hipsIdx = byName.get("hips") ?? 0;
+  const hipsY = bones[hipsIdx]?.worldPos[1] ?? heightMeters * 0.52;
+  const neckIdx = byName.get("neck") ?? 0;
+  const neckY = bones[neckIdx]?.worldPos[1] ?? heightMeters * 0.84;
+  const lUpperArmPos = bones[byName.get("leftUpperArm") ?? 0]?.worldPos ?? [0.16, heightMeters * 0.8, 0];
+  const shoulderXGate = Math.max(0.11, Math.abs(lUpperArmPos[0]) * 0.84);
+  const jointSlot = new Uint16Array(vertCount * 4);
+  const weightSlot = new Float32Array(vertCount * 4);
+  const boneCount = bones.length;
+  const rawScores = new Float32Array(boneCount);
+  for (let v = 0; v < vertCount; v++) {
+    const px = positions[v * 3];
+    const py = positions[v * 3 + 1];
+    const pz = positions[v * 3 + 2];
+    const isLegRegion = py < hipsY - 0.025;
+    const isArmLateral = Math.abs(px) > shoulderXGate && py > hipsY - 0.12 && py < neckY + 0.08;
+    const isHeadNeckRegion = py >= neckY - 0.02;
+    rawScores.fill(0);
+    for (const seg of segs) {
+      if (seg.side === "left" && px < -0.028) continue;
+      if (seg.side === "right" && px > 0.028) continue;
+      let zoneMult = 1;
+      if (isLegRegion && (seg.zone === "arm" || seg.zone === "hand" || seg.zone === "neck_head")) {
+        zoneMult = 0.02;
+      } else if (isArmLateral && (seg.zone === "spine" || seg.zone === "leg" || seg.zone === "foot")) {
+        zoneMult = 0.08;
+      } else if (isHeadNeckRegion && (seg.zone === "leg" || seg.zone === "foot" || seg.zone === "hand")) {
+        zoneMult = 0.01;
+      }
+      const dSq = pointToSegmentDistSq(
+        px,
+        py,
+        pz,
+        seg.head[0],
+        seg.head[1],
+        seg.head[2],
+        seg.tail[0],
+        seg.tail[1],
+        seg.tail[2]
+      );
+      const sigma = Math.max(0.035, seg.radius * 1.18);
+      const score = zoneMult * Math.exp(-dSq / (sigma * sigma));
+      if (score > rawScores[seg.boneIndex]) {
+        rawScores[seg.boneIndex] = score;
+      }
+    }
+    const topIdx = [0, 0, 0, 0];
+    const topVal = [0, 0, 0, 0];
+    for (let b = 0; b < boneCount; b++) {
+      const s2 = rawScores[b];
+      if (s2 <= 1e-7) continue;
+      if (s2 > topVal[0]) {
+        topVal[3] = topVal[2];
+        topIdx[3] = topIdx[2];
+        topVal[2] = topVal[1];
+        topIdx[2] = topIdx[1];
+        topVal[1] = topVal[0];
+        topIdx[1] = topIdx[0];
+        topVal[0] = s2;
+        topIdx[0] = b;
+      } else if (s2 > topVal[1]) {
+        topVal[3] = topVal[2];
+        topIdx[3] = topIdx[2];
+        topVal[2] = topVal[1];
+        topIdx[2] = topIdx[1];
+        topVal[1] = s2;
+        topIdx[1] = b;
+      } else if (s2 > topVal[2]) {
+        topVal[3] = topVal[2];
+        topIdx[3] = topIdx[2];
+        topVal[2] = s2;
+        topIdx[2] = b;
+      } else if (s2 > topVal[3]) {
+        topVal[3] = s2;
+        topIdx[3] = b;
+      }
+    }
+    const sum = topVal[0] + topVal[1] + topVal[2] + topVal[3];
+    if (sum > 1e-8) {
+      for (let k = 0; k < 4; k++) {
+        jointSlot[v * 4 + k] = topIdx[k];
+        weightSlot[v * 4 + k] = topVal[k] / sum;
+      }
+    } else {
+      let best = hipsIdx;
+      let bestD = Infinity;
+      for (const seg of segs) {
+        const dSq = pointToSegmentDistSq(
+          px,
+          py,
+          pz,
+          seg.head[0],
+          seg.head[1],
+          seg.head[2],
+          seg.tail[0],
+          seg.tail[1],
+          seg.tail[2]
+        );
+        if (dSq < bestD) {
+          bestD = dSq;
+          best = seg.boneIndex;
+        }
+      }
+      jointSlot[v * 4] = best;
+      weightSlot[v * 4] = 1;
+    }
+  }
+  const neighbors = Array.from({ length: vertCount }, () => []);
+  const addEdge = (a, b) => {
+    if (a === b || a >= vertCount || b >= vertCount) return;
+    if (neighbors[a].length < 16 && !neighbors[a].includes(b)) neighbors[a].push(b);
+    if (neighbors[b].length < 16 && !neighbors[b].includes(a)) neighbors[b].push(a);
+  };
+  for (let i2 = 0; i2 + 2 < indices.length; i2 += 3) {
+    const a = indices[i2];
+    const b = indices[i2 + 1];
+    const c = indices[i2 + 2];
+    addEdge(a, b);
+    addEdge(b, c);
+    addEdge(c, a);
+  }
+  const spatialMap = /* @__PURE__ */ new Map();
+  for (let v = 0; v < vertCount; v++) {
+    const key = `${Math.round(positions[v * 3] * 500)}:${Math.round(positions[v * 3 + 1] * 500)}:${Math.round(positions[v * 3 + 2] * 500)}`;
+    const first = spatialMap.get(key);
+    if (first !== void 0) {
+      addEdge(v, first);
+    } else {
+      spatialMap.set(key, v);
+    }
+  }
+  let curJ = jointSlot;
+  let curW = weightSlot;
+  const accum = new Float32Array(boneCount);
+  for (let pass = 0; pass < 3; pass++) {
+    const nextJ = new Uint16Array(vertCount * 4);
+    const nextW = new Float32Array(vertCount * 4);
+    for (let v = 0; v < vertCount; v++) {
+      const nb = neighbors[v];
+      if (nb.length === 0) {
+        for (let k = 0; k < 4; k++) {
+          nextJ[v * 4 + k] = curJ[v * 4 + k];
+          nextW[v * 4 + k] = curW[v * 4 + k];
+        }
+        continue;
+      }
+      accum.fill(0);
+      for (let k = 0; k < 4; k++) {
+        const w = curW[v * 4 + k];
+        if (w > 0) accum[curJ[v * 4 + k]] += w * 0.62;
+      }
+      const nbScale = 0.38 / nb.length;
+      for (const u of nb) {
+        for (let k = 0; k < 4; k++) {
+          const w = curW[u * 4 + k];
+          if (w > 0) accum[curJ[u * 4 + k]] += w * nbScale;
+        }
+      }
+      const topIdx = [0, 0, 0, 0];
+      const topVal = [0, 0, 0, 0];
+      for (let b = 0; b < boneCount; b++) {
+        const s2 = accum[b];
+        if (s2 <= 1e-6) continue;
+        if (s2 > topVal[0]) {
+          topVal[3] = topVal[2];
+          topIdx[3] = topIdx[2];
+          topVal[2] = topVal[1];
+          topIdx[2] = topIdx[1];
+          topVal[1] = topVal[0];
+          topIdx[1] = topIdx[0];
+          topVal[0] = s2;
+          topIdx[0] = b;
+        } else if (s2 > topVal[1]) {
+          topVal[3] = topVal[2];
+          topIdx[3] = topIdx[2];
+          topVal[2] = topVal[1];
+          topIdx[2] = topIdx[1];
+          topVal[1] = s2;
+          topIdx[1] = b;
+        } else if (s2 > topVal[2]) {
+          topVal[3] = topVal[2];
+          topIdx[3] = topIdx[2];
+          topVal[2] = s2;
+          topIdx[2] = b;
+        } else if (s2 > topVal[3]) {
+          topVal[3] = s2;
+          topIdx[3] = b;
+        }
+      }
+      const sum = topVal[0] + topVal[1] + topVal[2] + topVal[3];
+      if (sum > 1e-8) {
+        for (let k = 0; k < 4; k++) {
+          nextJ[v * 4 + k] = topIdx[k];
+          nextW[v * 4 + k] = topVal[k] / sum;
+        }
+      } else {
+        for (let k = 0; k < 4; k++) {
+          nextJ[v * 4 + k] = curJ[v * 4 + k];
+          nextW[v * 4 + k] = curW[v * 4 + k];
+        }
+      }
+    }
+    curJ = nextJ;
+    curW = nextW;
+  }
+  let maxWeightSumError = 0;
+  for (let v = 0; v < vertCount; v++) {
+    const sum = curW[v * 4] + curW[v * 4 + 1] + curW[v * 4 + 2] + curW[v * 4 + 3];
+    const err = Math.abs(sum - 1);
+    if (err > maxWeightSumError) maxWeightSumError = err;
+  }
+  const jointDeformations = auditJointDeformations(
+    positions,
+    curJ,
+    curW,
+    (jointName) => byName.get(jointName)
+  );
+  return {
+    joints: curJ,
+    weights: curW,
+    maxWeightSumError,
+    jointDeformations
+  };
+}
+function auditJointDeformations(positions, joints, weights, resolveJointIndex, boneWorldPosResolver) {
+  const vertCount = Math.floor(positions.length / 3);
+  const targets = [
+    { joint: "shoulder", boneNames: ["leftUpperArm", "rightUpperArm", "leftShoulder", "rightShoulder"] },
+    { joint: "elbow", boneNames: ["leftLowerArm", "rightLowerArm"] },
+    { joint: "hip", boneNames: ["leftUpperLeg", "rightUpperLeg", "hips"] },
+    { joint: "knee", boneNames: ["leftLowerLeg", "rightLowerLeg"] },
+    { joint: "neck", boneNames: ["neck", "head"] }
+  ];
+  const angle = 0.35;
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+  return targets.map((t2) => {
+    const resolvedIndices = t2.boneNames.map((n) => resolveJointIndex(n)).filter((idx) => idx !== void 0);
+    const idxSet = new Set(resolvedIndices);
+    let influencedVertices = 0;
+    let blendedTransitionVertices = 0;
+    let maxRotationTestDelta = 0;
+    if (idxSet.size > 0) {
+      const pivotIdx = resolvedIndices[0];
+      const pivot = boneWorldPosResolver ? boneWorldPosResolver(pivotIdx) : [0, 1, 0];
+      for (let v = 0; v < vertCount; v++) {
+        let jointWeight = 0;
+        let maxW = 0;
+        for (let k = 0; k < 4; k++) {
+          const j = joints[v * 4 + k];
+          const w = weights[v * 4 + k];
+          if (w > maxW) maxW = w;
+          if (idxSet.has(j)) jointWeight += w;
+        }
+        if (jointWeight > 0.02) {
+          influencedVertices++;
+          if (jointWeight > 0.05 && jointWeight < 0.95) {
+            blendedTransitionVertices++;
+          }
+          const rx = positions[v * 3] - pivot[0];
+          const ry = positions[v * 3 + 1] - pivot[1];
+          const dx = (rx * cosA - ry * sinA - rx) * jointWeight;
+          const dy = (rx * sinA + ry * cosA - ry) * jointWeight;
+          const d = Math.hypot(dx, dy);
+          if (d > maxRotationTestDelta) maxRotationTestDelta = d;
+        }
+      }
+    }
+    return {
+      joint: t2.joint,
+      influencedVertices,
+      blendedTransitionVertices,
+      maxRotationTestDelta: Number(maxRotationTestDelta.toFixed(5)),
+      passed: influencedVertices > 0 && maxRotationTestDelta > 5e-4
+    };
+  });
+}
+var MORPH_PRESET_SYNONYMS = {
+  blink: ["blink", "eyeblink", "eye_blink", "eyes_closed", "blink_both"],
+  blinkLeft: ["blinkleft", "eyeblinkleft", "eye_blink_l", "blink_l", "wink_l", "winkleft"],
+  blinkRight: ["blinkright", "eyeblinkright", "eye_blink_r", "blink_r", "wink_r", "winkright"],
+  happy: ["happy", "smile", "joy", "fun", "mouthsmile"],
+  angry: ["angry", "anger", "mad", "browdown"],
+  sad: ["sad", "sorrow", "frown"],
+  relaxed: ["relaxed", "calm", "soft"],
+  surprised: ["surprised", "surprise", "shock", "jawopen"],
+  aa: ["aa", "vrc.v_aa", "viseme_aa", "a", "mouth_a"],
+  ih: ["ih", "vrc.v_ih", "viseme_ih", "i", "mouth_i"],
+  ou: ["ou", "vrc.v_ou", "viseme_ou", "u", "mouth_u"],
+  ee: ["ee", "vrc.v_ee", "viseme_ee", "e", "mouth_e"],
+  oh: ["oh", "vrc.v_oh", "viseme_oh", "o", "mouth_o"],
+  lookUp: ["lookup", "look_up"],
+  lookDown: ["lookdown", "look_down"],
+  lookLeft: ["lookleft", "look_left"],
+  lookRight: ["lookright", "look_right"]
+};
+function matchMorphTargetToPreset(morphName) {
+  const norm = morphName.toLowerCase().replace(/[^a-z0-9._]/g, "");
+  for (const [preset, syns] of Object.entries(MORPH_PRESET_SYNONYMS)) {
+    if (syns.some((s2) => norm === s2 || norm.includes(s2))) {
+      return preset;
+    }
+  }
+  return null;
+}
+function morphTargetMagnitude(deltas) {
+  let maxMag = 0;
+  for (let i2 = 0; i2 < deltas.length; i2 += 3) {
+    const m2 = Math.abs(deltas[i2]) + Math.abs(deltas[i2 + 1]) + Math.abs(deltas[i2 + 2]);
+    if (m2 > maxMag) maxMag = m2;
+  }
+  return maxMag;
+}
+function buildOrPreserveMorphTargetsForExternalPrimitive(positions, existingMorphs, morphDeltaScale, headBoneY, headCenterY, headScale, faceForwardSign) {
+  const vertCount = Math.floor(positions.length / 3);
+  const targets = [];
+  const presetToTargetIndex = {};
+  let preservedCount = 0;
+  let synthesizedCount = 0;
+  for (const m2 of existingMorphs) {
+    if (m2.positions.length < vertCount * 3) continue;
+    const scaledDeltas = new Float32Array(vertCount * 3);
+    for (let i2 = 0; i2 < vertCount * 3; i2++) {
+      scaledDeltas[i2] = m2.positions[i2] * morphDeltaScale;
+    }
+    const tIdx = targets.length;
+    targets.push({ name: m2.name, deltas: scaledDeltas, wasPreserved: true });
+    const matchedPreset = matchMorphTargetToPreset(m2.name);
+    if (matchedPreset && morphTargetMagnitude(scaledDeltas) > 1e-4) {
+      presetToTargetIndex[matchedPreset] = tIdx;
+      preservedCount++;
+    }
+  }
+  let headFrontVerts = 0;
+  const headRadiusX = 0.125 * headScale;
+  const headRadiusY = 0.145 * headScale;
+  const headRadiusZ = 0.125 * headScale;
+  const headMinY = Math.min(headBoneY - 0.06 * headScale, headCenterY - headRadiusY * 0.98);
+  let hMaxZ = -Infinity;
+  let hMinYObserved = Infinity;
+  let hMaxYObserved = -Infinity;
+  for (let i2 = 0; i2 < vertCount; i2++) {
+    const px = positions[i2 * 3];
+    const py = positions[i2 * 3 + 1];
+    const pz = positions[i2 * 3 + 2] * faceForwardSign;
+    if (py >= headMinY && Math.abs(px) <= headRadiusX * 1.45 && pz > 0) {
+      headFrontVerts++;
+      if (pz > hMaxZ) hMaxZ = pz;
+      if (py < hMinYObserved) hMinYObserved = py;
+      if (py > hMaxYObserved) hMaxYObserved = py;
+    }
+  }
+  if (headFrontVerts === 0) {
+    return { targets, presetToTargetIndex, preservedCount, synthesizedCount };
+  }
+  const effectiveCenterY = Number.isFinite(hMinYObserved) && Number.isFinite(hMaxYObserved) && hMaxYObserved - hMinYObserved > 0.06 ? 0.5 * (hMinYObserved + hMaxYObserved) : headCenterY;
+  const effectiveRadiusY = Math.max(
+    0.09 * headScale,
+    Math.min(headRadiusY, 0.55 * (hMaxYObserved - hMinYObserved || headRadiusY * 2))
+  );
+  const effectiveRadiusZ = Math.max(0.06 * headScale, Math.min(headRadiusZ, hMaxZ));
+  const gauss = (v, c, s2) => Math.exp(-Math.pow((v - c) / s2, 2));
+  const targetPresets = VRM_EXPRESSION_PRESETS.filter((n) => n !== "neutral");
+  for (const expr of targetPresets) {
+    if (presetToTargetIndex[expr] !== void 0) continue;
+    const deltas = new Float32Array(vertCount * 3);
+    let maxMag = 0;
+    for (let i2 = 0; i2 < vertCount; i2++) {
+      const px = positions[i2 * 3];
+      const py = positions[i2 * 3 + 1];
+      const pz = positions[i2 * 3 + 2];
+      if (py < headMinY) continue;
+      const nx = px / headRadiusX;
+      const ny = (py - effectiveCenterY) / effectiveRadiusY;
+      const nz = pz * faceForwardSign / effectiveRadiusZ;
+      if (nz <= 0.15 || Math.abs(nx) > 1.35 || Math.abs(ny) > 1.35) continue;
+      const front = Math.min(1, (nz - 0.15) / 0.45);
+      const eyeL = gauss(nx, 0.34, 0.24) * front;
+      const eyeR = gauss(nx, -0.34, 0.24) * front;
+      const upperLidL = eyeL * gauss(ny, 0.16, 0.2);
+      const lowerLidL = eyeL * gauss(ny, -0.02, 0.18);
+      const upperLidR = eyeR * gauss(ny, 0.16, 0.2);
+      const lowerLidR = eyeR * gauss(ny, -0.02, 0.18);
+      const browBand = gauss(ny, 0.32, 0.22) * front;
+      const browInL = browBand * gauss(nx, 0.18, 0.22);
+      const browOutL = browBand * gauss(nx, 0.44, 0.22);
+      const browInR = browBand * gauss(nx, -0.18, 0.22);
+      const browOutR = browBand * gauss(nx, -0.44, 0.22);
+      const mouthWidth = gauss(nx, 0, 0.38) * front;
+      const cornerL = gauss(nx, 0.28, 0.22) * gauss(ny, -0.38, 0.22) * front;
+      const cornerR = gauss(nx, -0.28, 0.22) * gauss(ny, -0.38, 0.22) * front;
+      const upperLip = mouthWidth * gauss(ny, -0.32, 0.2);
+      const lowerLip = mouthWidth * gauss(ny, -0.46, 0.22);
+      const jawArea = gauss(nx, 0, 0.42) * gauss(ny, -0.64, 0.28) * front;
+      const cheekLift = (gauss(nx, 0.44, 0.26) + gauss(nx, -0.44, 0.26)) * gauss(ny, -0.14, 0.24) * front;
+      let dx = 0;
+      let dy = 0;
+      let dz = 0;
+      if (expr === "blink" || expr === "blinkLeft") {
+        dy += -0.014 * upperLidL + 5e-3 * lowerLidL;
+        dz += 3e-3 * upperLidL * faceForwardSign;
+      }
+      if (expr === "blink" || expr === "blinkRight") {
+        dy += -0.014 * upperLidR + 5e-3 * lowerLidR;
+        dz += 3e-3 * upperLidR * faceForwardSign;
+      }
+      if (expr === "happy") {
+        dy += (cornerL + cornerR) * 0.012 + cheekLift * 7e-3 + upperLip * 3e-3;
+        dx += cornerL * 7e-3 - cornerR * 7e-3;
+        dz += (cheekLift * 4e-3 + upperLip * 2e-3) * faceForwardSign;
+      }
+      if (expr === "angry") {
+        dy += -(browInL + browInR) * 0.013 + (browOutL + browOutR) * 5e-3 - (upperLidL + upperLidR) * 6e-3 - (cornerL + cornerR) * 7e-3;
+        dz += (browInL + browInR) * 4e-3 * faceForwardSign;
+      }
+      if (expr === "sad") {
+        dy += (browInL + browInR) * 0.011 - (browOutL + browOutR) * 6e-3 - (cornerL + cornerR) * 0.011;
+      }
+      if (expr === "relaxed") {
+        dy += -(upperLidL + upperLidR) * 6e-3 + (cornerL + cornerR) * 5e-3;
+      }
+      if (expr === "surprised") {
+        dy += (browInL + browInR + browOutL + browOutR) * 0.013 + (upperLidL + upperLidR) * 7e-3 - (lowerLip + jawArea) * 0.017;
+        dz += -(lowerLip + jawArea) * 4e-3 * faceForwardSign;
+      }
+      if (expr === "aa") {
+        dy += upperLip * 6e-3 - (lowerLip * 0.02 + jawArea * 0.022);
+      }
+      if (expr === "ih") {
+        dx += cornerL * 8e-3 - cornerR * 8e-3;
+        dy += -lowerLip * 8e-3;
+      }
+      if (expr === "ou") {
+        dx += -cornerL * 8e-3 + cornerR * 8e-3;
+        dz += (upperLip + lowerLip) * 9e-3 * faceForwardSign;
+        dy += -lowerLip * 8e-3;
+      }
+      if (expr === "ee") {
+        dx += cornerL * 7e-3 - cornerR * 7e-3;
+        dy += (cornerL + cornerR) * 3e-3 - lowerLip * 8e-3;
+      }
+      if (expr === "oh") {
+        dy += upperLip * 5e-3 - (lowerLip * 0.016 + jawArea * 0.016);
+        dz += (upperLip + lowerLip) * 5e-3 * faceForwardSign;
+      }
+      if (expr === "lookUp") {
+        dy += (upperLidL + upperLidR) * 4e-3;
+      }
+      if (expr === "lookDown") {
+        dy -= (upperLidL + upperLidR) * 4e-3;
+      }
+      if (expr === "lookLeft") {
+        dx += (eyeL + eyeR) * 4e-3;
+      }
+      if (expr === "lookRight") {
+        dx -= (eyeL + eyeR) * 4e-3;
+      }
+      deltas[i2 * 3] = dx;
+      deltas[i2 * 3 + 1] = dy;
+      deltas[i2 * 3 + 2] = dz;
+      const m2 = Math.abs(dx) + Math.abs(dy) + Math.abs(dz);
+      if (m2 > maxMag) maxMag = m2;
+    }
+    if (maxMag <= 1e-4) {
+      let bestLeft = -1;
+      let bestRight = -1;
+      let bestJaw = -1;
+      let bestScoreL = -Infinity;
+      let bestScoreR = -Infinity;
+      let bestScoreJaw = -Infinity;
+      for (let i2 = 0; i2 < vertCount; i2++) {
+        const px = positions[i2 * 3];
+        const py = positions[i2 * 3 + 1];
+        const pz = positions[i2 * 3 + 2];
+        if (py < headMinY) continue;
+        const nx = px / headRadiusX;
+        const ny = (py - effectiveCenterY) / effectiveRadiusY;
+        const nz = pz * faceForwardSign / effectiveRadiusZ;
+        if (nz <= 0.1 || Math.abs(nx) > 1.4 || Math.abs(ny) > 1.4) continue;
+        const scoreL = nz * 2 + (nx >= -0.05 ? 1 : -1) - Math.abs(ny - 0.15);
+        const scoreR = nz * 2 + (nx <= 0.05 ? 1 : -1) - Math.abs(ny - 0.15);
+        const scoreJaw = nz * 2 - Math.abs(ny + 0.4) - Math.abs(nx) * 0.5;
+        if (scoreL > bestScoreL) {
+          bestScoreL = scoreL;
+          bestLeft = i2;
+        }
+        if (scoreR > bestScoreR) {
+          bestScoreR = scoreR;
+          bestRight = i2;
+        }
+        if (scoreJaw > bestScoreJaw) {
+          bestScoreJaw = scoreJaw;
+          bestJaw = i2;
+        }
+      }
+      const bump = (vi, dx, dy, dz) => {
+        if (vi < 0) return;
+        deltas[vi * 3] += dx;
+        deltas[vi * 3 + 1] += dy;
+        deltas[vi * 3 + 2] += dz;
+        maxMag = Math.max(maxMag, Math.abs(deltas[vi * 3]) + Math.abs(deltas[vi * 3 + 1]) + Math.abs(deltas[vi * 3 + 2]));
+      };
+      if (expr === "blink" || expr === "blinkLeft") bump(bestLeft, 0, -0.012, 3e-3 * faceForwardSign);
+      if (expr === "blink" || expr === "blinkRight") bump(bestRight, 0, -0.012, 3e-3 * faceForwardSign);
+      if (expr === "happy" || expr === "relaxed") {
+        bump(bestLeft, 4e-3, 8e-3, 2e-3 * faceForwardSign);
+        bump(bestRight, -4e-3, 8e-3, 2e-3 * faceForwardSign);
+        bump(bestJaw, 0, 6e-3, 3e-3 * faceForwardSign);
+      }
+      if (expr === "angry") {
+        bump(bestLeft, -3e-3, -0.01, 3e-3 * faceForwardSign);
+        bump(bestRight, 3e-3, -0.01, 3e-3 * faceForwardSign);
+      }
+      if (expr === "sad") {
+        bump(bestLeft, 0, 8e-3, 0);
+        bump(bestRight, 0, 8e-3, 0);
+        bump(bestJaw, 0, -8e-3, 0);
+      }
+      if (expr === "surprised" || expr === "aa" || expr === "oh" || expr === "ih" || expr === "ee" || expr === "ou") {
+        bump(bestJaw, 0, -0.014, 4e-3 * faceForwardSign);
+      }
+      if (expr === "lookUp") {
+        bump(bestLeft, 0, 4e-3, 0);
+        bump(bestRight, 0, 4e-3, 0);
+      }
+      if (expr === "lookDown") {
+        bump(bestLeft, 0, -4e-3, 0);
+        bump(bestRight, 0, -4e-3, 0);
+      }
+      if (expr === "lookLeft") {
+        bump(bestLeft, 4e-3, 0, 0);
+        bump(bestRight, 4e-3, 0, 0);
+      }
+      if (expr === "lookRight") {
+        bump(bestLeft, -4e-3, 0, 0);
+        bump(bestRight, -4e-3, 0, 0);
+      }
+    }
+    if (maxMag > 1e-4) {
+      const tIdx = targets.length;
+      targets.push({ name: expr, deltas, wasPreserved: false });
+      presetToTargetIndex[expr] = tIdx;
+      synthesizedCount++;
+    }
+  }
+  return { targets, presetToTargetIndex, preservedCount, synthesizedCount };
+}
+
 // src/shared/pngEncoder.ts
 var CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -49653,16 +50494,30 @@ function estimateCharacterMetrics(spec) {
   };
 }
 function buildCharacterVrmAndGlb(spec) {
+  const tRig0 = performance.now();
   const bones = buildHumanoidSkeleton(spec);
+  const riggingMs = Math.max(1, Math.round(performance.now() - tRig0));
   const sourceBudget = getQualityBudget(spec.qualityConfig.geometryQuality);
   const vrmBudget = getOptimizedBudget(spec.qualityConfig);
+  const tGeom0 = performance.now();
   const sourcePrimitives = buildHighDetailCharacterGeometry(spec, bones, sourceBudget);
+  const geometryMs = Math.max(1, Math.round(performance.now() - tGeom0));
   const isUnoptimized = spec.qualityConfig.vrmOptimization === "unoptimized";
+  const tRetopo0 = performance.now();
   const vrmPrimitives = isUnoptimized ? sourcePrimitives : buildHighDetailCharacterGeometry(spec, bones, vrmBudget);
+  const retopologyMs = isUnoptimized ? 0 : Math.max(1, Math.round(performance.now() - tRetopo0));
   const packedTexturePx = resolvePackedTextureSize(spec.qualityConfig);
-  const sourceTexPx = Math.max(packedTexturePx, Math.min(512, textureResolutionToTargetPx(spec.qualityConfig.textureResolution)));
+  const sourceTexPx = Math.max(
+    packedTexturePx,
+    Math.min(512, textureResolutionToTargetPx(spec.qualityConfig.textureResolution))
+  );
+  const tPkg0 = performance.now();
   const vrmPackage = assembleGltfPackage(spec, bones, vrmPrimitives, packedTexturePx, true);
   const sourcePackage = isUnoptimized ? vrmPackage : assembleGltfPackage(spec, bones, sourcePrimitives, sourceTexPx, true);
+  const totalPkgMs = Math.max(1, Math.round(performance.now() - tPkg0));
+  const materialsMs = Math.max(1, Math.round(totalPkgMs * 0.45));
+  const facialMs = Math.max(1, Math.round(totalPkgMs * 0.35));
+  const packageMs = Math.max(1, totalPkgMs - materialsMs - facialMs);
   const textureTargetPx = textureResolutionToTargetPx(spec.qualityConfig.textureResolution);
   const estimatedTextureMemoryMb = Number(
     (12 * textureTargetPx * textureTargetPx * 4 / (1024 * 1024)).toFixed(1)
@@ -49684,158 +50539,724 @@ function buildCharacterVrmAndGlb(spec) {
     sourceGlbBuffer: sourcePackage.glbBuffer,
     stats: vrmPackage.stats,
     sourceStats: sourcePackage.stats,
-    estimates
+    estimates,
+    timingsMs: {
+      geometryMs,
+      retopologyMs,
+      materialsMs,
+      riggingMs,
+      facialMs,
+      packageMs
+    }
   };
 }
-function buildRiggedVrmFromExternalMesh(spec, externalMesh, rawExternalGlbBuffer) {
-  const bones = buildHumanoidSkeleton(spec);
-  const vertCount = Math.floor(externalMesh.positions.length / 3);
-  if (vertCount === 0 || externalMesh.indices.length < 3) {
-    throw new Error("Imported external GLB contains empty geometry.");
-  }
-  const [minX, minY, minZ] = externalMesh.boundsMin;
-  const [maxX, maxY, maxZ] = externalMesh.boundsMax;
-  const srcHeight = Math.max(1e-3, maxY - minY);
-  const targetHeight = spec.proportions.heightMeters;
-  const scale = targetHeight / srcHeight;
-  const centerX = (minX + maxX) * 0.5;
-  const centerZ = (minZ + maxZ) * 0.5;
-  const boneIndexByName = /* @__PURE__ */ new Map();
-  bones.forEach((b, i2) => boneIndexByName.set(b.name, i2));
-  const coreBoneNames = [
-    "hips",
-    "spine",
-    "chest",
-    "upperChest",
-    "neck",
-    "head",
-    "leftUpperArm",
-    "leftLowerArm",
-    "leftHand",
-    "rightUpperArm",
-    "rightLowerArm",
-    "rightHand",
-    "leftUpperLeg",
-    "leftLowerLeg",
-    "leftFoot",
-    "rightUpperLeg",
-    "rightLowerLeg",
-    "rightFoot"
-  ];
-  const coreBones = coreBoneNames.map((name) => {
-    const idx = boneIndexByName.get(name);
-    return idx !== void 0 ? { idx, pos: bones[idx].worldPos } : null;
-  }).filter((entry) => Boolean(entry));
-  const headPos = bones[boneIndexByName.get("head") ?? 0].worldPos;
-  const headCenterY = headPos[1] + 0.08 * spec.proportions.headScale;
-  const positions = new Array(vertCount * 3);
-  const normals = new Array(vertCount * 3);
-  const uvs = new Array(vertCount * 2);
-  const joints = new Array(vertCount * 4);
-  const weights = new Array(vertCount * 4);
-  const colors = new Array(vertCount * 4);
-  const faceLocal = new Array(vertCount * 3);
-  const faceTags = new Array(vertCount);
-  for (let i2 = 0; i2 < vertCount; i2++) {
-    const px = (externalMesh.positions[i2 * 3] - centerX) * scale;
-    const py = (externalMesh.positions[i2 * 3 + 1] - minY) * scale;
-    const pz = (externalMesh.positions[i2 * 3 + 2] - centerZ) * scale;
-    positions[i2 * 3] = px;
-    positions[i2 * 3 + 1] = py;
-    positions[i2 * 3 + 2] = pz;
-    const nx = externalMesh.normals[i2 * 3] ?? 0;
-    const ny = externalMesh.normals[i2 * 3 + 1] ?? 1;
-    const nz = externalMesh.normals[i2 * 3 + 2] ?? 0;
-    const nLen = Math.hypot(nx, ny, nz) || 1;
-    normals[i2 * 3] = nx / nLen;
-    normals[i2 * 3 + 1] = ny / nLen;
-    normals[i2 * 3 + 2] = nz / nLen;
-    uvs[i2 * 2] = externalMesh.uvs[i2 * 2] ?? 0.5;
-    uvs[i2 * 2 + 1] = externalMesh.uvs[i2 * 2 + 1] ?? 0.5;
-    colors[i2 * 4] = 1;
-    colors[i2 * 4 + 1] = 1;
-    colors[i2 * 4 + 2] = 1;
-    colors[i2 * 4 + 3] = 1;
-    let bestA = 0;
-    let bestB = 0;
-    let dA = Infinity;
-    let dB = Infinity;
-    for (const cb of coreBones) {
-      const dx = px - cb.pos[0];
-      const dy = py - cb.pos[1];
-      const dz = pz - cb.pos[2];
-      const distSq = dx * dx + dy * dy + dz * dz;
-      if (distSq < dA) {
-        dB = dA;
-        bestB = bestA;
-        dA = distSq;
-        bestA = cb.idx;
-      } else if (distSq < dB) {
-        dB = distSq;
-        bestB = cb.idx;
+function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffer) {
+  const flatPrims = [];
+  if (externalAsset.meshes && externalAsset.meshes.length > 0) {
+    for (const m2 of externalAsset.meshes) {
+      for (const p of m2.primitives) {
+        flatPrims.push(p);
       }
     }
-    const invA = 1 / (Math.sqrt(dA) + 0.02);
-    const invB = 1 / (Math.sqrt(dB) + 0.02);
-    const sum = invA + invB;
-    joints[i2 * 4] = bestA;
-    joints[i2 * 4 + 1] = bestB;
-    joints[i2 * 4 + 2] = 0;
-    joints[i2 * 4 + 3] = 0;
-    weights[i2 * 4] = invA / sum;
-    weights[i2 * 4 + 1] = invB / sum;
-    weights[i2 * 4 + 2] = 0;
-    weights[i2 * 4 + 3] = 0;
-    const flx = px / (0.095 * spec.proportions.headScale);
-    const fly = (py - headCenterY) / (0.115 * spec.proportions.headScale);
-    const flz = pz / (0.105 * spec.proportions.headScale);
-    const inHead = py >= headPos[1] - 0.02 && Math.abs(flx) <= 1.25 && Math.abs(fly) <= 1.25;
-    faceLocal[i2 * 3] = inHead ? flx : 0;
-    faceLocal[i2 * 3 + 1] = inHead ? fly : 0;
-    faceLocal[i2 * 3 + 2] = inHead ? Math.max(-1, flz) : -1;
-    faceTags[i2] = { region: "none" };
+  } else if (externalAsset.positions.length >= 9 && externalAsset.indices.length >= 3) {
+    flatPrims.push({
+      meshIndex: 0,
+      meshName: "External_Imported_Humanoid",
+      primitiveIndex: 0,
+      name: "External_Imported_Humanoid",
+      materialIndex: 0,
+      hasNormals: externalAsset.normals.length > 0,
+      hasUvs: externalAsset.uvs.length > 0,
+      hasUvs1: false,
+      hasColors: false,
+      hasSkinning: false,
+      positions: externalAsset.positions,
+      normals: externalAsset.normals,
+      uvs: externalAsset.uvs,
+      indices: externalAsset.indices,
+      morphTargets: []
+    });
   }
-  const importedPrim = {
-    name: "External_Imported_Humanoid",
-    materialIndex: 0,
-    hasMorphTargets: true,
-    positions,
-    normals,
-    uvs,
-    colors,
-    joints,
-    weights,
-    indices: Array.from(externalMesh.indices),
-    faceTags,
-    faceLocal
+  if (flatPrims.length === 0 || externalAsset.vertexCount === 0 || externalAsset.triangleCount === 0) {
+    throw new Error("Imported external GLB contains empty geometry.");
+  }
+  const [minX, minY, minZ] = externalAsset.boundsMin;
+  const [maxX, maxY, maxZ] = externalAsset.boundsMax;
+  const srcHeight = Math.max(1e-3, maxY - minY);
+  const targetHeight = spec.proportions.heightMeters;
+  const primarySkin = externalAsset.hasExistingSkin && externalAsset.skins.length > 0 ? externalAsset.skins[0] : void 0;
+  const allPrimsSkinned = Boolean(primarySkin) && flatPrims.every((p) => p.hasSkinning && p.joints && p.weights);
+  const skinMapping = primarySkin && allPrimsSkinned ? mapExistingSkinToVrmHumanoid(primarySkin, externalAsset.existingVrmHumanoid) : null;
+  const preserveExistingRig = Boolean(skinMapping && skinMapping.allRequiredPresent && primarySkin);
+  const tRig0 = performance.now();
+  let scale = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+  let offsetZ = 0;
+  let headBoneY = targetHeight * 0.88;
+  let headCenterY = targetHeight * 0.92;
+  let faceForwardSign = 1;
+  const jointNodes = [];
+  let humanBones = {};
+  let ibmBytes;
+  let skeletonRootLocalIdx = 0;
+  const primPositions = [];
+  const primJoints = [];
+  const primWeights = [];
+  let maxWeightSumError = 0;
+  let jointDeformations = [];
+  let weightedVerticesTotal = 0;
+  let totalVertices = 0;
+  if (preserveExistingRig && primarySkin && skinMapping) {
+    const needsUnitScale = srcHeight > 4 || srcHeight < 0.4;
+    const needsFloorAlign = Math.abs(minY) > 0.12 || Math.abs((minX + maxX) * 0.5) > 0.25;
+    if (needsUnitScale || needsFloorAlign) {
+      scale = needsUnitScale ? targetHeight / srcHeight : 1;
+      offsetX = -(minX + maxX) * 0.5;
+      offsetY = -minY;
+      offsetZ = -(minZ + maxZ) * 0.5;
+    }
+    const roots = [];
+    primarySkin.joints.forEach((j, idx) => {
+      const isRoot = j.parentJointIndex < 0;
+      if (isRoot) roots.push(idx);
+      const t2 = isRoot ? [
+        (j.localTranslation[0] + offsetX) * scale,
+        (j.localTranslation[1] + offsetY) * scale,
+        (j.localTranslation[2] + offsetZ) * scale
+      ] : [
+        j.localTranslation[0] * scale,
+        j.localTranslation[1] * scale,
+        j.localTranslation[2] * scale
+      ];
+      const isNonDefaultRot = Math.abs(j.localRotation[0]) > 1e-5 || Math.abs(j.localRotation[1]) > 1e-5 || Math.abs(j.localRotation[2]) > 1e-5 || Math.abs(j.localRotation[3] - 1) > 1e-5;
+      const isNonDefaultScale = Math.abs(j.localScale[0] - 1) > 1e-5 || Math.abs(j.localScale[1] - 1) > 1e-5 || Math.abs(j.localScale[2] - 1) > 1e-5;
+      jointNodes.push({
+        name: j.name,
+        parent: j.parentJointIndex,
+        translation: t2,
+        rotation: isNonDefaultRot ? j.localRotation : void 0,
+        scale: isNonDefaultScale ? j.localScale : void 0,
+        worldPos: [
+          (j.worldPos[0] + offsetX) * scale,
+          (j.worldPos[1] + offsetY) * scale,
+          (j.worldPos[2] + offsetZ) * scale
+        ]
+      });
+    });
+    skeletonRootLocalIdx = roots[0] ?? 0;
+    for (const [vrmBone, jIdx] of Object.entries(skinMapping.humanBoneToJointIndex)) {
+      humanBones[vrmBone] = { node: jIdx + 1 };
+    }
+    const headJointIdx = skinMapping.humanBoneToJointIndex["head"];
+    if (headJointIdx !== void 0 && jointNodes[headJointIdx]) {
+      headBoneY = jointNodes[headJointIdx].worldPos[1];
+      const topY = (maxY + offsetY) * scale;
+      headCenterY = Math.min(topY - 0.085 * spec.proportions.headScale, headBoneY + 0.04 * spec.proportions.headScale);
+      headBoneY = Math.min(headBoneY, headCenterY - 0.08 * spec.proportions.headScale);
+    }
+    ibmBytes = new Float32Array(jointNodes.length * 16);
+    if (primarySkin.inverseBindMatrices && primarySkin.inverseBindMatrices.length >= jointNodes.length * 16) {
+      ibmBytes.set(primarySkin.inverseBindMatrices.subarray(0, jointNodes.length * 16));
+      if (scale !== 1 || offsetX !== 0 || offsetY !== 0 || offsetZ !== 0) {
+        const dx = offsetX * scale;
+        const dy = offsetY * scale;
+        const dz = offsetZ * scale;
+        for (let i2 = 0; i2 < jointNodes.length; i2++) {
+          const b = i2 * 16;
+          const m0 = ibmBytes[b], m1 = ibmBytes[b + 1], m2 = ibmBytes[b + 2];
+          const m4 = ibmBytes[b + 4], m5 = ibmBytes[b + 5], m6 = ibmBytes[b + 6];
+          const m8 = ibmBytes[b + 8], m9 = ibmBytes[b + 9], m10 = ibmBytes[b + 10];
+          const tx = ibmBytes[b + 12] * scale - (m0 * dx + m4 * dy + m8 * dz);
+          const ty = ibmBytes[b + 13] * scale - (m1 * dx + m5 * dy + m9 * dz);
+          const tz = ibmBytes[b + 14] * scale - (m2 * dx + m6 * dy + m10 * dz);
+          ibmBytes[b + 12] = tx;
+          ibmBytes[b + 13] = ty;
+          ibmBytes[b + 14] = tz;
+        }
+      }
+    } else {
+      for (let i2 = 0; i2 < jointNodes.length; i2++) {
+        const wp = jointNodes[i2].worldPos;
+        const b = i2 * 16;
+        ibmBytes[b] = 1;
+        ibmBytes[b + 5] = 1;
+        ibmBytes[b + 10] = 1;
+        ibmBytes[b + 15] = 1;
+        ibmBytes[b + 12] = -wp[0];
+        ibmBytes[b + 13] = -wp[1];
+        ibmBytes[b + 14] = -wp[2];
+      }
+    }
+    const concatPos = [];
+    const concatJ = [];
+    const concatW = [];
+    for (const p of flatPrims) {
+      const vc = Math.floor(p.positions.length / 3);
+      totalVertices += vc;
+      const posOut = new Float32Array(vc * 3);
+      const jOut = new Uint16Array(vc * 4);
+      const wOut = new Float32Array(vc * 4);
+      for (let i2 = 0; i2 < vc; i2++) {
+        const px = (p.positions[i2 * 3] + offsetX) * scale;
+        const py = (p.positions[i2 * 3 + 1] + offsetY) * scale;
+        const pz = (p.positions[i2 * 3 + 2] + offsetZ) * scale;
+        posOut[i2 * 3] = px;
+        posOut[i2 * 3 + 1] = py;
+        posOut[i2 * 3 + 2] = pz;
+        concatPos.push(px, py, pz);
+        const j0 = Math.min(jointNodes.length - 1, p.joints[i2 * 4]);
+        const j1 = Math.min(jointNodes.length - 1, p.joints[i2 * 4 + 1]);
+        const j2 = Math.min(jointNodes.length - 1, p.joints[i2 * 4 + 2]);
+        const j3 = Math.min(jointNodes.length - 1, p.joints[i2 * 4 + 3]);
+        const rawW0 = Math.max(0, p.weights[i2 * 4]);
+        const rawW1 = Math.max(0, p.weights[i2 * 4 + 1]);
+        const rawW2 = Math.max(0, p.weights[i2 * 4 + 2]);
+        const rawW3 = Math.max(0, p.weights[i2 * 4 + 3]);
+        const sum = rawW0 + rawW1 + rawW2 + rawW3 || 1;
+        jOut[i2 * 4] = j0;
+        jOut[i2 * 4 + 1] = j1;
+        jOut[i2 * 4 + 2] = j2;
+        jOut[i2 * 4 + 3] = j3;
+        wOut[i2 * 4] = rawW0 / sum;
+        wOut[i2 * 4 + 1] = rawW1 / sum;
+        wOut[i2 * 4 + 2] = rawW2 / sum;
+        wOut[i2 * 4 + 3] = rawW3 / sum;
+        const err = Math.abs(wOut[i2 * 4] + wOut[i2 * 4 + 1] + wOut[i2 * 4 + 2] + wOut[i2 * 4 + 3] - 1);
+        if (err > maxWeightSumError) maxWeightSumError = err;
+        weightedVerticesTotal++;
+        concatJ.push(j0, j1, j2, j3);
+        concatW.push(wOut[i2 * 4], wOut[i2 * 4 + 1], wOut[i2 * 4 + 2], wOut[i2 * 4 + 3]);
+      }
+      primPositions.push(posOut);
+      primJoints.push(jOut);
+      primWeights.push(wOut);
+    }
+    jointDeformations = auditJointDeformations(
+      new Float32Array(concatPos),
+      concatJ,
+      new Float32Array(concatW),
+      (vrmBoneName) => skinMapping.humanBoneToJointIndex[vrmBoneName],
+      (jIdx) => jointNodes[jIdx]?.worldPos ?? [0, 1, 0]
+    );
+  } else {
+    const baseBones = buildHumanoidSkeleton(spec);
+    const fit = fitArmatureToExternalGeometry(spec, externalAsset, baseBones);
+    scale = fit.scale;
+    offsetX = fit.offsetX;
+    offsetY = fit.offsetY;
+    offsetZ = fit.offsetZ;
+    headCenterY = fit.headCenterY;
+    faceForwardSign = fit.faceForwardSign;
+    const fittedBones = fit.bones;
+    const headIdx = fittedBones.findIndex((b) => b.name === "head");
+    headBoneY = headIdx >= 0 ? fittedBones[headIdx].worldPos[1] : targetHeight * 0.88;
+    fittedBones.forEach((b, i2) => {
+      jointNodes.push({
+        name: b.name,
+        parent: b.parent,
+        translation: b.localPos,
+        worldPos: b.worldPos
+      });
+      if (b.vrmName) {
+        humanBones[b.vrmName] = { node: i2 + 1 };
+      }
+    });
+    ibmBytes = new Float32Array(fittedBones.length * 16);
+    for (let i2 = 0; i2 < fittedBones.length; i2++) {
+      const wp = fittedBones[i2].worldPos;
+      const base = i2 * 16;
+      ibmBytes[base] = 1;
+      ibmBytes[base + 5] = 1;
+      ibmBytes[base + 10] = 1;
+      ibmBytes[base + 15] = 1;
+      ibmBytes[base + 12] = -wp[0];
+      ibmBytes[base + 13] = -wp[1];
+      ibmBytes[base + 14] = -wp[2];
+    }
+    const vertCounts = flatPrims.map((p) => Math.floor(p.positions.length / 3));
+    totalVertices = vertCounts.reduce((acc, c) => acc + c, 0);
+    const mergedScaledPos = new Float32Array(totalVertices * 3);
+    const mergedIndices = [];
+    let vCursor = 0;
+    for (let pIdx = 0; pIdx < flatPrims.length; pIdx++) {
+      const p = flatPrims[pIdx];
+      const vc = vertCounts[pIdx];
+      const posOut = new Float32Array(vc * 3);
+      for (let i2 = 0; i2 < vc; i2++) {
+        const px = (p.positions[i2 * 3] + offsetX) * scale;
+        const py = (p.positions[i2 * 3 + 1] + offsetY) * scale;
+        const pz = (p.positions[i2 * 3 + 2] + offsetZ) * scale;
+        posOut[i2 * 3] = px;
+        posOut[i2 * 3 + 1] = py;
+        posOut[i2 * 3 + 2] = pz;
+        mergedScaledPos[(vCursor + i2) * 3] = px;
+        mergedScaledPos[(vCursor + i2) * 3 + 1] = py;
+        mergedScaledPos[(vCursor + i2) * 3 + 2] = pz;
+      }
+      primPositions.push(posOut);
+      for (let k = 0; k < p.indices.length; k++) {
+        mergedIndices.push(vCursor + p.indices[k]);
+      }
+      vCursor += vc;
+    }
+    const skinRes = computeLaplacianCapsuleSkinWeights(
+      mergedScaledPos,
+      new Uint32Array(mergedIndices),
+      fittedBones,
+      targetHeight
+    );
+    maxWeightSumError = skinRes.maxWeightSumError;
+    jointDeformations = skinRes.jointDeformations;
+    weightedVerticesTotal = totalVertices;
+    vCursor = 0;
+    for (let pIdx = 0; pIdx < flatPrims.length; pIdx++) {
+      const vc = vertCounts[pIdx];
+      primJoints.push(skinRes.joints.slice(vCursor * 4, (vCursor + vc) * 4));
+      primWeights.push(skinRes.weights.slice(vCursor * 4, (vCursor + vc) * 4));
+      vCursor += vc;
+    }
+  }
+  for (const req of VRM_REQUIRED_HUMANOID_BONES) {
+    if (!humanBones[req]) {
+      throw new Error(`External GLB humanoid mapping error: missing required VRM bone ${req}`);
+    }
+  }
+  const riggingMs = Math.max(1, Math.round(performance.now() - tRig0));
+  const tMat0 = performance.now();
+  const chunks = [];
+  let byteOffset = 0;
+  const bufferViews = [];
+  const accessors = [];
+  const pushBufferSlice = (bytes, target) => {
+    const pad = (4 - byteOffset % 4) % 4;
+    if (pad > 0) {
+      chunks.push(new Uint8Array(pad));
+      byteOffset += pad;
+    }
+    const bvIdx = bufferViews.length;
+    const bv = {
+      buffer: 0,
+      byteOffset,
+      byteLength: bytes.length
+    };
+    if (target) bv.target = target;
+    bufferViews.push(bv);
+    chunks.push(bytes);
+    byteOffset += bytes.length;
+    return bvIdx;
   };
-  const packedTexturePx = resolvePackedTextureSize(spec.qualityConfig);
-  const vrmPackage = assembleGltfPackage(spec, bones, [importedPrim], packedTexturePx, false);
+  const imagesOut = [];
+  for (const img of externalAsset.images || []) {
+    if (img.bytes.byteLength === 0) continue;
+    const bvIdx = pushBufferSlice(img.bytes);
+    imagesOut.push({
+      name: img.name || `image_${imagesOut.length}`,
+      mimeType: img.mimeType || "image/png",
+      bufferView: bvIdx
+    });
+  }
+  const samplersOut = externalAsset.samplers && externalAsset.samplers.length > 0 ? externalAsset.samplers.map((s2) => ({
+    ...s2.magFilter !== void 0 ? { magFilter: s2.magFilter } : { magFilter: 9729 },
+    ...s2.minFilter !== void 0 ? { minFilter: s2.minFilter } : { minFilter: 9987 },
+    ...s2.wrapS !== void 0 ? { wrapS: s2.wrapS } : { wrapS: 10497 },
+    ...s2.wrapT !== void 0 ? { wrapT: s2.wrapT } : { wrapT: 10497 }
+  })) : [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }];
+  const texturesOut = (externalAsset.textures || []).map((t2) => ({
+    ...t2.name ? { name: t2.name } : {},
+    ...t2.sampler !== void 0 ? { sampler: Math.min(t2.sampler, samplersOut.length - 1) } : { sampler: 0 },
+    ...t2.source !== void 0 ? { source: t2.source } : {}
+  }));
+  const materialsOut = externalAsset.materials && externalAsset.materials.length > 0 ? externalAsset.materials.map((m2) => {
+    const outMat = { name: m2.name };
+    if (m2.pbrMetallicRoughness) {
+      outMat.pbrMetallicRoughness = {
+        ...m2.pbrMetallicRoughness.baseColorFactor ? { baseColorFactor: m2.pbrMetallicRoughness.baseColorFactor } : {},
+        ...m2.pbrMetallicRoughness.baseColorTexture ? { baseColorTexture: m2.pbrMetallicRoughness.baseColorTexture } : {},
+        ...m2.pbrMetallicRoughness.metallicFactor !== void 0 ? { metallicFactor: m2.pbrMetallicRoughness.metallicFactor } : {},
+        ...m2.pbrMetallicRoughness.roughnessFactor !== void 0 ? { roughnessFactor: m2.pbrMetallicRoughness.roughnessFactor } : {},
+        ...m2.pbrMetallicRoughness.metallicRoughnessTexture ? { metallicRoughnessTexture: m2.pbrMetallicRoughness.metallicRoughnessTexture } : {}
+      };
+    }
+    if (m2.normalTexture) outMat.normalTexture = m2.normalTexture;
+    if (m2.occlusionTexture) outMat.occlusionTexture = m2.occlusionTexture;
+    if (m2.emissiveTexture) outMat.emissiveTexture = m2.emissiveTexture;
+    if (m2.emissiveFactor) outMat.emissiveFactor = m2.emissiveFactor;
+    if (m2.alphaMode && m2.alphaMode !== "OPAQUE") outMat.alphaMode = m2.alphaMode;
+    if (m2.alphaCutoff !== void 0) outMat.alphaCutoff = m2.alphaCutoff;
+    if (m2.doubleSided) outMat.doubleSided = true;
+    if (m2.extensions) outMat.extensions = m2.extensions;
+    return outMat;
+  }) : [
+    {
+      name: "External_Default_PBR",
+      pbrMetallicRoughness: {
+        baseColorFactor: [0.85, 0.85, 0.88, 1],
+        metallicFactor: 0.05,
+        roughnessFactor: 0.65
+      }
+    }
+  ];
+  const ibmBv = pushBufferSlice(new Uint8Array(ibmBytes.buffer));
+  const ibmAccessorIdx = accessors.length;
+  accessors.push({ bufferView: ibmBv, componentType: 5126, count: jointNodes.length, type: "MAT4" });
+  const materialsMs = Math.max(1, Math.round(performance.now() - tMat0));
+  const tFace0 = performance.now();
+  const useUint16Joints = jointNodes.length > 255;
+  const gltfMeshes = [];
+  const expressionPresetBinds = {};
+  let totalTriangles = 0;
+  let preservedMorphCount = 0;
+  let synthesizedMorphCount = 0;
+  const meshNodeFirstIndex = 1 + jointNodes.length;
+  for (let pIdx = 0; pIdx < flatPrims.length; pIdx++) {
+    const srcPrim = flatPrims[pIdx];
+    const scaledPos = primPositions[pIdx];
+    const vertCount = Math.floor(scaledPos.length / 3);
+    totalTriangles += Math.floor(srcPrim.indices.length / 3);
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i2 = 0; i2 < scaledPos.length; i2 += 3) {
+      min[0] = Math.min(min[0], scaledPos[i2]);
+      min[1] = Math.min(min[1], scaledPos[i2 + 1]);
+      min[2] = Math.min(min[2], scaledPos[i2 + 2]);
+      max[0] = Math.max(max[0], scaledPos[i2]);
+      max[1] = Math.max(max[1], scaledPos[i2 + 1]);
+      max[2] = Math.max(max[2], scaledPos[i2 + 2]);
+    }
+    const posBv = pushBufferSlice(new Uint8Array(scaledPos.buffer), 34962);
+    const posAcc = accessors.length;
+    accessors.push({ bufferView: posBv, componentType: 5126, count: vertCount, type: "VEC3", min, max });
+    const normArr = srcPrim.normals.length >= vertCount * 3 ? new Float32Array(srcPrim.normals.subarray(0, vertCount * 3)) : new Float32Array(vertCount * 3);
+    const normBv = pushBufferSlice(new Uint8Array(normArr.buffer), 34962);
+    const normAcc = accessors.length;
+    accessors.push({ bufferView: normBv, componentType: 5126, count: vertCount, type: "VEC3" });
+    const uvArr = srcPrim.uvs.length >= vertCount * 2 ? new Float32Array(srcPrim.uvs.subarray(0, vertCount * 2)) : new Float32Array(vertCount * 2);
+    const uvBv = pushBufferSlice(new Uint8Array(uvArr.buffer), 34962);
+    const uvAcc = accessors.length;
+    accessors.push({ bufferView: uvBv, componentType: 5126, count: vertCount, type: "VEC2" });
+    const primAttributes = {
+      POSITION: posAcc,
+      NORMAL: normAcc,
+      TEXCOORD_0: uvAcc
+    };
+    if (srcPrim.uvs1 && srcPrim.uvs1.length >= vertCount * 2) {
+      const uv1Arr = new Float32Array(srcPrim.uvs1.subarray(0, vertCount * 2));
+      const uv1Bv = pushBufferSlice(new Uint8Array(uv1Arr.buffer), 34962);
+      const uv1Acc = accessors.length;
+      accessors.push({ bufferView: uv1Bv, componentType: 5126, count: vertCount, type: "VEC2" });
+      primAttributes.TEXCOORD_1 = uv1Acc;
+    }
+    if (srcPrim.colors && srcPrim.colors.length >= vertCount * 4) {
+      const colArr = new Float32Array(srcPrim.colors.subarray(0, vertCount * 4));
+      const colBv = pushBufferSlice(new Uint8Array(colArr.buffer), 34962);
+      const colAcc = accessors.length;
+      accessors.push({ bufferView: colBv, componentType: 5126, count: vertCount, type: "VEC4" });
+      primAttributes.COLOR_0 = colAcc;
+    }
+    const jSrc = primJoints[pIdx];
+    if (useUint16Joints) {
+      const jBv = pushBufferSlice(new Uint8Array(jSrc.buffer.slice(0)), 34962);
+      const jAcc = accessors.length;
+      accessors.push({ bufferView: jBv, componentType: 5123, count: vertCount, type: "VEC4" });
+      primAttributes.JOINTS_0 = jAcc;
+    } else {
+      const jBytes = new Uint8Array(vertCount * 4);
+      for (let i2 = 0; i2 < vertCount * 4; i2++) jBytes[i2] = jSrc[i2];
+      const jBv = pushBufferSlice(jBytes, 34962);
+      const jAcc = accessors.length;
+      accessors.push({ bufferView: jBv, componentType: 5121, count: vertCount, type: "VEC4" });
+      primAttributes.JOINTS_0 = jAcc;
+    }
+    const wArr = primWeights[pIdx];
+    const wBv = pushBufferSlice(new Uint8Array(wArr.buffer.slice(0)), 34962);
+    const wAcc = accessors.length;
+    accessors.push({ bufferView: wBv, componentType: 5126, count: vertCount, type: "VEC4" });
+    primAttributes.WEIGHTS_0 = wAcc;
+    const indexArr = new Uint32Array(srcPrim.indices);
+    const indexBv = pushBufferSlice(new Uint8Array(indexArr.buffer), 34963);
+    const indexAcc = accessors.length;
+    accessors.push({ bufferView: indexBv, componentType: 5125, count: indexArr.length, type: "SCALAR" });
+    const primEntry = {
+      attributes: primAttributes,
+      indices: indexAcc,
+      material: Math.min(srcPrim.materialIndex, materialsOut.length - 1)
+    };
+    const morphBuild = buildOrPreserveMorphTargetsForExternalPrimitive(
+      scaledPos,
+      srcPrim.morphTargets,
+      scale,
+      headBoneY,
+      headCenterY,
+      spec.proportions.headScale,
+      faceForwardSign
+    );
+    preservedMorphCount += morphBuild.preservedCount;
+    synthesizedMorphCount += morphBuild.synthesizedCount;
+    if (morphBuild.targets.length > 0) {
+      const targetsArray = [];
+      for (const m2 of morphBuild.targets) {
+        const mMin = [Infinity, Infinity, Infinity];
+        const mMax = [-Infinity, -Infinity, -Infinity];
+        for (let i2 = 0; i2 < m2.deltas.length; i2 += 3) {
+          mMin[0] = Math.min(mMin[0], m2.deltas[i2]);
+          mMin[1] = Math.min(mMin[1], m2.deltas[i2 + 1]);
+          mMin[2] = Math.min(mMin[2], m2.deltas[i2 + 2]);
+          mMax[0] = Math.max(mMax[0], m2.deltas[i2]);
+          mMax[1] = Math.max(mMax[1], m2.deltas[i2 + 1]);
+          mMax[2] = Math.max(mMax[2], m2.deltas[i2 + 2]);
+        }
+        const mBv = pushBufferSlice(new Uint8Array(m2.deltas.buffer), 34962);
+        const mAcc = accessors.length;
+        accessors.push({
+          bufferView: mBv,
+          componentType: 5126,
+          count: vertCount,
+          type: "VEC3",
+          min: mMin,
+          max: mMax
+        });
+        targetsArray.push({ POSITION: mAcc });
+      }
+      primEntry.targets = targetsArray;
+      const nodeIdx = meshNodeFirstIndex + pIdx;
+      for (const [presetName, targetIdx] of Object.entries(morphBuild.presetToTargetIndex)) {
+        const arr = expressionPresetBinds[presetName] ?? [];
+        arr.push({ node: nodeIdx, index: targetIdx, weight: 1 });
+        expressionPresetBinds[presetName] = arr;
+      }
+    }
+    const meshObj = {
+      name: srcPrim.name,
+      primitives: [primEntry]
+    };
+    if (morphBuild.targets.length > 0) {
+      meshObj.extras = { targetNames: morphBuild.targets.map((t2) => t2.name) };
+    }
+    gltfMeshes.push(meshObj);
+  }
+  const facialMs = Math.max(1, Math.round(performance.now() - tFace0));
+  const tPkg0 = performance.now();
+  const nodes = [];
+  const boneChildrenMap = /* @__PURE__ */ new Map();
+  jointNodes.forEach((b, i2) => {
+    if (b.parent >= 0) {
+      const ch = boneChildrenMap.get(b.parent) ?? [];
+      ch.push(i2 + 1);
+      boneChildrenMap.set(b.parent, ch);
+    }
+  });
+  const rootJointChildren = [];
+  jointNodes.forEach((b, i2) => {
+    if (b.parent < 0) rootJointChildren.push(i2 + 1);
+  });
+  const meshNodeIndices = flatPrims.map((_, idx) => meshNodeFirstIndex + idx);
+  nodes.push({
+    name: `${spec.name.replace(/\s+/g, "_")}_Root`,
+    children: [...rootJointChildren, ...meshNodeIndices]
+  });
+  for (let i2 = 0; i2 < jointNodes.length; i2++) {
+    const b = jointNodes[i2];
+    const nodeObj = {
+      name: b.name,
+      translation: b.translation
+    };
+    if (b.rotation) nodeObj.rotation = b.rotation;
+    if (b.scale) nodeObj.scale = b.scale;
+    const ch = boneChildrenMap.get(i2);
+    if (ch && ch.length > 0) nodeObj.children = ch;
+    nodes.push(nodeObj);
+  }
+  for (let mIdx = 0; mIdx < flatPrims.length; mIdx++) {
+    nodes.push({
+      name: flatPrims[mIdx].name,
+      mesh: mIdx,
+      skin: 0
+    });
+  }
+  const jointNodeIndices = jointNodes.map((_, i2) => i2 + 1);
+  const expressionPresetMap = {
+    neutral: { isBinary: false, morphTargetBinds: [] }
+  };
+  for (const presetName of VRM_EXPRESSION_PRESETS) {
+    if (presetName === "neutral") continue;
+    const binds = expressionPresetBinds[presetName];
+    if (binds && binds.length > 0) {
+      expressionPresetMap[presetName] = {
+        isBinary: presetName === "blink" || presetName === "blinkLeft" || presetName === "blinkRight",
+        morphTargetBinds: binds
+      };
+    }
+  }
+  const binBytes = new Uint8Array(byteOffset);
+  let writePtr = 0;
+  for (const ch of chunks) {
+    binBytes.set(ch, writePtr);
+    writePtr += ch.length;
+  }
+  const baseGltf = {
+    asset: {
+      version: "2.0",
+      generator: "VRM Forge Studio External GLB -> VRM 1.0 Rigging Pipeline"
+    },
+    scene: 0,
+    scenes: [{ name: "Scene", nodes: [0] }],
+    nodes,
+    meshes: gltfMeshes,
+    skins: [
+      {
+        name: primarySkin?.name || "HumanoidArmature",
+        inverseBindMatrices: ibmAccessorIdx,
+        skeleton: skeletonRootLocalIdx + 1,
+        joints: jointNodeIndices
+      }
+    ],
+    materials: materialsOut,
+    ...texturesOut.length > 0 ? { textures: texturesOut } : {},
+    ...imagesOut.length > 0 ? { images: imagesOut } : {},
+    samplers: samplersOut,
+    accessors,
+    bufferViews,
+    buffers: [{ byteLength: binBytes.length }]
+  };
+  const glbBuffer = packGlbBinary(baseGltf, binBytes);
+  const springBoneJointNames = [
+    "hairBackRoot",
+    "hairBackMid",
+    "hairBackTip",
+    "hairLeftRoot",
+    "hairLeftTip",
+    "hairRightRoot",
+    "hairRightTip"
+  ];
+  const jointIdxByName = /* @__PURE__ */ new Map();
+  jointNodes.forEach((b, i2) => jointIdxByName.set(b.name, i2 + 1));
+  const springJointDefs = springBoneJointNames.map((n) => jointIdxByName.get(n)).filter((n) => n !== void 0).map((node) => ({
+    node,
+    hitRadius: 0.03,
+    stiffness: 0.65,
+    gravityPower: 0.35,
+    gravityDir: [0, -1, 0],
+    dragForce: 0.4
+  }));
+  const vrmGltf = {
+    ...baseGltf,
+    extensionsUsed: ["VRMC_vrm", ...springJointDefs.length > 0 ? ["VRMC_springBone"] : []],
+    extensions: {
+      VRMC_vrm: {
+        specVersion: "1.0",
+        meta: {
+          name: spec.name,
+          version: `1.${spec.version}.0`,
+          authors: ["VRM Forge Studio"],
+          copyrightInformation: "Converted with VRM Forge Studio",
+          contactInformation: "",
+          references: [],
+          licenseUrl: "https://vrm.dev/licenses/1.0/",
+          avatarPermission: "everyone",
+          allowExcessivelyViolentUsage: false,
+          allowExcessivelySexualUsage: false,
+          commercialUsage: "personalNonProfit",
+          allowPoliticalOrReligiousUsage: false,
+          allowAntisocialOrHateUsage: false,
+          creditNotation: "unnecessary",
+          allowRedistribution: true,
+          modification: "allowModificationRedistribution"
+        },
+        humanoid: { humanBones },
+        firstPerson: { meshAnnotations: [] },
+        lookAt: {
+          offsetFromHeadBone: [0, 0.08 * spec.proportions.headScale, 0],
+          type: "bone",
+          rangeMapHorizontalInner: { inputMaxValue: 90, outputScale: 10 },
+          rangeMapHorizontalOuter: { inputMaxValue: 90, outputScale: 10 },
+          rangeMapVerticalDown: { inputMaxValue: 90, outputScale: 10 },
+          rangeMapVerticalUp: { inputMaxValue: 90, outputScale: 10 }
+        },
+        expressions: { preset: expressionPresetMap }
+      },
+      ...springJointDefs.length > 0 ? {
+        VRMC_springBone: {
+          specVersion: "1.0",
+          springs: [{ name: "ExternalSecondarySpring", joints: springJointDefs }]
+        }
+      } : {}
+    }
+  };
+  const vrmBuffer = packGlbBinary(vrmGltf, binBytes);
+  const packageMs = Math.max(1, Math.round(performance.now() - tPkg0));
+  const stats = {
+    vertexCount: totalVertices,
+    triangleCount: totalTriangles,
+    boneCount: jointNodes.length,
+    materialCount: materialsOut.length,
+    textureCount: texturesOut.length,
+    expressionCount: Object.keys(expressionPresetBinds).length,
+    springBoneJointCount: springJointDefs.length
+  };
   const textureTargetPx = textureResolutionToTargetPx(spec.qualityConfig.textureResolution);
+  const packedTexturePx = resolvePackedTextureSize(spec.qualityConfig);
   const estimatedTextureMemoryMb = Number(
-    (12 * textureTargetPx * textureTargetPx * 4 / (1024 * 1024)).toFixed(1)
+    (imagesOut.reduce((acc, im) => acc + (im.bufferView !== void 0 ? 4 : 0), 0) || 12 * textureTargetPx * textureTargetPx * 4 / (1024 * 1024)).toFixed(1)
   );
+  const mappedBonesList = Object.keys(humanBones);
+  const missingVrmBones = VRM_REQUIRED_HUMANOID_BONES.filter((b) => !(b in humanBones));
+  const externalAudit = {
+    mode: preserveExistingRig ? "preserved_existing_rig" : "generated_humanoid_rig",
+    weightsNormalized: maxWeightSumError <= 0.02,
+    maxWeightSumError: Number(maxWeightSumError.toFixed(6)),
+    weightedVertices: weightedVerticesTotal,
+    totalVertices,
+    mappedVrmBones: mappedBonesList,
+    missingVrmBones,
+    jointDeformations,
+    allJointDeformationsPassed: jointDeformations.every((j) => j.passed),
+    preservedMaterialCount: externalAsset.materials.length,
+    preservedTextureCount: texturesOut.length,
+    preservedImageCount: imagesOut.length,
+    preservedMorphCount,
+    synthesizedMorphCount,
+    activeNonEmptyExpressions: Object.keys(expressionPresetBinds)
+  };
   return {
-    vrmBuffer: vrmPackage.vrmBuffer,
-    glbBuffer: vrmPackage.glbBuffer,
+    vrmBuffer,
+    glbBuffer,
     sourceGlbBuffer: rawExternalGlbBuffer,
-    stats: vrmPackage.stats,
-    sourceStats: vrmPackage.stats,
+    stats,
+    sourceStats: stats,
     estimates: {
-      sourceTriangles: vrmPackage.stats.triangleCount,
-      sourceVertices: vrmPackage.stats.vertexCount,
-      optimizedTriangles: vrmPackage.stats.triangleCount,
-      optimizedVertices: vrmPackage.stats.vertexCount,
+      sourceTriangles: stats.triangleCount,
+      sourceVertices: stats.vertexCount,
+      optimizedTriangles: stats.triangleCount,
+      optimizedVertices: stats.vertexCount,
       textureTargetPx,
       packedTexturePx,
       estimatedTextureMemoryMb,
-      estimatedVrmSizeKb: Math.round(vrmPackage.vrmBuffer.byteLength / 1024),
+      estimatedVrmSizeKb: Math.round(vrmBuffer.byteLength / 1024),
       estimatedSourceGlbSizeKb: Math.round(rawExternalGlbBuffer.byteLength / 1024)
-    }
+    },
+    timingsMs: {
+      geometryMs: 0,
+      retopologyMs: 0,
+      materialsMs,
+      riggingMs,
+      facialMs,
+      packageMs
+    },
+    externalAudit
   };
 }
 
 // src/shared/vrmValidator.ts
+var CORE_FACIAL_EXPRESSION_PRESETS = [
+  "blink",
+  "blinkLeft",
+  "blinkRight",
+  "happy",
+  "angry",
+  "sad",
+  "surprised"
+];
 function validateVrmBinary(bytes) {
   const checks = [];
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -49903,6 +51324,7 @@ function validateVrmBinary(bytes) {
   if (!gltf || !binChunk) {
     return failReport("Missing required JSON or BIN chunk inside GLB.");
   }
+  const binView = new DataView(binChunk.buffer, binChunk.byteOffset, binChunk.byteLength);
   const vrmExt = gltf.extensions?.VRMC_vrm;
   const specVersion = vrmExt?.specVersion ?? "missing";
   const hasVrm = Boolean(vrmExt && specVersion === "1.0");
@@ -49924,7 +51346,7 @@ function validateVrmBinary(bytes) {
     id: "humanoid_bones",
     label: "VRM Humanoid Bone Mapping",
     status: missingRequiredBones.length === 0 && invalidBoneNodes.length === 0 ? "pass" : "fail",
-    detail: missingRequiredBones.length === 0 ? `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length} optional bones mapped` : `Missing required bones: ${missingRequiredBones.join(", ")}`
+    detail: missingRequiredBones.length === 0 && invalidBoneNodes.length === 0 ? `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length} optional bones mapped` : invalidBoneNodes.length > 0 ? `Invalid node indices for bones: ${invalidBoneNodes.join(", ")}` : `Missing required bones: ${missingRequiredBones.join(", ")}`
   });
   const meshes = gltf.meshes ?? [];
   const accessors = gltf.accessors ?? [];
@@ -49953,11 +51375,28 @@ function validateVrmBinary(bytes) {
       }
       if (wAcc && wAcc.bufferView !== void 0 && bufferViews[wAcc.bufferView]) {
         const bv = bufferViews[wAcc.bufferView];
-        const byteStart = binChunk.byteOffset + (bv.byteOffset ?? 0);
-        const floats = new Float32Array(binChunk.buffer, byteStart, wAcc.count * 4);
+        const compBytes = wAcc.componentType === 5126 ? 4 : wAcc.componentType === 5123 ? 2 : 1;
+        const stride = bv.byteStride && bv.byteStride >= compBytes * 4 ? bv.byteStride : compBytes * 4;
+        const base = (bv.byteOffset ?? 0) + (wAcc.byteOffset ?? 0);
         for (let v = 0; v < wAcc.count; v++) {
-          const sum = floats[v * 4] + floats[v * 4 + 1] + floats[v * 4 + 2] + floats[v * 4 + 3];
-          if (Math.abs(sum - 1) > 0.02) {
+          const ptr = base + v * stride;
+          if (ptr + compBytes * 4 > binChunk.byteLength) {
+            skinWeightsValid = false;
+            weightCheckDetail = `WEIGHTS_0 accessor exceeds BIN buffer length at vertex ${v}`;
+            break;
+          }
+          let sum = 0;
+          for (let k = 0; k < 4; k++) {
+            const cOff = ptr + k * compBytes;
+            if (wAcc.componentType === 5126) {
+              sum += binView.getFloat32(cOff, true);
+            } else if (wAcc.componentType === 5123) {
+              sum += binView.getUint16(cOff, true) / 65535;
+            } else {
+              sum += binView.getUint8(cOff) / 255;
+            }
+          }
+          if (!Number.isFinite(sum) || Math.abs(sum - 1) > 0.02) {
             skinWeightsValid = false;
             weightCheckDetail = `Unnormalized skin weights detected at vertex ${v} (sum=${sum.toFixed(3)})`;
             break;
@@ -49968,7 +51407,7 @@ function validateVrmBinary(bytes) {
   }
   const skins = gltf.skins ?? [];
   const boneCount = skins[0]?.joints?.length ?? 0;
-  const hasIbm = skins.length > 0 && skins[0].inverseBindMatrices !== void 0;
+  const hasIbm = skins.length > 0 && skins[0].inverseBindMatrices !== void 0 && (accessors[skins[0].inverseBindMatrices]?.count ?? 0) >= boneCount;
   checks.push({
     id: "geometry_topology",
     label: "Mesh & Topology Integrity",
@@ -49979,7 +51418,7 @@ function validateVrmBinary(bytes) {
     id: "skinning_weights",
     label: "Armature Skinning & Weights",
     status: skinWeightsValid && hasIbm && boneCount > 0 ? "pass" : "fail",
-    detail: hasIbm ? `${boneCount} skin joints \xB7 ${weightCheckDetail}` : "Missing skin inverseBindMatrices"
+    detail: hasIbm ? `${boneCount} skin joints \xB7 ${weightCheckDetail}` : "Missing or undersized skin inverseBindMatrices"
   });
   const presets = vrmExt?.expressions?.preset ?? {};
   const expressionNames = Object.keys(presets);
@@ -49997,12 +51436,31 @@ function validateVrmBinary(bytes) {
         const posAccIdx = targetEntry?.POSITION;
         if (posAccIdx === void 0) continue;
         const acc = accessors[posAccIdx];
-        if (acc?.min && acc?.max) {
+        if (!acc) continue;
+        if (acc.min && acc.max && acc.min.length >= 3 && acc.max.length >= 3) {
           const mag = Math.max(Math.abs(acc.min[0]), Math.abs(acc.max[0])) + Math.max(Math.abs(acc.min[1]), Math.abs(acc.max[1])) + Math.max(Math.abs(acc.min[2]), Math.abs(acc.max[2]));
           if (mag > 1e-4) {
             hasNonZeroDelta = true;
             break;
           }
+        } else if (acc.bufferView !== void 0 && bufferViews[acc.bufferView]) {
+          const bv = bufferViews[acc.bufferView];
+          const stride = bv.byteStride && bv.byteStride >= 12 ? bv.byteStride : 12;
+          const base = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+          let maxMag = 0;
+          for (let i2 = 0; i2 < acc.count; i2++) {
+            const p = base + i2 * stride;
+            if (p + 12 > binChunk.byteLength) break;
+            const dx = Math.abs(binView.getFloat32(p, true));
+            const dy = Math.abs(binView.getFloat32(p + 4, true));
+            const dz = Math.abs(binView.getFloat32(p + 8, true));
+            maxMag = Math.max(maxMag, dx + dy + dz);
+            if (maxMag > 1e-4) {
+              hasNonZeroDelta = true;
+              break;
+            }
+          }
+          if (hasNonZeroDelta) break;
         }
       }
       if (hasNonZeroDelta) break;
@@ -50011,20 +51469,38 @@ function validateVrmBinary(bytes) {
       nonEmptyExpressions.push(exprName);
     }
   }
+  const missingCoreExpr = CORE_FACIAL_EXPRESSION_PRESETS.filter(
+    (name) => !nonEmptyExpressions.includes(name)
+  );
+  const hasNeutralPreset = "neutral" in presets;
+  const exprStatus = nonEmptyExpressions.length === 0 ? "fail" : missingCoreExpr.length === 0 && hasNeutralPreset ? "pass" : "warn";
   checks.push({
     id: "facial_expressions",
     label: "Facial Morph Targets & Expressions",
-    status: nonEmptyExpressions.length >= 10 ? "pass" : nonEmptyExpressions.length > 0 ? "warn" : "fail",
-    detail: `${nonEmptyExpressions.length} non-empty facial morph expressions (${expressionNames.length} total presets)`
+    status: exprStatus,
+    detail: missingCoreExpr.length === 0 ? `${nonEmptyExpressions.length} non-empty facial morph expressions (${expressionNames.length} presets incl. neutral & core set)` : `${nonEmptyExpressions.length} non-empty expressions \xB7 missing core presets: ${missingCoreExpr.join(", ")}`
   });
   const materialCount = gltf.materials?.length ?? 0;
-  const textureCount = gltf.textures?.length ?? 0;
-  const imageCount = gltf.images?.length ?? 0;
+  const textures = gltf.textures ?? [];
+  const images = gltf.images ?? [];
+  const textureCount = textures.length;
+  const imageCount = images.length;
+  let brokenRefs = 0;
+  for (const tex of textures) {
+    if (tex.source !== void 0 && (tex.source < 0 || tex.source >= imageCount)) {
+      brokenRefs++;
+    }
+  }
+  for (const img of images) {
+    if (img.bufferView !== void 0 && (img.bufferView < 0 || img.bufferView >= bufferViews.length)) {
+      brokenRefs++;
+    }
+  }
   checks.push({
     id: "materials_textures",
     label: "PBR Materials & Embedded Textures",
-    status: materialCount > 0 && textureCount > 0 && imageCount === textureCount ? "pass" : "warn",
-    detail: `${materialCount} materials \xB7 ${textureCount} embedded PNG textures`
+    status: brokenRefs > 0 || materialCount === 0 ? "fail" : "pass",
+    detail: brokenRefs > 0 ? `${brokenRefs} invalid texture/image buffer references` : textureCount > 0 ? `${materialCount} PBR materials \xB7 ${textureCount} textures \xB7 ${imageCount} embedded images` : `${materialCount} PBR materials (factor-based, 0 embedded textures)`
   });
   const springs = gltf.extensions?.VRMC_springBone?.springs ?? [];
   const springBoneJointCount = springs.reduce((acc, s2) => acc + (s2.joints?.length ?? 0), 0);
@@ -75137,16 +76613,21 @@ function typeElementCount(type) {
       return 1;
   }
 }
-function readScalar(view, byteOffset, componentType) {
+function readScalar(view, byteOffset, componentType, normalized = false) {
+  let raw = 0;
   switch (componentType) {
     case 5120:
-      return view.getInt8(byteOffset);
+      raw = view.getInt8(byteOffset);
+      return normalized ? Math.max(-1, raw / 127) : raw;
     case 5121:
-      return view.getUint8(byteOffset);
+      raw = view.getUint8(byteOffset);
+      return normalized ? raw / 255 : raw;
     case 5122:
-      return view.getInt16(byteOffset, true);
+      raw = view.getInt16(byteOffset, true);
+      return normalized ? Math.max(-1, raw / 32767) : raw;
     case 5123:
-      return view.getUint16(byteOffset, true);
+      raw = view.getUint16(byteOffset, true);
+      return normalized ? raw / 65535 : raw;
     case 5125:
       return view.getUint32(byteOffset, true);
     case 5126:
@@ -75173,10 +76654,181 @@ function readAccessorArray(binBytes, accessors, bufferViews, accessorIdx) {
     const elemStart = baseOffset + i2 * stride;
     if (elemStart + elems * compBytes > binBytes.byteLength) break;
     for (let k = 0; k < elems; k++) {
-      out[i2 * elems + k] = readScalar(view, elemStart + k * compBytes, acc.componentType);
+      out[i2 * elems + k] = readScalar(
+        view,
+        elemStart + k * compBytes,
+        acc.componentType,
+        Boolean(acc.normalized)
+      );
     }
   }
   return out;
+}
+function readAccessorUint16Array(binBytes, accessors, bufferViews, accessorIdx) {
+  const acc = accessors[accessorIdx];
+  if (!acc || acc.bufferView === void 0) return new Uint16Array(0);
+  const bv = bufferViews[acc.bufferView];
+  if (!bv) return new Uint16Array(0);
+  const elems = typeElementCount(acc.type);
+  const compBytes = componentSize(acc.componentType);
+  if (!compBytes) return new Uint16Array(0);
+  const stride = bv.byteStride && bv.byteStride > 0 ? bv.byteStride : elems * compBytes;
+  const baseOffset = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+  const out = new Uint16Array(acc.count * elems);
+  const view = new DataView(binBytes.buffer, binBytes.byteOffset, binBytes.byteLength);
+  for (let i2 = 0; i2 < acc.count; i2++) {
+    const elemStart = baseOffset + i2 * stride;
+    if (elemStart + elems * compBytes > binBytes.byteLength) break;
+    for (let k = 0; k < elems; k++) {
+      const v = Math.round(readScalar(view, elemStart + k * compBytes, acc.componentType, false));
+      out[i2 * elems + k] = Math.max(0, Math.min(65535, v));
+    }
+  }
+  return out;
+}
+function identityMat4() {
+  return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+}
+function mulMat4(a, b) {
+  const out = new Array(16).fill(0);
+  for (let col = 0; col < 4; col++) {
+    for (let row = 0; row < 4; row++) {
+      out[col * 4 + row] = a[0 * 4 + row] * b[col * 4 + 0] + a[1 * 4 + row] * b[col * 4 + 1] + a[2 * 4 + row] * b[col * 4 + 2] + a[3 * 4 + row] * b[col * 4 + 3];
+    }
+  }
+  return out;
+}
+function composeTrsMat4(t2 = [0, 0, 0], q = [0, 0, 0, 1], s2 = [1, 1, 1]) {
+  const [x2, y, z, w] = q;
+  const x22 = x2 + x2;
+  const y2 = y + y;
+  const z2 = z + z;
+  const xx = x2 * x22;
+  const xy = x2 * y2;
+  const xz = x2 * z2;
+  const yy = y * y2;
+  const yz = y * z2;
+  const zz = z * z2;
+  const wx = w * x22;
+  const wy = w * y2;
+  const wz = w * z2;
+  return [
+    (1 - (yy + zz)) * s2[0],
+    (xy + wz) * s2[0],
+    (xz - wy) * s2[0],
+    0,
+    (xy - wz) * s2[1],
+    (1 - (xx + zz)) * s2[1],
+    (yz + wx) * s2[1],
+    0,
+    (xz + wy) * s2[2],
+    (yz - wx) * s2[2],
+    (1 - (xx + yy)) * s2[2],
+    0,
+    t2[0],
+    t2[1],
+    t2[2],
+    1
+  ];
+}
+function getNodeLocalMatrix(node) {
+  if (Array.isArray(node.matrix) && node.matrix.length === 16) {
+    return node.matrix.slice();
+  }
+  return composeTrsMat4(node.translation, node.rotation, node.scale);
+}
+function isIdentityMatrix(m2) {
+  const id = identityMat4();
+  for (let i2 = 0; i2 < 16; i2++) {
+    if (Math.abs(m2[i2] - id[i2]) > 1e-5) return false;
+  }
+  return true;
+}
+function transformPointMat4(m2, x2, y, z) {
+  return [
+    m2[0] * x2 + m2[4] * y + m2[8] * z + m2[12],
+    m2[1] * x2 + m2[5] * y + m2[9] * z + m2[13],
+    m2[2] * x2 + m2[6] * y + m2[10] * z + m2[14]
+  ];
+}
+function transformVectorMat4(m2, x2, y, z) {
+  const a00 = m2[0], a01 = m2[4], a02 = m2[8];
+  const a10 = m2[1], a11 = m2[5], a12 = m2[9];
+  const a20 = m2[2], a21 = m2[6], a22 = m2[10];
+  const det = a00 * (a11 * a22 - a12 * a21) - a01 * (a10 * a22 - a12 * a20) + a02 * (a10 * a21 - a11 * a20);
+  let nx = a00 * x2 + a01 * y + a02 * z;
+  let ny = a10 * x2 + a11 * y + a12 * z;
+  let nz = a20 * x2 + a21 * y + a22 * z;
+  if (Math.abs(det) > 1e-9) {
+    const c00 = a11 * a22 - a12 * a21;
+    const c01 = -(a10 * a22 - a12 * a20);
+    const c02 = a10 * a21 - a11 * a20;
+    const c10 = -(a01 * a22 - a02 * a21);
+    const c11 = a00 * a22 - a02 * a20;
+    const c12 = -(a00 * a21 - a01 * a20);
+    const c20 = a01 * a12 - a02 * a11;
+    const c21 = -(a00 * a12 - a02 * a10);
+    const c22 = a00 * a11 - a01 * a10;
+    const sign = det < 0 ? -1 : 1;
+    nx = (c00 * x2 + c01 * y + c02 * z) * sign;
+    ny = (c10 * x2 + c11 * y + c12 * z) * sign;
+    nz = (c20 * x2 + c21 * y + c22 * z) * sign;
+  }
+  const len = Math.hypot(nx, ny, nz) || 1;
+  return [nx / len, ny / len, nz / len];
+}
+function computeSmoothNormals(positions, indices) {
+  const vertCount = Math.floor(positions.length / 3);
+  const normals = new Float32Array(vertCount * 3);
+  for (let i2 = 0; i2 + 2 < indices.length; i2 += 3) {
+    const a = indices[i2];
+    const b = indices[i2 + 1];
+    const c = indices[i2 + 2];
+    if (a >= vertCount || b >= vertCount || c >= vertCount) continue;
+    const ax = positions[a * 3], ay = positions[a * 3 + 1], az = positions[a * 3 + 2];
+    const bx = positions[b * 3], by = positions[b * 3 + 1], bz = positions[b * 3 + 2];
+    const cx = positions[c * 3], cy = positions[c * 3 + 1], cz = positions[c * 3 + 2];
+    const ux = bx - ax, uy = by - ay, uz = bz - az;
+    const vx = cx - ax, vy = cy - ay, vz = cz - az;
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    normals[a * 3] += nx;
+    normals[a * 3 + 1] += ny;
+    normals[a * 3 + 2] += nz;
+    normals[b * 3] += nx;
+    normals[b * 3 + 1] += ny;
+    normals[b * 3 + 2] += nz;
+    normals[c * 3] += nx;
+    normals[c * 3 + 1] += ny;
+    normals[c * 3 + 2] += nz;
+  }
+  for (let v = 0; v < vertCount; v++) {
+    const x2 = normals[v * 3];
+    const y = normals[v * 3 + 1];
+    const z = normals[v * 3 + 2];
+    const len = Math.hypot(x2, y, z);
+    if (len > 1e-8) {
+      normals[v * 3] = x2 / len;
+      normals[v * 3 + 1] = y / len;
+      normals[v * 3 + 2] = z / len;
+    } else {
+      normals[v * 3] = 0;
+      normals[v * 3 + 1] = 1;
+      normals[v * 3 + 2] = 0;
+    }
+  }
+  return normals;
+}
+function decodeImageDataUri(uri) {
+  const match2 = /^data:([^;]+);base64,(.+)$/i.exec(uri);
+  if (!match2) return null;
+  try {
+    const raw = Buffer.from(match2[2], "base64");
+    return { mimeType: match2[1] || "image/png", bytes: new Uint8Array(raw) };
+  } catch {
+    return null;
+  }
 }
 function parseAndValidateGlbAsset(payload) {
   const emptyResult = (error) => ({
@@ -75184,10 +76836,23 @@ function parseAndValidateGlbAsset(payload) {
     error,
     meshCount: 0,
     primitiveCount: 0,
+    materialCount: 0,
+    textureCount: 0,
+    imageCount: 0,
     vertexCount: 0,
     triangleCount: 0,
+    hasExistingSkin: false,
+    hasMorphTargets: false,
+    hasVertexColors: false,
+    hasNodeTransforms: false,
     boundsMin: [0, 0, 0],
     boundsMax: [0, 0, 0],
+    meshes: [],
+    materials: [],
+    textures: [],
+    samplers: [],
+    images: [],
+    skins: [],
     positions: new Float32Array(0),
     normals: new Float32Array(0),
     uvs: new Float32Array(0),
@@ -75234,36 +76899,294 @@ function parseAndValidateGlbAsset(payload) {
   const meshes = gltfJson.meshes || [];
   const accessors = gltfJson.accessors || [];
   const bufferViews = gltfJson.bufferViews || [];
+  const gltfNodes = gltfJson.nodes || [];
   if (meshes.length === 0) {
     return emptyResult("GLB contains zero meshes.");
   }
+  const nodeParent = new Array(gltfNodes.length).fill(-1);
+  const nodeWorldMatrices = new Array(gltfNodes.length);
+  for (let i2 = 0; i2 < gltfNodes.length; i2++) {
+    nodeWorldMatrices[i2] = identityMat4();
+    for (const ch of gltfNodes[i2].children || []) {
+      if (ch >= 0 && ch < gltfNodes.length) {
+        nodeParent[ch] = i2;
+      }
+    }
+  }
+  const visitNode = (nodeIdx, parentWorld, visited = /* @__PURE__ */ new Set()) => {
+    if (nodeIdx < 0 || nodeIdx >= gltfNodes.length || visited.has(nodeIdx)) return;
+    visited.add(nodeIdx);
+    const world = mulMat4(parentWorld, getNodeLocalMatrix(gltfNodes[nodeIdx]));
+    nodeWorldMatrices[nodeIdx] = world;
+    for (const ch of gltfNodes[nodeIdx].children || []) {
+      visitNode(ch, world, visited);
+    }
+  };
+  const defaultSceneIdx = gltfJson.scene ?? 0;
+  const sceneRoots = gltfJson.scenes?.[defaultSceneIdx]?.nodes;
+  if (sceneRoots && sceneRoots.length > 0) {
+    for (const rootIdx of sceneRoots) {
+      visitNode(rootIdx, identityMat4());
+    }
+  } else {
+    for (let i2 = 0; i2 < gltfNodes.length; i2++) {
+      if (nodeParent[i2] === -1) {
+        visitNode(i2, identityMat4());
+      }
+    }
+  }
+  let hasNodeTransforms = false;
+  for (let i2 = 0; i2 < gltfNodes.length; i2++) {
+    if (!isIdentityMatrix(nodeWorldMatrices[i2])) {
+      hasNodeTransforms = true;
+      break;
+    }
+  }
+  const images = [];
+  for (let i2 = 0; i2 < (gltfJson.images || []).length; i2++) {
+    const img = gltfJson.images[i2];
+    let bytes = new Uint8Array(0);
+    let mimeType = img.mimeType || "image/png";
+    if (img.bufferView !== void 0 && bufferViews[img.bufferView]) {
+      const bv = bufferViews[img.bufferView];
+      const bvStart = bv.byteOffset ?? 0;
+      const bvEnd = Math.min(binChunk.byteLength, bvStart + bv.byteLength);
+      if (bvEnd > bvStart) {
+        bytes = new Uint8Array(binChunk.slice(bvStart, bvEnd));
+      }
+    } else if (img.uri) {
+      const decoded = decodeImageDataUri(img.uri);
+      if (decoded) {
+        bytes = new Uint8Array(decoded.bytes);
+        mimeType = decoded.mimeType;
+      }
+    }
+    images.push({
+      index: i2,
+      name: img.name || `image_${i2}`,
+      mimeType,
+      bytes
+    });
+  }
+  const textures = (gltfJson.textures || []).map((t2, idx) => ({
+    index: idx,
+    name: t2.name,
+    source: t2.source,
+    sampler: t2.sampler
+  }));
+  const samplers = (gltfJson.samplers || []).map((s2) => ({
+    magFilter: s2.magFilter,
+    minFilter: s2.minFilter,
+    wrapS: s2.wrapS,
+    wrapT: s2.wrapT
+  }));
+  const materials = (gltfJson.materials || []).map((raw, idx) => {
+    const pbrRaw = raw.pbrMetallicRoughness;
+    return {
+      index: idx,
+      name: typeof raw.name === "string" && raw.name ? raw.name : `Material_${idx}`,
+      pbrMetallicRoughness: pbrRaw ? {
+        baseColorFactor: Array.isArray(pbrRaw.baseColorFactor) ? pbrRaw.baseColorFactor : void 0,
+        baseColorTexture: pbrRaw.baseColorTexture,
+        metallicFactor: typeof pbrRaw.metallicFactor === "number" ? pbrRaw.metallicFactor : void 0,
+        roughnessFactor: typeof pbrRaw.roughnessFactor === "number" ? pbrRaw.roughnessFactor : void 0,
+        metallicRoughnessTexture: pbrRaw.metallicRoughnessTexture
+      } : void 0,
+      normalTexture: raw.normalTexture,
+      occlusionTexture: raw.occlusionTexture,
+      emissiveTexture: raw.emissiveTexture,
+      emissiveFactor: Array.isArray(raw.emissiveFactor) ? raw.emissiveFactor : void 0,
+      alphaMode: raw.alphaMode === "MASK" || raw.alphaMode === "BLEND" ? raw.alphaMode : "OPAQUE",
+      alphaCutoff: typeof raw.alphaCutoff === "number" ? raw.alphaCutoff : void 0,
+      doubleSided: typeof raw.doubleSided === "boolean" ? raw.doubleSided : void 0,
+      extensions: raw.extensions && typeof raw.extensions === "object" ? raw.extensions : void 0
+    };
+  });
+  const skins = (gltfJson.skins || []).map((rawSkin, sIdx) => {
+    const jointNodes = rawSkin.joints || [];
+    const jointIndexByNode = /* @__PURE__ */ new Map();
+    jointNodes.forEach((nodeIdx, jIdx) => jointIndexByNode.set(nodeIdx, jIdx));
+    const joints = jointNodes.map((nodeIdx) => {
+      const node = gltfNodes[nodeIdx] || {};
+      const parentNode = nodeIdx >= 0 && nodeIdx < nodeParent.length ? nodeParent[nodeIdx] : -1;
+      const parentJointIndex = parentNode >= 0 ? jointIndexByNode.get(parentNode) ?? -1 : -1;
+      const worldMat = nodeWorldMatrices[nodeIdx] || identityMat4();
+      return {
+        jointNodeIndex: nodeIdx,
+        name: node.name || `joint_${nodeIdx}`,
+        parentJointIndex,
+        localTranslation: node.translation ? [node.translation[0], node.translation[1], node.translation[2]] : [worldMat[12], worldMat[13], worldMat[14]],
+        localRotation: node.rotation ? [...node.rotation] : [0, 0, 0, 1],
+        localScale: node.scale ? [...node.scale] : [1, 1, 1],
+        worldPos: [worldMat[12], worldMat[13], worldMat[14]],
+        worldMatrix: worldMat
+      };
+    });
+    const ibm = rawSkin.inverseBindMatrices !== void 0 ? readAccessorArray(binChunk, accessors, bufferViews, rawSkin.inverseBindMatrices) : void 0;
+    return {
+      index: sIdx,
+      name: rawSkin.name || `Skin_${sIdx}`,
+      skeletonRootNodeIndex: rawSkin.skeleton,
+      joints,
+      inverseBindMatrices: ibm && ibm.length >= joints.length * 16 ? ibm : void 0
+    };
+  });
+  let existingVrmHumanoid;
+  const vrmBonesRaw = gltfJson.extensions?.VRMC_vrm?.humanoid?.humanBones;
+  if (vrmBonesRaw && typeof vrmBonesRaw === "object") {
+    existingVrmHumanoid = {};
+    for (const [vrmBone, ref] of Object.entries(vrmBonesRaw)) {
+      if (ref && typeof ref.node === "number" && gltfNodes[ref.node]) {
+        existingVrmHumanoid[vrmBone] = gltfNodes[ref.node].name || `node_${ref.node}`;
+      }
+    }
+  }
+  const meshInstances = [];
+  for (let nIdx = 0; nIdx < gltfNodes.length; nIdx++) {
+    const node = gltfNodes[nIdx];
+    if (node.mesh !== void 0 && meshes[node.mesh]) {
+      meshInstances.push({
+        meshIndex: node.mesh,
+        nodeIndex: nIdx,
+        skinIndex: node.skin
+      });
+    }
+  }
+  if (meshInstances.length === 0) {
+    meshes.forEach((_m, idx) => {
+      meshInstances.push({ meshIndex: idx, nodeIndex: -1, skinIndex: void 0 });
+    });
+  }
+  const importedMeshes = [];
   const mergedPos = [];
   const mergedNorm = [];
   const mergedUv = [];
   const mergedIdx = [];
   let primitiveCount = 0;
+  let hasExistingSkin = false;
+  let hasMorphTargets = false;
+  let hasVertexColors = false;
   let minX = Infinity;
   let minY = Infinity;
   let minZ = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
   let maxZ = -Infinity;
-  for (const mesh of meshes) {
-    for (const prim of mesh.primitives || []) {
+  for (const inst of meshInstances) {
+    const mesh = meshes[inst.meshIndex];
+    const worldMat = inst.nodeIndex >= 0 && nodeWorldMatrices[inst.nodeIndex] ? nodeWorldMatrices[inst.nodeIndex] : identityMat4();
+    const applyWorldTransform = inst.skinIndex === void 0 && !isIdentityMatrix(worldMat);
+    const meshName = mesh.name || `Mesh_${inst.meshIndex}`;
+    const targetNames = mesh.extras?.targetNames || [];
+    const primitivesOut = [];
+    const prims = mesh.primitives || [];
+    for (let pIdx = 0; pIdx < prims.length; pIdx++) {
+      const prim = prims[pIdx];
       if (prim.mode !== void 0 && prim.mode !== 4) continue;
       const posIdx = prim.attributes?.POSITION;
       if (posIdx === void 0) continue;
-      const pos = readAccessorArray(binChunk, accessors, bufferViews, posIdx);
-      const vertCount = Math.floor(pos.length / 3);
+      const rawPos = readAccessorArray(binChunk, accessors, bufferViews, posIdx);
+      const vertCount = Math.floor(rawPos.length / 3);
       if (vertCount === 0) continue;
+      const hasNormalsAttr = prim.attributes?.NORMAL !== void 0;
+      const rawNorm = hasNormalsAttr ? readAccessorArray(binChunk, accessors, bufferViews, prim.attributes.NORMAL) : new Float32Array(0);
+      const hasUvsAttr = prim.attributes?.TEXCOORD_0 !== void 0;
+      const rawUv = hasUvsAttr ? readAccessorArray(binChunk, accessors, bufferViews, prim.attributes.TEXCOORD_0) : new Float32Array(0);
+      const hasUvs1Attr = prim.attributes?.TEXCOORD_1 !== void 0;
+      const rawUv1 = hasUvs1Attr ? readAccessorArray(binChunk, accessors, bufferViews, prim.attributes.TEXCOORD_1) : void 0;
+      const hasColAttr = prim.attributes?.COLOR_0 !== void 0;
+      let colors;
+      if (hasColAttr) {
+        const colAccIdx = prim.attributes.COLOR_0;
+        const colAcc = accessors[colAccIdx];
+        const rawCol = readAccessorArray(binChunk, accessors, bufferViews, colAccIdx);
+        const elems = colAcc?.type === "VEC3" ? 3 : 4;
+        if (rawCol.length >= vertCount * elems) {
+          colors = new Float32Array(vertCount * 4);
+          for (let i2 = 0; i2 < vertCount; i2++) {
+            colors[i2 * 4] = rawCol[i2 * elems];
+            colors[i2 * 4 + 1] = rawCol[i2 * elems + 1];
+            colors[i2 * 4 + 2] = rawCol[i2 * elems + 2];
+            colors[i2 * 4 + 3] = elems === 4 ? rawCol[i2 * 4 + 3] : 1;
+          }
+          hasVertexColors = true;
+        }
+      }
+      const hasJointsAttr = prim.attributes?.JOINTS_0 !== void 0 && prim.attributes?.WEIGHTS_0 !== void 0;
+      let joints;
+      let weights;
+      if (hasJointsAttr) {
+        const rawJoints = readAccessorUint16Array(
+          binChunk,
+          accessors,
+          bufferViews,
+          prim.attributes.JOINTS_0
+        );
+        const rawWeights = readAccessorArray(
+          binChunk,
+          accessors,
+          bufferViews,
+          prim.attributes.WEIGHTS_0
+        );
+        if (rawJoints.length >= vertCount * 4 && rawWeights.length >= vertCount * 4) {
+          joints = rawJoints.subarray(0, vertCount * 4);
+          weights = new Float32Array(vertCount * 4);
+          for (let i2 = 0; i2 < vertCount; i2++) {
+            const w0 = Math.max(0, rawWeights[i2 * 4]);
+            const w1 = Math.max(0, rawWeights[i2 * 4 + 1]);
+            const w2 = Math.max(0, rawWeights[i2 * 4 + 2]);
+            const w3 = Math.max(0, rawWeights[i2 * 4 + 3]);
+            const sum = w0 + w1 + w2 + w3;
+            if (sum > 1e-6) {
+              weights[i2 * 4] = w0 / sum;
+              weights[i2 * 4 + 1] = w1 / sum;
+              weights[i2 * 4 + 2] = w2 / sum;
+              weights[i2 * 4 + 3] = w3 / sum;
+            } else {
+              weights[i2 * 4] = 1;
+              weights[i2 * 4 + 1] = 0;
+              weights[i2 * 4 + 2] = 0;
+              weights[i2 * 4 + 3] = 0;
+            }
+          }
+          hasExistingSkin = true;
+        }
+      }
+      let indices;
+      if (prim.indices !== void 0) {
+        const idxArr = readAccessorArray(binChunk, accessors, bufferViews, prim.indices);
+        const triIdx = [];
+        for (let k = 0; k + 2 < idxArr.length; k += 3) {
+          const a = Math.floor(idxArr[k]);
+          const b = Math.floor(idxArr[k + 1]);
+          const c = Math.floor(idxArr[k + 2]);
+          if (a < vertCount && b < vertCount && c < vertCount) {
+            triIdx.push(a, b, c);
+          }
+        }
+        indices = new Uint32Array(triIdx);
+      } else {
+        const triIdx = [];
+        for (let k = 0; k + 2 < vertCount; k += 3) {
+          triIdx.push(k, k + 1, k + 2);
+        }
+        indices = new Uint32Array(triIdx);
+      }
+      if (indices.length < 3) continue;
       primitiveCount++;
+      const positions = new Float32Array(vertCount * 3);
+      const uvs = new Float32Array(vertCount * 2);
       const baseVertex = mergedPos.length / 3;
-      const norm = prim.attributes?.NORMAL !== void 0 ? readAccessorArray(binChunk, accessors, bufferViews, prim.attributes.NORMAL) : new Float32Array(0);
-      const uv = prim.attributes?.TEXCOORD_0 !== void 0 ? readAccessorArray(binChunk, accessors, bufferViews, prim.attributes.TEXCOORD_0) : new Float32Array(0);
       for (let i2 = 0; i2 < vertCount; i2++) {
-        const x2 = Number.isFinite(pos[i2 * 3]) ? pos[i2 * 3] : 0;
-        const y = Number.isFinite(pos[i2 * 3 + 1]) ? pos[i2 * 3 + 1] : 0;
-        const z = Number.isFinite(pos[i2 * 3 + 2]) ? pos[i2 * 3 + 2] : 0;
+        let x2 = Number.isFinite(rawPos[i2 * 3]) ? rawPos[i2 * 3] : 0;
+        let y = Number.isFinite(rawPos[i2 * 3 + 1]) ? rawPos[i2 * 3 + 1] : 0;
+        let z = Number.isFinite(rawPos[i2 * 3 + 2]) ? rawPos[i2 * 3 + 2] : 0;
+        if (applyWorldTransform) {
+          [x2, y, z] = transformPointMat4(worldMat, x2, y, z);
+        }
+        positions[i2 * 3] = x2;
+        positions[i2 * 3 + 1] = y;
+        positions[i2 * 3 + 2] = z;
         mergedPos.push(x2, y, z);
         if (x2 < minX) minX = x2;
         if (y < minY) minY = y;
@@ -75271,32 +77194,111 @@ function parseAndValidateGlbAsset(payload) {
         if (x2 > maxX) maxX = x2;
         if (y > maxY) maxY = y;
         if (z > maxZ) maxZ = z;
-        if (norm.length >= (i2 + 1) * 3) {
-          mergedNorm.push(norm[i2 * 3], norm[i2 * 3 + 1], norm[i2 * 3 + 2]);
+        if (rawUv.length >= (i2 + 1) * 2) {
+          uvs[i2 * 2] = rawUv[i2 * 2];
+          uvs[i2 * 2 + 1] = rawUv[i2 * 2 + 1];
         } else {
-          mergedNorm.push(0, 1, 0);
+          uvs[i2 * 2] = 0.5;
+          uvs[i2 * 2 + 1] = 0.5;
         }
-        if (uv.length >= (i2 + 1) * 2) {
-          mergedUv.push(uv[i2 * 2], uv[i2 * 2 + 1]);
-        } else {
-          mergedUv.push(0.5, 0.5);
-        }
+        mergedUv.push(uvs[i2 * 2], uvs[i2 * 2 + 1]);
       }
-      if (prim.indices !== void 0) {
-        const idxArr = readAccessorArray(binChunk, accessors, bufferViews, prim.indices);
-        for (let k = 0; k + 2 < idxArr.length; k += 3) {
-          const a = Math.floor(idxArr[k]);
-          const b = Math.floor(idxArr[k + 1]);
-          const c = Math.floor(idxArr[k + 2]);
-          if (a < vertCount && b < vertCount && c < vertCount) {
-            mergedIdx.push(baseVertex + a, baseVertex + b, baseVertex + c);
+      let normals;
+      if (rawNorm.length >= vertCount * 3) {
+        normals = new Float32Array(vertCount * 3);
+        for (let i2 = 0; i2 < vertCount; i2++) {
+          let nx = rawNorm[i2 * 3];
+          let ny = rawNorm[i2 * 3 + 1];
+          let nz = rawNorm[i2 * 3 + 2];
+          if (applyWorldTransform) {
+            [nx, ny, nz] = transformVectorMat4(worldMat, nx, ny, nz);
+          } else {
+            const l = Math.hypot(nx, ny, nz) || 1;
+            nx /= l;
+            ny /= l;
+            nz /= l;
           }
+          normals[i2 * 3] = nx;
+          normals[i2 * 3 + 1] = ny;
+          normals[i2 * 3 + 2] = nz;
         }
       } else {
-        for (let k = 0; k + 2 < vertCount; k += 3) {
-          mergedIdx.push(baseVertex + k, baseVertex + k + 1, baseVertex + k + 2);
-        }
+        normals = computeSmoothNormals(positions, indices);
       }
+      for (let i2 = 0; i2 < vertCount * 3; i2++) {
+        mergedNorm.push(normals[i2]);
+      }
+      for (let k = 0; k < indices.length; k++) {
+        mergedIdx.push(baseVertex + indices[k]);
+      }
+      const morphTargets = [];
+      if (Array.isArray(prim.targets) && prim.targets.length > 0) {
+        prim.targets.forEach((target, tIdx) => {
+          if (target.POSITION === void 0) return;
+          const tPos = readAccessorArray(binChunk, accessors, bufferViews, target.POSITION);
+          if (tPos.length < vertCount * 3) return;
+          const deltas = new Float32Array(vertCount * 3);
+          for (let i2 = 0; i2 < vertCount; i2++) {
+            let dx = tPos[i2 * 3];
+            let dy = tPos[i2 * 3 + 1];
+            let dz = tPos[i2 * 3 + 2];
+            if (applyWorldTransform) {
+              deltas[i2 * 3] = worldMat[0] * dx + worldMat[4] * dy + worldMat[8] * dz;
+              deltas[i2 * 3 + 1] = worldMat[1] * dx + worldMat[5] * dy + worldMat[9] * dz;
+              deltas[i2 * 3 + 2] = worldMat[2] * dx + worldMat[6] * dy + worldMat[10] * dz;
+            } else {
+              deltas[i2 * 3] = dx;
+              deltas[i2 * 3 + 1] = dy;
+              deltas[i2 * 3 + 2] = dz;
+            }
+          }
+          let tNormals;
+          if (target.NORMAL !== void 0) {
+            const rawTN = readAccessorArray(binChunk, accessors, bufferViews, target.NORMAL);
+            if (rawTN.length >= vertCount * 3) {
+              tNormals = rawTN.subarray(0, vertCount * 3);
+            }
+          }
+          morphTargets.push({
+            name: targetNames[tIdx] || `morph_${tIdx}`,
+            positions: deltas,
+            normals: tNormals
+          });
+          hasMorphTargets = true;
+        });
+      }
+      primitivesOut.push({
+        meshIndex: inst.meshIndex,
+        meshName,
+        primitiveIndex: pIdx,
+        name: prims.length > 1 ? `${meshName}_prim_${pIdx}` : meshName,
+        materialIndex: prim.material !== void 0 ? prim.material : 0,
+        hasNormals: hasNormalsAttr,
+        hasUvs: hasUvsAttr,
+        hasUvs1: hasUvs1Attr,
+        hasColors: Boolean(colors),
+        hasSkinning: Boolean(joints && weights),
+        positions,
+        normals,
+        uvs,
+        uvs1: rawUv1 && rawUv1.length >= vertCount * 2 ? rawUv1.subarray(0, vertCount * 2) : void 0,
+        colors,
+        joints,
+        weights,
+        indices,
+        morphTargets
+      });
+    }
+    if (primitivesOut.length > 0) {
+      importedMeshes.push({
+        meshIndex: inst.meshIndex,
+        name: meshName,
+        nodeIndex: inst.nodeIndex,
+        skinIndex: inst.skinIndex,
+        worldMatrix: worldMat,
+        targetNames,
+        primitives: primitivesOut
+      });
     }
   }
   if (mergedPos.length === 0 || mergedIdx.length === 0) {
@@ -75304,12 +77306,26 @@ function parseAndValidateGlbAsset(payload) {
   }
   return {
     valid: true,
-    meshCount: meshes.length,
+    meshCount: importedMeshes.length,
     primitiveCount,
+    materialCount: materials.length,
+    textureCount: textures.length,
+    imageCount: images.length,
     vertexCount: mergedPos.length / 3,
     triangleCount: mergedIdx.length / 3,
+    hasExistingSkin: hasExistingSkin && skins.length > 0,
+    hasMorphTargets,
+    hasVertexColors,
+    hasNodeTransforms,
+    existingVrmHumanoid,
     boundsMin: [minX, minY, minZ],
     boundsMax: [maxX, maxY, maxZ],
+    meshes: importedMeshes,
+    materials,
+    textures,
+    samplers,
+    images,
+    skins,
     positions: new Float32Array(mergedPos),
     normals: new Float32Array(mergedNorm),
     uvs: new Float32Array(mergedUv),
@@ -76690,82 +78706,86 @@ function getSafeProjectDir(id) {
   const root = ensureRoot();
   return resolveSafePathWithinRoot(root, safeId);
 }
-function buildTenStagePipelineSummary(spec, interpreterNote, adapterNote, stats, interpretDurationMs = 35) {
+function buildMeasuredPipelineStages(spec, ctx, built, validation, timings) {
   const design = buildVisualDesignPlan(spec);
+  const extAudit = built.externalAudit;
+  const isExternal = Boolean(extAudit);
+  const unoptimized = spec.qualityConfig.vrmOptimization === "unoptimized";
   return [
     {
       id: "interpret",
       label: "1. Character Interpretation",
-      status: "completed",
-      durationMs: interpretDurationMs,
-      detail: interpreterNote
+      status: ctx.interpretUsedFallback ? "fallback" : "completed",
+      durationMs: ctx.interpretMs,
+      detail: ctx.interpreterNote
     },
     {
       id: "visual_design",
-      label: "2. Visual Design & Art Direction",
+      label: "2. Visual Design & Spec Fidelity",
       status: "completed",
-      durationMs: 14,
+      durationMs: ctx.designValidationMs,
       detail: `${design.artStyleLabel} \u2014 ${design.facialSculptNote}`
     },
     {
       id: "geometry_3d",
       label: "3. High-Detail 3D Geometry",
-      status: "completed",
-      durationMs: 68,
-      detail: `${adapterNote} (${stats.sourceTriangles.toLocaleString()} source triangles)`
+      status: ctx.geometryUsedFallback ? "fallback" : "completed",
+      durationMs: ctx.geometryResolveMs + (isExternal ? 0 : built.timingsMs.geometryMs),
+      detail: `${ctx.adapterDetail} (${built.estimates.sourceTriangles.toLocaleString()} source triangles)`
     },
     {
       id: "mesh_refinement",
-      label: "4. Anatomical & Facial Refinement",
-      status: "completed",
-      durationMs: 44,
-      detail: `Sculpted orbital eye sockets, nose/lips, Catmull-Rom hair ribbons, and layered clothing folds`
+      label: "4. Anatomical & Surface Preservation",
+      status: isExternal ? "skipped" : "completed",
+      durationMs: isExternal ? 0 : built.timingsMs.geometryMs,
+      detail: isExternal ? "Preserved external GLB geometry & node hierarchy verbatim without procedural replacement" : "Sculpted orbital eye sockets, nose/lips, Catmull-Rom hair ribbons, and layered clothing folds"
     },
     {
       id: "retopology",
       label: "5. Deformation-Safe Retopology",
-      status: "completed",
-      durationMs: 28,
-      detail: spec.qualityConfig.vrmOptimization === "unoptimized" ? `Unoptimized Max Detail (${stats.optimizedTriangles.toLocaleString()} tris retained)` : `VRM ${spec.qualityConfig.vrmOptimization} pass: ${stats.optimizedTriangles.toLocaleString()} tris (face/hair preserved)`
+      status: isExternal || unoptimized ? "skipped" : "completed",
+      durationMs: isExternal || unoptimized ? 0 : built.timingsMs.retopologyMs,
+      detail: isExternal ? "Skipped destructive decimation to preserve original external UV seams and materials" : unoptimized ? `Skipped (${built.estimates.optimizedTriangles.toLocaleString()} tris retained at Max Detail)` : `VRM ${spec.qualityConfig.vrmOptimization} pass: ${built.estimates.optimizedTriangles.toLocaleString()} tris`
     },
     {
       id: "uv_textures",
-      label: "6. UV Mapping & PBR Textures",
+      label: "6. Materials, UVs & Embedded Textures",
       status: "completed",
-      durationMs: 36,
-      detail: `Target ${stats.textureTargetPx}px \xB7 Embedded ${stats.packedTexturePx}px PNG albedo + tangent normal maps`
+      durationMs: built.timingsMs.materialsMs,
+      detail: extAudit ? `Preserved ${extAudit.preservedMaterialCount} PBR materials, ${extAudit.preservedTextureCount} textures & ${extAudit.preservedImageCount} embedded images` : `Target ${built.estimates.textureTargetPx}px \xB7 Embedded ${built.estimates.packedTexturePx}px PNG albedo + tangent normal maps (${built.stats.textureCount} textures)`
     },
     {
       id: "rigging",
       label: "7. Humanoid Rigging & Weights",
-      status: "completed",
-      durationMs: 42,
-      detail: `Bound ${stats.boneCount} VRM humanoid, finger & eye bones with normalized skin weights`
+      status: extAudit ? extAudit.weightsNormalized && extAudit.allJointDeformationsPassed && extAudit.missingVrmBones.length === 0 ? "completed" : "warning" : validation.skinWeightsValid ? "completed" : "error",
+      durationMs: built.timingsMs.riggingMs,
+      detail: extAudit ? `${extAudit.mode === "preserved_existing_rig" ? "Preserved existing rig" : "Fitted humanoid rig"} \xB7 ${built.stats.boneCount} bones \xB7 max weight error ${extAudit.maxWeightSumError} \xB7 ${extAudit.jointDeformations.filter((j) => j.passed).length}/${extAudit.jointDeformations.length} joint deformations verified` : `Bound ${built.stats.boneCount} VRM humanoid, finger & eye bones with normalized skin weights`
     },
     {
       id: "facial_rigging",
       label: "8. Facial Rigging & Spring Physics",
-      status: "completed",
-      durationMs: 31,
-      detail: `Generated ${stats.expressionCount} facial morph targets + ${stats.springBoneJointCount} hair/cloak spring joints`
+      status: validation.nonEmptyExpressions.length >= 7 ? "completed" : validation.nonEmptyExpressions.length > 0 ? "warning" : "error",
+      durationMs: built.timingsMs.facialMs,
+      detail: extAudit ? `${validation.nonEmptyExpressions.length} active non-zero expressions (${extAudit.preservedMorphCount} preserved, ${extAudit.synthesizedMorphCount} synthesized) + ${validation.springBoneJointCount} spring joints` : `Generated ${validation.nonEmptyExpressions.length} verified facial morph targets + ${validation.springBoneJointCount} hair/cloak spring joints`
     },
     {
       id: "blender_prep",
-      label: "9. Blender Processing Prep",
+      label: "9. Blender Script & GLB Artifact Prep",
       status: "completed",
-      durationMs: 19,
-      detail: `Saved source_high.glb + Blender 4.x Subsurf/Weighted-Normal bpy script`
+      durationMs: timings.blenderPrepMs,
+      detail: "Wrote source_high.glb + blender_build.py (live Blender bpy execution not run here)"
     },
     {
       id: "vrm_export",
       label: "10. VRM 1.0 Export & Audit",
-      status: "completed",
-      durationMs: 22,
-      detail: `Independently validated glTF 2.0 + VRMC_vrm 1.0 & VRMC_springBone binary`
+      status: validation.valid ? "completed" : "error",
+      durationMs: built.timingsMs.packageMs + timings.validateMs,
+      detail: `Independently validated glTF 2.0 + VRMC_vrm ${validation.vrmVersion} binary (${(validation.fileSizeBytes / 1024).toFixed(1)} KB)`
     }
   ];
 }
-function saveProjectArtifacts(spec, mode, stages, summary = "Initial character generation", externalGeometry) {
+function saveProjectArtifacts(spec, mode, execContext, summary = "Initial character generation", externalGeometry) {
+  const tGate0 = performance.now();
   const specValidation = validateCharacterSpecification(spec);
   if (!specValidation.valid) {
     throw new SecurityValidationError(
@@ -76773,6 +78793,7 @@ function saveProjectArtifacts(spec, mode, stages, summary = "Initial character g
       422
     );
   }
+  const designGateMs = Math.max(1, Math.round(performance.now() - tGate0));
   ensureRoot();
   const dir = getSafeProjectDir(spec.id);
   import_node_fs4.default.mkdirSync(dir, { recursive: true });
@@ -76781,12 +78802,15 @@ function saveProjectArtifacts(spec, mode, stages, summary = "Initial character g
     externalGeometry.parsedMesh,
     externalGeometry.glbBuffer
   ) : buildCharacterVrmAndGlb(spec);
+  const tVal0 = performance.now();
   const validation = validateVrmBinary(built.vrmBuffer);
+  const validateMs = Math.max(1, Math.round(performance.now() - tVal0));
   if (!validation.valid) {
     throw new Error(
       `Independent VRM validation failed: ${validation.checks.filter((c) => c.status === "fail").map((c) => c.detail).join("; ")}`
     );
   }
+  const tPrep0 = performance.now();
   const blenderScript = generateBlenderCharacterScript(spec, dir);
   import_node_fs4.default.writeFileSync(resolveSafePathWithinRoot(dir, "character.vrm"), built.vrmBuffer);
   import_node_fs4.default.writeFileSync(resolveSafePathWithinRoot(dir, "character.glb"), built.glbBuffer);
@@ -76803,6 +78827,17 @@ function saveProjectArtifacts(spec, mode, stages, summary = "Initial character g
     JSON.stringify(validation, null, 2)
   );
   import_node_fs4.default.writeFileSync(resolveSafePathWithinRoot(dir, "blender_build.py"), blenderScript);
+  const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
+  const stages = buildMeasuredPipelineStages(
+    spec,
+    {
+      ...execContext,
+      designValidationMs: execContext.designValidationMs || designGateMs
+    },
+    built,
+    validation,
+    { validateMs, blenderPrepMs }
+  );
   const metaPath = resolveSafePathWithinRoot(dir, "meta.json");
   let existingRevisions = [];
   let createdAt = spec.createdAt;
@@ -76882,91 +78917,103 @@ function duplicateProject(id) {
     createdAt: (/* @__PURE__ */ new Date()).toISOString(),
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
-  return saveProjectArtifacts(copySpec, source.mode, source.stages, `Duplicated from ${source.name}`);
+  return saveProjectArtifacts(
+    copySpec,
+    source.mode,
+    {
+      interpretMs: 0,
+      interpretUsedFallback: false,
+      interpreterNote: `Cloned specification from ${source.name}`,
+      designValidationMs: 1,
+      geometryResolveMs: 0,
+      geometryUsedFallback: false,
+      externalGenerationSucceeded: false,
+      adapterDetail: `Cloned build via ${source.spec.geometryProvider}`
+    },
+    `Duplicated from ${source.name}`
+  );
 }
 function seedInitialProjectsIfEmpty() {
   ensureRoot();
   const existing = listProjects();
-  const hasHighDetailSeed = existing.length >= 3 && existing.every(
-    (p) => Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints)
+  const hasCurrentSeed = existing.length >= 3 && existing.every(
+    (p) => Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints) && !p.stages.some(
+      (s2) => s2.id === "visual_design" && s2.durationMs === 14 || s2.id === "geometry_3d" && s2.durationMs === 68
+    )
   );
-  if (hasHighDetailSeed) return;
+  if (hasCurrentSeed) return;
   const seedSpecs = [
     {
-      spec: parseCharacterPromptFallback(
-        "Create a heroic female celestial paladin with porcelain skin, long braided golden hair, glowing amber eyes, silver-and-ivory ornate armor, layered pauldrons, winged mantle, and flowing royal cloak.",
-        {
-          id: "armored_paladin_aurelia",
-          name: "Aurelia Seraphis",
-          artStyle: "semi_realistic",
-          interpreterProvider: "local-semantic-parser",
-          geometryProvider: "sculpted-anatomical-vrm",
-          qualityConfig: {
-            geometryQuality: "high",
-            textureResolution: "4k",
-            vrmOptimization: "balanced"
-          }
+      prompt: "Create a heroic female celestial paladin with porcelain skin, long braided golden hair, glowing amber eyes, silver-and-ivory ornate armor, layered pauldrons, winged mantle, and flowing royal cloak.",
+      overrides: {
+        id: "armored_paladin_aurelia",
+        name: "Aurelia Seraphis",
+        artStyle: "semi_realistic",
+        interpreterProvider: "local-semantic-parser",
+        geometryProvider: "sculpted-anatomical-vrm",
+        qualityConfig: {
+          geometryQuality: "high",
+          textureResolution: "4k",
+          vrmOptimization: "balanced"
         }
-      ),
+      },
       mode: "hybrid",
       summary: "High-detail Armored Fantasy Paladin with wings & cloak"
     },
     {
-      spec: parseCharacterPromptFallback(
-        "Create an anatomically realistic human male ranger with tan skin, short brown hair, emerald eyes, dark brown tactical leather coat and boots, athletic muscular build, and realistic humanoid proportions.",
-        {
-          id: "realistic_human_marcus",
-          name: "Marcus Vance",
-          artStyle: "realistic_human",
-          interpreterProvider: "local-semantic-parser",
-          geometryProvider: "sculpted-anatomical-vrm",
-          qualityConfig: {
-            geometryQuality: "high",
-            textureResolution: "2k",
-            vrmOptimization: "balanced"
-          }
+      prompt: "Create an anatomically realistic human male ranger with tan skin, short brown hair, emerald eyes, dark brown tactical leather coat and boots, athletic muscular build, and realistic humanoid proportions.",
+      overrides: {
+        id: "realistic_human_marcus",
+        name: "Marcus Vance",
+        artStyle: "realistic_human",
+        interpreterProvider: "local-semantic-parser",
+        geometryProvider: "sculpted-anatomical-vrm",
+        qualityConfig: {
+          geometryQuality: "high",
+          textureResolution: "2k",
+          vrmOptimization: "balanced"
         }
-      ),
+      },
       mode: "local",
       summary: "High-detail Realistic Human Ranger showcase"
     },
     {
-      spec: parseCharacterPromptFallback(
-        "Create a tall, slender female dark elf with pale lavender skin, long silver hair, glowing violet eyes, pointed ears, ornate black-and-purple armor, a detailed fantasy cloak, and an athletic physique. Give her realistic humanoid proportions and a mysterious appearance.",
-        {
-          id: "dark_elf_vaelith",
-          name: "Vaelith Nightshade",
-          artStyle: "semi_realistic",
-          interpreterProvider: "local-semantic-parser",
-          geometryProvider: "sculpted-anatomical-vrm",
-          qualityConfig: {
-            geometryQuality: "high",
-            textureResolution: "2k",
-            vrmOptimization: "balanced"
-          }
+      prompt: "Create a tall, slender female dark elf with pale lavender skin, long silver hair, glowing violet eyes, pointed ears, ornate black-and-purple armor, a detailed fantasy cloak, and an athletic physique. Give her realistic humanoid proportions and a mysterious appearance.",
+      overrides: {
+        id: "dark_elf_vaelith",
+        name: "Vaelith Nightshade",
+        artStyle: "semi_realistic",
+        interpreterProvider: "local-semantic-parser",
+        geometryProvider: "sculpted-anatomical-vrm",
+        qualityConfig: {
+          geometryQuality: "high",
+          textureResolution: "2k",
+          vrmOptimization: "balanced"
         }
-      ),
+      },
       mode: "hybrid",
       summary: "High-detail Stylized Fantasy Dark Elf showcase"
     }
   ];
   for (const item of seedSpecs) {
-    const built = buildCharacterVrmAndGlb(item.spec);
-    const stages = buildTenStagePipelineSummary(
-      item.spec,
-      "Structured CharacterSpecification locked",
-      "High-Detail Sculpted Anatomical VRM Engine",
+    const tInterp0 = performance.now();
+    const spec = parseCharacterPromptFallback(item.prompt, item.overrides);
+    const interpretMs = Math.max(1, Math.round(performance.now() - tInterp0));
+    saveProjectArtifacts(
+      spec,
+      item.mode,
       {
-        sourceTriangles: built.estimates.sourceTriangles,
-        optimizedTriangles: built.estimates.optimizedTriangles,
-        textureTargetPx: built.estimates.textureTargetPx,
-        packedTexturePx: built.estimates.packedTexturePx,
-        boneCount: built.stats.boneCount,
-        expressionCount: built.stats.expressionCount,
-        springBoneJointCount: built.stats.springBoneJointCount
-      }
+        interpretMs,
+        interpretUsedFallback: false,
+        interpreterNote: "Structured CharacterSpecification parsed via local semantic engine",
+        designValidationMs: 0,
+        geometryResolveMs: 0,
+        geometryUsedFallback: false,
+        externalGenerationSucceeded: false,
+        adapterDetail: "High-Detail Sculpted Anatomical VRM Engine"
+      },
+      item.summary
     );
-    saveProjectArtifacts(item.spec, item.mode, stages, item.summary);
   }
 }
 
@@ -77070,9 +79117,10 @@ async function startServer() {
           error: "No generated humanoid GLB available to import into Blender."
         });
       }
+      const outDir = resolveSafePathWithinRoot(getProjectsRoot(), "_blender_test");
+      import_node_fs5.default.mkdirSync(outDir, { recursive: true });
+      const reportPath = resolveSafePathWithinRoot(outDir, "milestone2_report.json");
       try {
-        const outDir = resolveSafePathWithinRoot(getProjectsRoot(), "_blender_test");
-        import_node_fs5.default.mkdirSync(outDir, { recursive: true });
         const stdout = (0, import_node_child_process2.execFileSync)(
           blender.executablePath,
           [
@@ -77087,25 +79135,40 @@ async function startServer() {
           ],
           { timeout: 6e4, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
         );
-        const reportPath = resolveSafePathWithinRoot(outDir, "milestone2_report.json");
         const report = import_node_fs5.default.existsSync(reportPath) ? JSON.parse(import_node_fs5.default.readFileSync(reportPath, "utf8")) : null;
         return res.json({
           executed: Boolean(report?.status === "ok"),
           mode: "blender_live",
           blenderVersion: blender.version,
+          riggingSuccess: Boolean(report?.rigging_success),
+          materialPreserved: Boolean(report?.material_preserved),
+          texturePreserved: Boolean(report?.texture_preserved),
           vrmAddonInstalled: Boolean(report?.vrm_addon_installed),
-          vrmExported: Boolean(report?.vrm_exported),
-          vrmReloadValid: Boolean(report?.vrm_reload_valid),
+          vrmExported: Boolean(report?.vrm_export_success ?? report?.vrm_exported),
+          vrmReloadValid: Boolean(report?.vrm_reload_success ?? report?.vrm_reload_valid),
           deformationMaxDelta: report?.deformation_max_delta ?? null,
           report,
           stdout,
           blendFileExists: import_node_fs5.default.existsSync(resolveSafePathWithinRoot(outDir, "milestone2_test.blend"))
         });
       } catch (err) {
-        return res.status(500).json({
+        const report = import_node_fs5.default.existsSync(reportPath) ? JSON.parse(import_node_fs5.default.readFileSync(reportPath, "utf8")) : null;
+        const e2 = err;
+        return res.status(report ? 200 : 500).json({
           executed: false,
-          mode: "blender_error",
-          error: err.message
+          mode: "blender_live",
+          blenderVersion: blender.version,
+          riggingSuccess: Boolean(report?.rigging_success),
+          materialPreserved: Boolean(report?.material_preserved),
+          texturePreserved: Boolean(report?.texture_preserved),
+          vrmAddonInstalled: Boolean(report?.vrm_addon_installed),
+          vrmExported: Boolean(report?.vrm_export_success ?? report?.vrm_exported),
+          vrmReloadValid: Boolean(report?.vrm_reload_success ?? report?.vrm_reload_valid),
+          deformationMaxDelta: report?.deformation_max_delta ?? null,
+          report,
+          stdout: e2.stdout || e2.stderr || "",
+          error: report?.vrm_note || e2.message,
+          blendFileExists: import_node_fs5.default.existsSync(resolveSafePathWithinRoot(outDir, "milestone2_test.blend"))
         });
       }
     }
@@ -77165,7 +79228,7 @@ async function startServer() {
       const geometryProvider = typeof req.body?.geometryProvider === "string" ? req.body.geometryProvider : "sculpted-anatomical-vrm";
       const artStyle = req.body?.artStyle === "stylized_anime" || req.body?.artStyle === "realistic_human" || req.body?.artStyle === "semi_realistic" ? req.body.artStyle : void 0;
       const qualityConfig = req.body?.qualityConfig;
-      const t0 = Date.now();
+      const tInterp0 = performance.now();
       const interpreted = await interpretCharacterDescription(prompt, {
         mode,
         interpreterProvider,
@@ -77173,35 +79236,23 @@ async function startServer() {
         artStyle,
         qualityConfig
       });
-      const tInterpret = Math.max(8, Date.now() - t0);
+      const interpretMs = Math.max(1, Math.round(performance.now() - tInterp0));
+      const tGate0 = performance.now();
       const specValidation = validateCharacterSpecification(interpreted.spec);
+      const designValidationMs = Math.max(1, Math.round(performance.now() - tGate0));
       if (!specValidation.valid) {
         return res.status(422).json({
           error: `Specification fidelity gate rejected generation: ${specValidation.violations.join("; ")}`,
           violations: specValidation.violations
         });
       }
+      const tGeom0 = performance.now();
       const adapterExec = await resolveGeometryProviderExecution(
         interpreted.spec,
         geometryProvider
       );
+      const geometryResolveMs = Math.max(1, Math.round(performance.now() - tGeom0));
       interpreted.spec.geometryProvider = adapterExec.executedProvider;
-      const preEstimates = estimateCharacterMetrics(interpreted.spec);
-      const initialStages = buildTenStagePipelineSummary(
-        interpreted.spec,
-        `${interpreted.providerUsed}: ${interpreted.note}`,
-        adapterExec.detail,
-        {
-          sourceTriangles: adapterExec.externalParsedMesh?.triangleCount ?? preEstimates.sourceTriangles,
-          optimizedTriangles: adapterExec.externalParsedMesh?.triangleCount ?? preEstimates.optimizedTriangles,
-          textureTargetPx: preEstimates.textureTargetPx,
-          packedTexturePx: preEstimates.packedTexturePx,
-          boneCount: 65,
-          expressionCount: 17,
-          springBoneJointCount: 10
-        },
-        tInterpret
-      );
       const externalGeom = adapterExec.externalGenerationSucceeded && adapterExec.externalGlbBuffer && adapterExec.externalParsedMesh ? {
         glbBuffer: adapterExec.externalGlbBuffer,
         parsedMesh: adapterExec.externalParsedMesh
@@ -77209,27 +79260,19 @@ async function startServer() {
       const project = saveProjectArtifacts(
         interpreted.spec,
         mode,
-        initialStages,
+        {
+          interpretMs,
+          interpretUsedFallback: interpreted.usedFallback,
+          interpreterNote: `${interpreted.providerUsed}: ${interpreted.note}`,
+          designValidationMs,
+          geometryResolveMs,
+          geometryUsedFallback: adapterExec.usedFallback,
+          externalGenerationSucceeded: adapterExec.externalGenerationSucceeded,
+          adapterDetail: adapterExec.detail
+        },
         `Generated in ${mode} mode via ${adapterExec.executedProvider} (${interpreted.spec.qualityConfig.geometryQuality} / ${interpreted.spec.qualityConfig.textureResolution})`,
         externalGeom
       );
-      project.stages = buildTenStagePipelineSummary(
-        project.spec,
-        `${interpreted.providerUsed}: ${interpreted.note}`,
-        adapterExec.detail,
-        {
-          sourceTriangles: project.estimates.sourceTriangles,
-          optimizedTriangles: project.estimates.optimizedTriangles,
-          textureTargetPx: project.estimates.textureTargetPx,
-          packedTexturePx: project.estimates.packedTexturePx,
-          boneCount: project.validation.boneCount,
-          expressionCount: project.validation.nonEmptyExpressions.length,
-          springBoneJointCount: project.validation.springBoneJointCount
-        },
-        tInterpret
-      );
-      const projDir = getSafeProjectDir(project.id);
-      import_node_fs5.default.writeFileSync(resolveSafePathWithinRoot(projDir, "meta.json"), JSON.stringify(project, null, 2));
       res.json({
         project,
         usedFallback: interpreted.usedFallback || adapterExec.usedFallback,
@@ -77249,34 +79292,29 @@ async function startServer() {
       if (!existing) {
         return res.status(404).json({ error: "Project not found" });
       }
+      const tPatch0 = performance.now();
       const updatedSpec = applyCharacterEdits(existing.spec, req.body || {});
       const specValidation = validateCharacterSpecification(updatedSpec);
+      const patchMs = Math.max(1, Math.round(performance.now() - tPatch0));
       if (!specValidation.valid) {
         return res.status(422).json({
           error: `Customization rejected by fidelity gate: ${specValidation.violations.join("; ")}`,
           violations: specValidation.violations
         });
       }
-      const preEstimates = estimateCharacterMetrics(updatedSpec);
-      const stages = buildTenStagePipelineSummary(
-        updatedSpec,
-        `Non-destructive patch applied (v${updatedSpec.version})`,
-        `Sculpted Anatomical VRM Engine (${updatedSpec.qualityConfig.geometryQuality})`,
-        {
-          sourceTriangles: preEstimates.sourceTriangles,
-          optimizedTriangles: preEstimates.optimizedTriangles,
-          textureTargetPx: preEstimates.textureTargetPx,
-          packedTexturePx: preEstimates.packedTexturePx,
-          boneCount: existing.validation.boneCount,
-          expressionCount: existing.validation.nonEmptyExpressions.length,
-          springBoneJointCount: existing.validation.springBoneJointCount
-        },
-        8
-      );
       const project = saveProjectArtifacts(
         updatedSpec,
         existing.mode,
-        stages,
+        {
+          interpretMs: patchMs,
+          interpretUsedFallback: false,
+          interpreterNote: `Non-destructive patch applied (v${updatedSpec.version})`,
+          designValidationMs: 1,
+          geometryResolveMs: 0,
+          geometryUsedFallback: false,
+          externalGenerationSucceeded: false,
+          adapterDetail: `Sculpted Anatomical VRM Engine (${updatedSpec.qualityConfig.geometryQuality})`
+        },
         `Customized traits & quality (v${updatedSpec.version})`
       );
       res.json({ project });
@@ -77289,11 +79327,13 @@ async function startServer() {
       const existing = getProject(req.params.id);
       if (!existing) return res.status(404).json({ error: "Project not found" });
       const rawSpec = req.body?.spec;
+      const tSpec0 = performance.now();
       const normalized = normalizeCharacterSpec(
         { ...rawSpec, id: existing.id, version: existing.spec.version + 1 },
         existing.spec.sourcePrompt
       );
       const specValidation = validateCharacterSpecification(normalized);
+      const specMs = Math.max(1, Math.round(performance.now() - tSpec0));
       if (!specValidation.valid) {
         return res.status(422).json({
           error: `Specification update failed validation: ${specValidation.violations.join("; ")}`,
@@ -77303,7 +79343,16 @@ async function startServer() {
       const project = saveProjectArtifacts(
         normalized,
         existing.mode,
-        existing.stages,
+        {
+          interpretMs: specMs,
+          interpretUsedFallback: false,
+          interpreterNote: `Direct CharacterSpecification JSON edit (v${normalized.version})`,
+          designValidationMs: 1,
+          geometryResolveMs: 0,
+          geometryUsedFallback: false,
+          externalGenerationSucceeded: false,
+          adapterDetail: `Sculpted Anatomical VRM Engine (${normalized.qualityConfig.geometryQuality})`
+        },
         `Updated character spec JSON (v${normalized.version})`
       );
       res.json({ project });

@@ -48,95 +48,124 @@ export function getSafeProjectDir(id: string): string {
   return resolveSafePathWithinRoot(root, safeId);
 }
 
-export function buildTenStagePipelineSummary(
+export interface PipelineExecutionContext {
+  interpretMs: number;
+  interpretUsedFallback: boolean;
+  interpreterNote: string;
+  designValidationMs: number;
+  geometryResolveMs: number;
+  geometryUsedFallback: boolean;
+  externalGenerationSucceeded: boolean;
+  adapterDetail: string;
+}
+
+export function buildMeasuredPipelineStages(
   spec: CharacterSpecification,
-  interpreterNote: string,
-  adapterNote: string,
-  stats: {
-    sourceTriangles: number;
-    optimizedTriangles: number;
-    textureTargetPx: number;
-    packedTexturePx: number;
-    boneCount: number;
-    expressionCount: number;
-    springBoneJointCount: number;
-  },
-  interpretDurationMs = 35
+  ctx: PipelineExecutionContext,
+  built: ReturnType<typeof buildCharacterVrmAndGlb>,
+  validation: ReturnType<typeof validateVrmBinary>,
+  timings: { validateMs: number; blenderPrepMs: number }
 ): PipelineStageResult[] {
   const design = buildVisualDesignPlan(spec);
+  const extAudit = built.externalAudit;
+  const isExternal = Boolean(extAudit);
+  const unoptimized = spec.qualityConfig.vrmOptimization === 'unoptimized';
+
   return [
     {
       id: 'interpret',
       label: '1. Character Interpretation',
-      status: 'completed',
-      durationMs: interpretDurationMs,
-      detail: interpreterNote,
+      status: ctx.interpretUsedFallback ? 'fallback' : 'completed',
+      durationMs: ctx.interpretMs,
+      detail: ctx.interpreterNote,
     },
     {
       id: 'visual_design',
-      label: '2. Visual Design & Art Direction',
+      label: '2. Visual Design & Spec Fidelity',
       status: 'completed',
-      durationMs: 14,
+      durationMs: ctx.designValidationMs,
       detail: `${design.artStyleLabel} — ${design.facialSculptNote}`,
     },
     {
       id: 'geometry_3d',
       label: '3. High-Detail 3D Geometry',
-      status: 'completed',
-      durationMs: 68,
-      detail: `${adapterNote} (${stats.sourceTriangles.toLocaleString()} source triangles)`,
+      status: ctx.geometryUsedFallback ? 'fallback' : 'completed',
+      durationMs: ctx.geometryResolveMs + (isExternal ? 0 : built.timingsMs.geometryMs),
+      detail: `${ctx.adapterDetail} (${built.estimates.sourceTriangles.toLocaleString()} source triangles)`,
     },
     {
       id: 'mesh_refinement',
-      label: '4. Anatomical & Facial Refinement',
-      status: 'completed',
-      durationMs: 44,
-      detail: `Sculpted orbital eye sockets, nose/lips, Catmull-Rom hair ribbons, and layered clothing folds`,
+      label: '4. Anatomical & Surface Preservation',
+      status: isExternal ? 'skipped' : 'completed',
+      durationMs: isExternal ? 0 : built.timingsMs.geometryMs,
+      detail: isExternal
+        ? 'Preserved external GLB geometry & node hierarchy verbatim without procedural replacement'
+        : 'Sculpted orbital eye sockets, nose/lips, Catmull-Rom hair ribbons, and layered clothing folds',
     },
     {
       id: 'retopology',
       label: '5. Deformation-Safe Retopology',
-      status: 'completed',
-      durationMs: 28,
-      detail:
-        spec.qualityConfig.vrmOptimization === 'unoptimized'
-          ? `Unoptimized Max Detail (${stats.optimizedTriangles.toLocaleString()} tris retained)`
-          : `VRM ${spec.qualityConfig.vrmOptimization} pass: ${stats.optimizedTriangles.toLocaleString()} tris (face/hair preserved)`,
+      status: isExternal || unoptimized ? 'skipped' : 'completed',
+      durationMs: isExternal || unoptimized ? 0 : built.timingsMs.retopologyMs,
+      detail: isExternal
+        ? 'Skipped destructive decimation to preserve original external UV seams and materials'
+        : unoptimized
+          ? `Skipped (${built.estimates.optimizedTriangles.toLocaleString()} tris retained at Max Detail)`
+          : `VRM ${spec.qualityConfig.vrmOptimization} pass: ${built.estimates.optimizedTriangles.toLocaleString()} tris`,
     },
     {
       id: 'uv_textures',
-      label: '6. UV Mapping & PBR Textures',
+      label: '6. Materials, UVs & Embedded Textures',
       status: 'completed',
-      durationMs: 36,
-      detail: `Target ${stats.textureTargetPx}px · Embedded ${stats.packedTexturePx}px PNG albedo + tangent normal maps`,
+      durationMs: built.timingsMs.materialsMs,
+      detail: extAudit
+        ? `Preserved ${extAudit.preservedMaterialCount} PBR materials, ${extAudit.preservedTextureCount} textures & ${extAudit.preservedImageCount} embedded images`
+        : `Target ${built.estimates.textureTargetPx}px · Embedded ${built.estimates.packedTexturePx}px PNG albedo + tangent normal maps (${built.stats.textureCount} textures)`,
     },
     {
       id: 'rigging',
       label: '7. Humanoid Rigging & Weights',
-      status: 'completed',
-      durationMs: 42,
-      detail: `Bound ${stats.boneCount} VRM humanoid, finger & eye bones with normalized skin weights`,
+      status: extAudit
+        ? extAudit.weightsNormalized &&
+          extAudit.allJointDeformationsPassed &&
+          extAudit.missingVrmBones.length === 0
+          ? 'completed'
+          : 'warning'
+        : validation.skinWeightsValid
+          ? 'completed'
+          : 'error',
+      durationMs: built.timingsMs.riggingMs,
+      detail: extAudit
+        ? `${extAudit.mode === 'preserved_existing_rig' ? 'Preserved existing rig' : 'Fitted humanoid rig'} · ${built.stats.boneCount} bones · max weight error ${extAudit.maxWeightSumError} · ${extAudit.jointDeformations.filter((j) => j.passed).length}/${extAudit.jointDeformations.length} joint deformations verified`
+        : `Bound ${built.stats.boneCount} VRM humanoid, finger & eye bones with normalized skin weights`,
     },
     {
       id: 'facial_rigging',
       label: '8. Facial Rigging & Spring Physics',
-      status: 'completed',
-      durationMs: 31,
-      detail: `Generated ${stats.expressionCount} facial morph targets + ${stats.springBoneJointCount} hair/cloak spring joints`,
+      status:
+        validation.nonEmptyExpressions.length >= 7
+          ? 'completed'
+          : validation.nonEmptyExpressions.length > 0
+            ? 'warning'
+            : 'error',
+      durationMs: built.timingsMs.facialMs,
+      detail: extAudit
+        ? `${validation.nonEmptyExpressions.length} active non-zero expressions (${extAudit.preservedMorphCount} preserved, ${extAudit.synthesizedMorphCount} synthesized) + ${validation.springBoneJointCount} spring joints`
+        : `Generated ${validation.nonEmptyExpressions.length} verified facial morph targets + ${validation.springBoneJointCount} hair/cloak spring joints`,
     },
     {
       id: 'blender_prep',
-      label: '9. Blender Processing Prep',
+      label: '9. Blender Script & GLB Artifact Prep',
       status: 'completed',
-      durationMs: 19,
-      detail: `Saved source_high.glb + Blender 4.x Subsurf/Weighted-Normal bpy script`,
+      durationMs: timings.blenderPrepMs,
+      detail: 'Wrote source_high.glb + blender_build.py (live Blender bpy execution not run here)',
     },
     {
       id: 'vrm_export',
       label: '10. VRM 1.0 Export & Audit',
-      status: 'completed',
-      durationMs: 22,
-      detail: `Independently validated glTF 2.0 + VRMC_vrm 1.0 & VRMC_springBone binary`,
+      status: validation.valid ? 'completed' : 'error',
+      durationMs: built.timingsMs.packageMs + timings.validateMs,
+      detail: `Independently validated glTF 2.0 + VRMC_vrm ${validation.vrmVersion} binary (${(validation.fileSizeBytes / 1024).toFixed(1)} KB)`,
     },
   ];
 }
@@ -144,13 +173,14 @@ export function buildTenStagePipelineSummary(
 export function saveProjectArtifacts(
   spec: CharacterSpecification,
   mode: GenerationMode,
-  stages: PipelineStageResult[],
+  execContext: PipelineExecutionContext,
   summary = 'Initial character generation',
   externalGeometry?: {
     glbBuffer: Uint8Array;
     parsedMesh: ParsedGlbAsset;
   }
 ): ProjectRecord {
+  const tGate0 = performance.now();
   // Pre-geometry Character Specification Fidelity Gate
   const specValidation = validateCharacterSpecification(spec);
   if (!specValidation.valid) {
@@ -159,6 +189,7 @@ export function saveProjectArtifacts(
       422
     );
   }
+  const designGateMs = Math.max(1, Math.round(performance.now() - tGate0));
 
   ensureRoot();
   const dir = getSafeProjectDir(spec.id);
@@ -173,7 +204,9 @@ export function saveProjectArtifacts(
         )
       : buildCharacterVrmAndGlb(spec);
 
+  const tVal0 = performance.now();
   const validation = validateVrmBinary(built.vrmBuffer);
+  const validateMs = Math.max(1, Math.round(performance.now() - tVal0));
   if (!validation.valid) {
     throw new Error(
       `Independent VRM validation failed: ${validation.checks
@@ -183,6 +216,7 @@ export function saveProjectArtifacts(
     );
   }
 
+  const tPrep0 = performance.now();
   const blenderScript = generateBlenderCharacterScript(spec, dir);
 
   fs.writeFileSync(resolveSafePathWithinRoot(dir, 'character.vrm'), built.vrmBuffer);
@@ -200,6 +234,18 @@ export function saveProjectArtifacts(
     JSON.stringify(validation, null, 2)
   );
   fs.writeFileSync(resolveSafePathWithinRoot(dir, 'blender_build.py'), blenderScript);
+  const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
+
+  const stages = buildMeasuredPipelineStages(
+    spec,
+    {
+      ...execContext,
+      designValidationMs: execContext.designValidationMs || designGateMs,
+    },
+    built,
+    validation,
+    { validateMs, blenderPrepMs }
+  );
 
   const metaPath = resolveSafePathWithinRoot(dir, 'meta.json');
   let existingRevisions: ProjectRecord['revisions'] = [];
@@ -287,100 +333,119 @@ export function duplicateProject(id: string): ProjectRecord | null {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  return saveProjectArtifacts(copySpec, source.mode, source.stages, `Duplicated from ${source.name}`);
+  return saveProjectArtifacts(
+    copySpec,
+    source.mode,
+    {
+      interpretMs: 0,
+      interpretUsedFallback: false,
+      interpreterNote: `Cloned specification from ${source.name}`,
+      designValidationMs: 1,
+      geometryResolveMs: 0,
+      geometryUsedFallback: false,
+      externalGenerationSucceeded: false,
+      adapterDetail: `Cloned build via ${source.spec.geometryProvider}`,
+    },
+    `Duplicated from ${source.name}`
+  );
 }
 
 export function seedInitialProjectsIfEmpty(): void {
   ensureRoot();
   const existing = listProjects();
-  const hasHighDetailSeed =
+  const hasCurrentSeed =
     existing.length >= 3 &&
     existing.every(
       (p) =>
-        Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints)
+        Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints) &&
+        !p.stages.some(
+          (s) =>
+            (s.id === 'visual_design' && s.durationMs === 14) ||
+            (s.id === 'geometry_3d' && s.durationMs === 68)
+        )
     );
-  if (hasHighDetailSeed) return;
+  if (hasCurrentSeed) return;
 
   const seedSpecs: Array<{
-    spec: CharacterSpecification;
+    prompt: string;
+    overrides: Parameters<typeof parseCharacterPromptFallback>[1];
     mode: GenerationMode;
     summary: string;
   }> = [
     {
-      spec: parseCharacterPromptFallback(
+      prompt:
         'Create a heroic female celestial paladin with porcelain skin, long braided golden hair, glowing amber eyes, silver-and-ivory ornate armor, layered pauldrons, winged mantle, and flowing royal cloak.',
-        {
-          id: 'armored_paladin_aurelia',
-          name: 'Aurelia Seraphis',
-          artStyle: 'semi_realistic',
-          interpreterProvider: 'local-semantic-parser',
-          geometryProvider: 'sculpted-anatomical-vrm',
-          qualityConfig: {
-            geometryQuality: 'high',
-            textureResolution: '4k',
-            vrmOptimization: 'balanced',
-          },
-        }
-      ),
+      overrides: {
+        id: 'armored_paladin_aurelia',
+        name: 'Aurelia Seraphis',
+        artStyle: 'semi_realistic',
+        interpreterProvider: 'local-semantic-parser',
+        geometryProvider: 'sculpted-anatomical-vrm',
+        qualityConfig: {
+          geometryQuality: 'high',
+          textureResolution: '4k',
+          vrmOptimization: 'balanced',
+        },
+      },
       mode: 'hybrid',
       summary: 'High-detail Armored Fantasy Paladin with wings & cloak',
     },
     {
-      spec: parseCharacterPromptFallback(
+      prompt:
         'Create an anatomically realistic human male ranger with tan skin, short brown hair, emerald eyes, dark brown tactical leather coat and boots, athletic muscular build, and realistic humanoid proportions.',
-        {
-          id: 'realistic_human_marcus',
-          name: 'Marcus Vance',
-          artStyle: 'realistic_human',
-          interpreterProvider: 'local-semantic-parser',
-          geometryProvider: 'sculpted-anatomical-vrm',
-          qualityConfig: {
-            geometryQuality: 'high',
-            textureResolution: '2k',
-            vrmOptimization: 'balanced',
-          },
-        }
-      ),
+      overrides: {
+        id: 'realistic_human_marcus',
+        name: 'Marcus Vance',
+        artStyle: 'realistic_human',
+        interpreterProvider: 'local-semantic-parser',
+        geometryProvider: 'sculpted-anatomical-vrm',
+        qualityConfig: {
+          geometryQuality: 'high',
+          textureResolution: '2k',
+          vrmOptimization: 'balanced',
+        },
+      },
       mode: 'local',
       summary: 'High-detail Realistic Human Ranger showcase',
     },
     {
-      spec: parseCharacterPromptFallback(
+      prompt:
         'Create a tall, slender female dark elf with pale lavender skin, long silver hair, glowing violet eyes, pointed ears, ornate black-and-purple armor, a detailed fantasy cloak, and an athletic physique. Give her realistic humanoid proportions and a mysterious appearance.',
-        {
-          id: 'dark_elf_vaelith',
-          name: 'Vaelith Nightshade',
-          artStyle: 'semi_realistic',
-          interpreterProvider: 'local-semantic-parser',
-          geometryProvider: 'sculpted-anatomical-vrm',
-          qualityConfig: {
-            geometryQuality: 'high',
-            textureResolution: '2k',
-            vrmOptimization: 'balanced',
-          },
-        }
-      ),
+      overrides: {
+        id: 'dark_elf_vaelith',
+        name: 'Vaelith Nightshade',
+        artStyle: 'semi_realistic',
+        interpreterProvider: 'local-semantic-parser',
+        geometryProvider: 'sculpted-anatomical-vrm',
+        qualityConfig: {
+          geometryQuality: 'high',
+          textureResolution: '2k',
+          vrmOptimization: 'balanced',
+        },
+      },
       mode: 'hybrid',
       summary: 'High-detail Stylized Fantasy Dark Elf showcase',
     },
   ];
 
   for (const item of seedSpecs) {
-    const built = buildCharacterVrmAndGlb(item.spec);
-    const stages = buildTenStagePipelineSummary(
-      item.spec,
-      'Structured CharacterSpecification locked',
-      'High-Detail Sculpted Anatomical VRM Engine',
+    const tInterp0 = performance.now();
+    const spec = parseCharacterPromptFallback(item.prompt, item.overrides);
+    const interpretMs = Math.max(1, Math.round(performance.now() - tInterp0));
+    saveProjectArtifacts(
+      spec,
+      item.mode,
       {
-        sourceTriangles: built.estimates.sourceTriangles,
-        optimizedTriangles: built.estimates.optimizedTriangles,
-        textureTargetPx: built.estimates.textureTargetPx,
-        packedTexturePx: built.estimates.packedTexturePx,
-        boneCount: built.stats.boneCount,
-        expressionCount: built.stats.expressionCount,
-        springBoneJointCount: built.stats.springBoneJointCount,
-      }
+        interpretMs,
+        interpretUsedFallback: false,
+        interpreterNote: 'Structured CharacterSpecification parsed via local semantic engine',
+        designValidationMs: 0,
+        geometryResolveMs: 0,
+        geometryUsedFallback: false,
+        externalGenerationSucceeded: false,
+        adapterDetail: 'High-Detail Sculpted Anatomical VRM Engine',
+      },
+      item.summary
     );
-    saveProjectArtifacts(item.spec, item.mode, stages, item.summary);
   }
 }

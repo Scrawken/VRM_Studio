@@ -39,6 +39,9 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
     note?: string;
     stdout?: string;
     error?: string;
+    riggingSuccess?: boolean;
+    materialPreserved?: boolean;
+    texturePreserved?: boolean;
     vrmAddonInstalled?: boolean;
     vrmExported?: boolean;
     vrmReloadValid?: boolean;
@@ -273,11 +276,39 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
                 </div>
                 {testResult.note && <p className="text-slate-400 mb-2">{testResult.note}</p>}
                 {testResult.error && <p className="text-red-400 mb-2">{testResult.error}</p>}
-                {testResult.executed && (
-                  <div className="text-[11px] text-slate-300 mb-2 flex flex-wrap gap-3">
+                {testResult.mode === 'blender_live' && (
+                  <div className="text-[11px] text-slate-300 mb-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <span>
+                      Rigging:{' '}
+                      <strong className={testResult.riggingSuccess ? 'text-emerald-400' : 'text-red-400'}>
+                        {testResult.riggingSuccess ? 'Passed' : 'Failed'}
+                      </strong>
+                    </span>
                     <span>Deformation Δ: {testResult.deformationMaxDelta ?? 'n/a'}</span>
-                    <span>VRM Add-on: {testResult.vrmAddonInstalled ? 'Yes' : 'No'}</span>
-                    <span>VRM Export & Reload: {testResult.vrmReloadValid ? 'Verified' : 'Skipped/Failed'}</span>
+                    <span>
+                      Materials:{' '}
+                      <strong className={testResult.materialPreserved ? 'text-emerald-400' : 'text-red-400'}>
+                        {testResult.materialPreserved ? 'Preserved' : 'Lost'}
+                      </strong>
+                    </span>
+                    <span>
+                      Textures:{' '}
+                      <strong className={testResult.texturePreserved ? 'text-emerald-400' : 'text-red-400'}>
+                        {testResult.texturePreserved ? 'Preserved' : 'Lost'}
+                      </strong>
+                    </span>
+                    <span>
+                      VRM Export:{' '}
+                      <strong className={testResult.vrmExported ? 'text-emerald-400' : 'text-red-400'}>
+                        {testResult.vrmExported ? 'Exported' : 'Failed/Missing'}
+                      </strong>
+                    </span>
+                    <span>
+                      VRM Reload:{' '}
+                      <strong className={testResult.vrmReloadValid ? 'text-emerald-400' : 'text-red-400'}>
+                        {testResult.vrmReloadValid ? 'Verified' : 'Failed'}
+                      </strong>
+                    </span>
                   </div>
                 )}
                 {testResult.stdout && (

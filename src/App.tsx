@@ -79,24 +79,24 @@ export default function App() {
       },
       {
         id: 'visual_design',
-        label: '2. Visual Design & Art Direction',
+        label: '2. Visual Design & Spec Fidelity',
         status: 'pending',
         durationMs: 0,
-        detail: 'Preparing anatomy, hair & garment specification',
+        detail: 'Validating required/forbidden features & palette fidelity',
       },
       {
         id: 'geometry_3d',
         label: '3. High-Detail 3D Geometry',
         status: 'pending',
         durationMs: 0,
-        detail: `Using ${params.geometryProvider}`,
+        detail: `Requesting ${params.geometryProvider}`,
       },
       {
         id: 'rigging',
         label: '7. Humanoid Rigging & Weights',
         status: 'pending',
         durationMs: 0,
-        detail: '65-bone VRM 1.0 armature + 17 morph targets',
+        detail: 'Preparing VRM 1.0 humanoid armature & weight normalization',
       },
       {
         id: 'vrm_export',
@@ -132,7 +132,15 @@ export default function App() {
       setCameraPreset('full');
       await loadProjects(created.id);
     } catch (err) {
-      setGenerationError((err as Error).message);
+      const msg = (err as Error).message;
+      setGenerationError(msg);
+      setLiveStages((prev) =>
+        prev.map((s) =>
+          s.status === 'running'
+            ? { ...s, status: 'error', detail: msg }
+            : s
+        )
+      );
     } finally {
       setIsGenerating(false);
     }

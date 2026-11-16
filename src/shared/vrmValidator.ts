@@ -28,13 +28,19 @@ interface GltfJson {
   images?: Array<{ name?: string; mimeType?: string; bufferView?: number }>;
   accessors?: Array<{
     bufferView?: number;
+    byteOffset?: number;
     componentType: number;
     count: number;
     type: string;
     min?: number[];
     max?: number[];
   }>;
-  bufferViews?: Array<{ buffer: number; byteOffset?: number; byteLength: number }>;
+  bufferViews?: Array<{
+    buffer: number;
+    byteOffset?: number;
+    byteLength: number;
+    byteStride?: number;
+  }>;
   extensionsUsed?: string[];
   extensions?: {
     VRMC_vrm?: {
@@ -57,6 +63,16 @@ interface GltfJson {
     };
   };
 }
+
+const CORE_FACIAL_EXPRESSION_PRESETS = [
+  'blink',
+  'blinkLeft',
+  'blinkRight',
+  'happy',
+  'angry',
+  'sad',
+  'surprised',
+] as const;
 
 export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
   const checks: ValidationCheck[] = [];
@@ -134,6 +150,8 @@ export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
     return failReport('Missing required JSON or BIN chunk inside GLB.');
   }
 
+  const binView = new DataView(binChunk.buffer, binChunk.byteOffset, binChunk.byteLength);
+
   // Validate VRMC_vrm 1.0 extension
   const vrmExt = gltf.extensions?.VRMC_vrm;
   const specVersion = vrmExt?.specVersion ?? 'missing';
@@ -162,9 +180,11 @@ export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
     label: 'VRM Humanoid Bone Mapping',
     status: missingRequiredBones.length === 0 && invalidBoneNodes.length === 0 ? 'pass' : 'fail',
     detail:
-      missingRequiredBones.length === 0
+      missingRequiredBones.length === 0 && invalidBoneNodes.length === 0
         ? `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length} optional bones mapped`
-        : `Missing required bones: ${missingRequiredBones.join(', ')}`,
+        : invalidBoneNodes.length > 0
+          ? `Invalid node indices for bones: ${invalidBoneNodes.join(', ')}`
+          : `Missing required bones: ${missingRequiredBones.join(', ')}`,
   });
 
   // Validate Mesh Geometry, Skinning & Weight Normalization
@@ -196,14 +216,33 @@ export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
         triangleCount += Math.floor(accessors[prim.indices].count / 3);
       }
 
-      // Verify normalized weights in BIN chunk
+      // Verify normalized weights in BIN chunk (handles FLOAT, UBYTE, USHORT, byteOffset, byteStride)
       if (wAcc && wAcc.bufferView !== undefined && bufferViews[wAcc.bufferView]) {
         const bv = bufferViews[wAcc.bufferView];
-        const byteStart = binChunk.byteOffset + (bv.byteOffset ?? 0);
-        const floats = new Float32Array(binChunk.buffer, byteStart, wAcc.count * 4);
+        const compBytes =
+          wAcc.componentType === 5126 ? 4 : wAcc.componentType === 5123 ? 2 : 1;
+        const stride = bv.byteStride && bv.byteStride >= compBytes * 4 ? bv.byteStride : compBytes * 4;
+        const base = (bv.byteOffset ?? 0) + (wAcc.byteOffset ?? 0);
+
         for (let v = 0; v < wAcc.count; v++) {
-          const sum = floats[v * 4] + floats[v * 4 + 1] + floats[v * 4 + 2] + floats[v * 4 + 3];
-          if (Math.abs(sum - 1.0) > 0.02) {
+          const ptr = base + v * stride;
+          if (ptr + compBytes * 4 > binChunk.byteLength) {
+            skinWeightsValid = false;
+            weightCheckDetail = `WEIGHTS_0 accessor exceeds BIN buffer length at vertex ${v}`;
+            break;
+          }
+          let sum = 0;
+          for (let k = 0; k < 4; k++) {
+            const cOff = ptr + k * compBytes;
+            if (wAcc.componentType === 5126) {
+              sum += binView.getFloat32(cOff, true);
+            } else if (wAcc.componentType === 5123) {
+              sum += binView.getUint16(cOff, true) / 65535;
+            } else {
+              sum += binView.getUint8(cOff) / 255;
+            }
+          }
+          if (!Number.isFinite(sum) || Math.abs(sum - 1.0) > 0.02) {
             skinWeightsValid = false;
             weightCheckDetail = `Unnormalized skin weights detected at vertex ${v} (sum=${sum.toFixed(3)})`;
             break;
@@ -215,7 +254,10 @@ export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
 
   const skins = gltf.skins ?? [];
   const boneCount = skins[0]?.joints?.length ?? 0;
-  const hasIbm = skins.length > 0 && skins[0].inverseBindMatrices !== undefined;
+  const hasIbm =
+    skins.length > 0 &&
+    skins[0].inverseBindMatrices !== undefined &&
+    (accessors[skins[0].inverseBindMatrices]?.count ?? 0) >= boneCount;
 
   checks.push({
     id: 'geometry_topology',
@@ -228,7 +270,9 @@ export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
     id: 'skinning_weights',
     label: 'Armature Skinning & Weights',
     status: skinWeightsValid && hasIbm && boneCount > 0 ? 'pass' : 'fail',
-    detail: hasIbm ? `${boneCount} skin joints · ${weightCheckDetail}` : 'Missing skin inverseBindMatrices',
+    detail: hasIbm
+      ? `${boneCount} skin joints · ${weightCheckDetail}`
+      : 'Missing or undersized skin inverseBindMatrices',
   });
 
   // Verify non-empty facial morph targets for expressions
@@ -249,7 +293,8 @@ export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
         const posAccIdx = targetEntry?.POSITION;
         if (posAccIdx === undefined) continue;
         const acc = accessors[posAccIdx];
-        if (acc?.min && acc?.max) {
+        if (!acc) continue;
+        if (acc.min && acc.max && acc.min.length >= 3 && acc.max.length >= 3) {
           const mag =
             Math.max(Math.abs(acc.min[0]), Math.abs(acc.max[0])) +
             Math.max(Math.abs(acc.min[1]), Math.abs(acc.max[1])) +
@@ -258,6 +303,24 @@ export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
             hasNonZeroDelta = true;
             break;
           }
+        } else if (acc.bufferView !== undefined && bufferViews[acc.bufferView]) {
+          const bv = bufferViews[acc.bufferView];
+          const stride = bv.byteStride && bv.byteStride >= 12 ? bv.byteStride : 12;
+          const base = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+          let maxMag = 0;
+          for (let i = 0; i < acc.count; i++) {
+            const p = base + i * stride;
+            if (p + 12 > binChunk.byteLength) break;
+            const dx = Math.abs(binView.getFloat32(p, true));
+            const dy = Math.abs(binView.getFloat32(p + 4, true));
+            const dz = Math.abs(binView.getFloat32(p + 8, true));
+            maxMag = Math.max(maxMag, dx + dy + dz);
+            if (maxMag > 0.0001) {
+              hasNonZeroDelta = true;
+              break;
+            }
+          }
+          if (hasNonZeroDelta) break;
         }
       }
       if (hasNonZeroDelta) break;
@@ -267,22 +330,56 @@ export function validateVrmBinary(bytes: Uint8Array): VrmValidationReport {
     }
   }
 
+  const missingCoreExpr = CORE_FACIAL_EXPRESSION_PRESETS.filter(
+    (name) => !nonEmptyExpressions.includes(name)
+  );
+  const hasNeutralPreset = 'neutral' in presets;
+  const exprStatus: 'pass' | 'warn' | 'fail' =
+    nonEmptyExpressions.length === 0
+      ? 'fail'
+      : missingCoreExpr.length === 0 && hasNeutralPreset
+        ? 'pass'
+        : 'warn';
+
   checks.push({
     id: 'facial_expressions',
     label: 'Facial Morph Targets & Expressions',
-    status: nonEmptyExpressions.length >= 10 ? 'pass' : nonEmptyExpressions.length > 0 ? 'warn' : 'fail',
-    detail: `${nonEmptyExpressions.length} non-empty facial morph expressions (${expressionNames.length} total presets)`,
+    status: exprStatus,
+    detail:
+      missingCoreExpr.length === 0
+        ? `${nonEmptyExpressions.length} non-empty facial morph expressions (${expressionNames.length} presets incl. neutral & core set)`
+        : `${nonEmptyExpressions.length} non-empty expressions · missing core presets: ${missingCoreExpr.join(', ')}`,
   });
 
-  // Materials, Textures & Spring Bones
+  // Materials, Textures & Image Reference Integrity
   const materialCount = gltf.materials?.length ?? 0;
-  const textureCount = gltf.textures?.length ?? 0;
-  const imageCount = gltf.images?.length ?? 0;
+  const textures = gltf.textures ?? [];
+  const images = gltf.images ?? [];
+  const textureCount = textures.length;
+  const imageCount = images.length;
+
+  let brokenRefs = 0;
+  for (const tex of textures) {
+    if (tex.source !== undefined && (tex.source < 0 || tex.source >= imageCount)) {
+      brokenRefs++;
+    }
+  }
+  for (const img of images) {
+    if (img.bufferView !== undefined && (img.bufferView < 0 || img.bufferView >= bufferViews.length)) {
+      brokenRefs++;
+    }
+  }
+
   checks.push({
     id: 'materials_textures',
     label: 'PBR Materials & Embedded Textures',
-    status: materialCount > 0 && textureCount > 0 && imageCount === textureCount ? 'pass' : 'warn',
-    detail: `${materialCount} materials · ${textureCount} embedded PNG textures`,
+    status: brokenRefs > 0 || materialCount === 0 ? 'fail' : 'pass',
+    detail:
+      brokenRefs > 0
+        ? `${brokenRefs} invalid texture/image buffer references`
+        : textureCount > 0
+          ? `${materialCount} PBR materials · ${textureCount} textures · ${imageCount} embedded images`
+          : `${materialCount} PBR materials (factor-based, 0 embedded textures)`,
   });
 
   const springs = gltf.extensions?.VRMC_springBone?.springs ?? [];

@@ -241,10 +241,19 @@ export interface VrmValidationReport {
   validatedAt: string;
 }
 
+export type PipelineStageStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'skipped'
+  | 'fallback'
+  | 'warning'
+  | 'error';
+
 export interface PipelineStageResult {
   id: string;
   label: string;
-  status: 'pending' | 'running' | 'completed' | 'warning' | 'error';
+  status: PipelineStageStatus;
   durationMs: number;
   detail: string;
 }
@@ -314,3 +323,138 @@ export type ViewportViewMode = 'appearance' | 'wireframe' | 'skeleton' | 'weight
 export type ViewportCameraPreset = 'full' | 'portrait' | 'side' | 'back';
 export type ViewportAnimationMode = 'idle' | 'walk' | 'wave' | 'rest';
 export type ViewportLightingPreset = 'studio' | 'dramatic' | 'daylight';
+
+export interface ImportedImageData {
+  index: number;
+  name?: string;
+  mimeType: string;
+  bytes: Uint8Array;
+}
+
+export interface ImportedTextureData {
+  index: number;
+  name?: string;
+  source?: number;
+  sampler?: number;
+}
+
+export interface ImportedSamplerData {
+  magFilter?: number;
+  minFilter?: number;
+  wrapS?: number;
+  wrapT?: number;
+}
+
+export interface ImportedTextureInfo {
+  index: number;
+  texCoord?: number;
+  scale?: number;
+  strength?: number;
+}
+
+export interface ImportedMaterialData {
+  index: number;
+  name: string;
+  pbrMetallicRoughness?: {
+    baseColorFactor?: [number, number, number, number];
+    baseColorTexture?: ImportedTextureInfo;
+    metallicFactor?: number;
+    roughnessFactor?: number;
+    metallicRoughnessTexture?: ImportedTextureInfo;
+  };
+  normalTexture?: ImportedTextureInfo;
+  occlusionTexture?: ImportedTextureInfo;
+  emissiveTexture?: ImportedTextureInfo;
+  emissiveFactor?: [number, number, number];
+  alphaMode?: 'OPAQUE' | 'MASK' | 'BLEND';
+  alphaCutoff?: number;
+  doubleSided?: boolean;
+  extensions?: Record<string, unknown>;
+}
+
+export interface ImportedMorphTargetData {
+  name: string;
+  positions: Float32Array;
+  normals?: Float32Array;
+}
+
+export interface ImportedPrimitiveData {
+  meshIndex: number;
+  meshName: string;
+  primitiveIndex: number;
+  name: string;
+  materialIndex: number;
+  hasNormals: boolean;
+  hasUvs: boolean;
+  hasUvs1: boolean;
+  hasColors: boolean;
+  hasSkinning: boolean;
+  positions: Float32Array;
+  normals: Float32Array;
+  uvs: Float32Array;
+  uvs1?: Float32Array;
+  colors?: Float32Array;
+  joints?: Uint16Array;
+  weights?: Float32Array;
+  indices: Uint32Array;
+  morphTargets: ImportedMorphTargetData[];
+}
+
+export interface ImportedSkinJointData {
+  jointNodeIndex: number;
+  name: string;
+  parentJointIndex: number;
+  localTranslation: [number, number, number];
+  localRotation: [number, number, number, number];
+  localScale: [number, number, number];
+  worldPos: [number, number, number];
+  worldMatrix: number[];
+}
+
+export interface ImportedSkinData {
+  index: number;
+  name: string;
+  skeletonRootNodeIndex?: number;
+  joints: ImportedSkinJointData[];
+  inverseBindMatrices?: Float32Array;
+}
+
+export interface ImportedMeshGroup {
+  meshIndex: number;
+  name: string;
+  nodeIndex: number;
+  skinIndex?: number;
+  worldMatrix: number[];
+  targetNames: string[];
+  primitives: ImportedPrimitiveData[];
+}
+
+export interface ParsedGlbAsset {
+  valid: boolean;
+  error?: string;
+  meshCount: number;
+  primitiveCount: number;
+  materialCount: number;
+  textureCount: number;
+  imageCount: number;
+  vertexCount: number;
+  triangleCount: number;
+  hasExistingSkin: boolean;
+  hasMorphTargets: boolean;
+  hasVertexColors: boolean;
+  hasNodeTransforms: boolean;
+  existingVrmHumanoid?: Record<string, string>;
+  boundsMin: [number, number, number];
+  boundsMax: [number, number, number];
+  meshes: ImportedMeshGroup[];
+  materials: ImportedMaterialData[];
+  textures: ImportedTextureData[];
+  samplers: ImportedSamplerData[];
+  images: ImportedImageData[];
+  skins: ImportedSkinData[];
+  positions: Float32Array;
+  normals: Float32Array;
+  uvs: Float32Array;
+  indices: Uint32Array;
+}
+

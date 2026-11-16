@@ -662,7 +662,10 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
                 <div>
                   <span className="text-slate-500">Materials / Textures</span>
                   <div className="font-mono text-slate-200 tabular-nums mt-0.5">
-                    {project.validation.materialCount} / {project.validation.textureCount} PNG ({project.estimates?.packedTexturePx ?? 256}px)
+                    {project.validation.materialCount} mats / {project.validation.textureCount} textures
+                    {project.validation.textureCount > 0 && project.estimates?.packedTexturePx
+                      ? ` (${project.estimates.packedTexturePx}px)`
+                      : ''}
                   </div>
                 </div>
                 <div>
