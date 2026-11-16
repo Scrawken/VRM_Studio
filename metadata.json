@@ -1,0 +1,8 @@
+{
+  "name": "VRM Forge Studio",
+  "description": "Desktop-first AI Text-to-VRM 1.0 character generator with Blender Python integration, automatic humanoid rigging, facial blendshapes, and real-time Three.js VRM preview.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
