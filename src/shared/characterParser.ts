@@ -1,6 +1,8 @@
 import {
   BodyBuild,
   CharacterArtStyle,
+  CharacterConstraints,
+  CharacterPalette,
   CharacterSpecification,
   DEFAULT_CUSTOM_OPTIMIZATION,
   DEFAULT_QUALITY_CONFIG,
@@ -153,12 +155,21 @@ export function parseCharacterPromptFallback(
       ? 'long_elf'
       : 'human';
 
+  // Negative/forbidden clauses always override positive feature triggers
+  const forbidWings = /\b(?:no|without|zero|never|avoid)\s+(?:any\s+)?(?:wings?|winged|pinions)\b/.test(lower);
+  const forbidHorns = /\b(?:no|without|zero|never|avoid)\s+(?:any\s+)?(?:horns?|horned|antlers?)\b/.test(lower);
+  const forbidTail = /\b(?:no|without|zero|never|avoid)\s+(?:any\s+)?(?:tail|tailed)\b/.test(lower);
+  const forbidCloak = /\b(?:no|without|zero|never|avoid)\s+(?:any\s+)?(?:cloak|cape|mantle|shroud)\b/.test(lower);
+  const forbidArmor = /\b(?:no|without|zero|never|avoid)\s+(?:any\s+)?(?:armor|armour|plate|pauldrons?)\b|\bunarmored\b/.test(lower);
+
   // Strictly gate optional appendages & major gear on explicit prompt terms (never invent unrequested features)
-  const hasCloak = /\b(cloak|cape|mantle|shroud)\b/.test(lower);
-  const hasArmor = /\b(armor|armored|armour|plate|plated|pauldron|breastplate|cuirass|knight|paladin|gauntlet|greaves)\b/.test(lower);
-  const hasWings = /\b(wings?|winged|pinions)\b/.test(lower);
-  const hasTail = /\b(tail|tailed)\b/.test(lower);
-  const hasHorns = /\b(horns?|horned|antlers?)\b/.test(lower);
+  const hasCloak = !forbidCloak && /\b(cloak|cape|mantle|shroud)\b/.test(lower);
+  const hasArmor =
+    !forbidArmor &&
+    /\b(armor|armored|armour|plate|plated|pauldron|breastplate|cuirass|knight|paladin|gauntlet|greaves)\b/.test(lower);
+  const hasWings = !forbidWings && /\b(wings?|winged|pinions)\b/.test(lower);
+  const hasTail = !forbidTail && /\b(tail|tailed)\b/.test(lower);
+  const hasHorns = !forbidHorns && /\b(horns?|horned|antlers?)\b/.test(lower);
 
   const shoulderWidthScale =
     build === 'muscular'
@@ -204,6 +215,64 @@ export function parseCharacterPromptFallback(
     },
   };
 
+  const cloakColor =
+    matchFirstColor(outfitText, [
+      [/\bpurple\b|\bviolet\b|\bamethyst\b|\bblack-and-purple\b/, '#2e1b4b'],
+      [/\broyal\b|\bcelestial\b|\bsapphire\b|\bnavy\b|\bblue\b/, '#1e3a8a'],
+      [/\bcrimson\b|\bred\b|\bscarlet\b/, '#450a0a'],
+      [/\bemerald\b|\bgreen\b/, '#064e3b'],
+      [/\bwhite\b|\bivory\b|\bsilver\b/, '#cbd5e1'],
+    ]) ?? '#1e1b2e';
+
+  const requiredFeatures: string[] = [];
+  const optionalFeatures: string[] = [];
+  const forbiddenFeatures: string[] = [];
+  const requiredPalette: Partial<Record<keyof CharacterPalette, string>> = {};
+
+  if (hasArmor) requiredFeatures.push('armor');
+  else if (forbidArmor) forbiddenFeatures.push('armor');
+  else optionalFeatures.push('armor');
+
+  if (hasCloak) requiredFeatures.push('cloak');
+  else if (forbidCloak) forbiddenFeatures.push('cloak');
+  else optionalFeatures.push('cloak');
+
+  if (hasWings) requiredFeatures.push('wings');
+  else forbiddenFeatures.push('wings');
+
+  if (hasHorns) requiredFeatures.push('horns');
+  else forbiddenFeatures.push('horns');
+
+  if (hasTail) requiredFeatures.push('tail');
+  else forbiddenFeatures.push('tail');
+
+  if (earStyle !== 'human') requiredFeatures.push(`earStyle:${earStyle}`);
+  if (/skin|lavender|pale|ivory|porcelain|fair|tan|olive|obsidian|dark\s*elf|drow/.test(lower)) {
+    requiredPalette.skinColor = skinColor;
+  }
+  if (/hair|silver|platinum|blonde|golden|raven|crimson|pink|brown/.test(lower)) {
+    requiredPalette.hairColor = hairColor;
+  }
+  if (/eyes?|violet|purple|emerald|amber|crimson|blue/.test(lower)) {
+    requiredPalette.eyeColor = eyeColor;
+  }
+  if (
+    /black[-\s]and[-\s]purple|obsidian|dark\s*brown|silver[-\s]and[-\s]ivory|navy[-\s]and[-\s]gold|royal\s*cloak/.test(
+      lower
+    )
+  ) {
+    requiredPalette.primaryOutfitColor = primaryOutfitColor;
+    requiredPalette.secondaryOutfitColor = secondaryOutfitColor;
+    if (hasCloak) requiredPalette.cloakColor = cloakColor;
+  }
+
+  const constraints: CharacterConstraints = {
+    requiredFeatures,
+    optionalFeatures,
+    forbiddenFeatures,
+    requiredPalette,
+  };
+
   return {
     id: options?.id || `char_${Date.now().toString(36)}`,
     name: derivedName,
@@ -244,13 +313,7 @@ export function parseCharacterPromptFallback(
           : /\b(leather|tactical|ranger)\b/.test(outfitText)
             ? '#6b5344'
             : '#6f7a8f',
-      cloakColor: matchFirstColor(outfitText, [
-        [/\bpurple\b|\bviolet\b|\bamethyst\b|\bblack-and-purple\b/, '#2e1b4b'],
-        [/\broyal\b|\bcelestial\b|\bsapphire\b|\bnavy\b|\bblue\b/, '#1e3a8a'],
-        [/\bcrimson\b|\bred\b|\bscarlet\b/, '#450a0a'],
-        [/\bemerald\b|\bgreen\b/, '#064e3b'],
-        [/\bwhite\b|\bivory\b|\bsilver\b/, '#cbd5e1'],
-      ]) ?? '#1e1b2e',
+      cloakColor,
     },
     features: {
       earStyle,
@@ -260,6 +323,7 @@ export function parseCharacterPromptFallback(
       hasTail,
       hasHorns,
     },
+    constraints,
     qualityConfig: qCfg,
     riggingRequirements: {
       vrmVersion: '1.0',
@@ -301,10 +365,11 @@ export function normalizeCharacterSpec(
   };
 
   // Preserve explicitly requested prompt palette colors when not explicitly overridden in UI
-  const lockSkin = !allowExplicitOverride && /skin|lavender|pale|ivory|porcelain|fair|tan|olive|obsidian|dark\s*elf|drow/.test(lower);
-  const lockHair = !allowExplicitOverride && /hair|silver|platinum|blonde|golden|raven|crimson|pink|brown/.test(lower);
-  const lockEyes = !allowExplicitOverride && /eyes?|violet|purple|emerald|amber|crimson|blue/.test(lower);
-  const lockArmorColors = !allowExplicitOverride && /black[-\s]and[-\s]purple|obsidian|dark\s*brown|silver[-\s]and[-\s]ivory|navy[-\s]and[-\s]gold/.test(lower);
+  const lockSkin = !allowExplicitOverride && Boolean(base.constraints?.requiredPalette.skinColor);
+  const lockHair = !allowExplicitOverride && Boolean(base.constraints?.requiredPalette.hairColor);
+  const lockEyes = !allowExplicitOverride && Boolean(base.constraints?.requiredPalette.eyeColor);
+  const lockArmorColors =
+    !allowExplicitOverride && Boolean(base.constraints?.requiredPalette.primaryOutfitColor);
 
   const features = allowExplicitOverride
     ? {
@@ -312,13 +377,97 @@ export function normalizeCharacterSpec(
         ...(raw.features || {}),
       }
     : {
-        earStyle: base.features.earStyle !== 'human' ? base.features.earStyle : (raw.features?.earStyle ?? base.features.earStyle),
+        earStyle:
+          base.features.earStyle !== 'human'
+            ? base.features.earStyle
+            : (raw.features?.earStyle ?? base.features.earStyle),
         hasCloak: base.features.hasCloak,
         hasArmor: base.features.hasArmor,
         hasWings: base.features.hasWings,
         hasTail: base.features.hasTail,
         hasHorns: base.features.hasHorns,
       };
+
+  const baseConstraints = base.constraints ?? {
+    requiredFeatures: [],
+    optionalFeatures: [],
+    forbiddenFeatures: [],
+    requiredPalette: {},
+  };
+
+  let constraints: CharacterConstraints = baseConstraints;
+  if (allowExplicitOverride) {
+    // Reflect explicit Customize UI changes into constraints while retaining un-edited prohibitions
+    const forbidden = new Set(baseConstraints.forbiddenFeatures);
+    const required = new Set(baseConstraints.requiredFeatures);
+    if (features.hasWings) {
+      forbidden.delete('wings');
+      required.add('wings');
+    } else {
+      required.delete('wings');
+      forbidden.add('wings');
+    }
+    if (features.hasHorns) {
+      forbidden.delete('horns');
+      required.add('horns');
+    } else {
+      required.delete('horns');
+      forbidden.add('horns');
+    }
+    if (features.hasTail) {
+      forbidden.delete('tail');
+      required.add('tail');
+    } else {
+      required.delete('tail');
+      forbidden.add('tail');
+    }
+    if (features.hasCloak) {
+      forbidden.delete('cloak');
+    } else {
+      required.delete('cloak');
+    }
+    if (features.hasArmor) {
+      forbidden.delete('armor');
+    } else {
+      required.delete('armor');
+    }
+    for (const r of Array.from(required)) {
+      if (r.startsWith('earStyle:') && r !== `earStyle:${features.earStyle}`) {
+        required.delete(r);
+      }
+    }
+    if (features.earStyle !== 'human') {
+      required.add(`earStyle:${features.earStyle}`);
+    }
+
+    const reqPalette = { ...baseConstraints.requiredPalette };
+    if (raw.palette?.skinColor) reqPalette.skinColor = normalizeHexColor(raw.palette.skinColor, base.palette.skinColor);
+    if (raw.palette?.hairColor) reqPalette.hairColor = normalizeHexColor(raw.palette.hairColor, base.palette.hairColor);
+    if (raw.palette?.eyeColor) reqPalette.eyeColor = normalizeHexColor(raw.palette.eyeColor, base.palette.eyeColor);
+    if (raw.palette?.primaryOutfitColor) {
+      reqPalette.primaryOutfitColor = normalizeHexColor(raw.palette.primaryOutfitColor, base.palette.primaryOutfitColor);
+    }
+    if (raw.palette?.secondaryOutfitColor) {
+      reqPalette.secondaryOutfitColor = normalizeHexColor(
+        raw.palette.secondaryOutfitColor,
+        base.palette.secondaryOutfitColor
+      );
+    }
+    if (raw.palette?.accentMetallicColor) {
+      reqPalette.accentMetallicColor = normalizeHexColor(
+        raw.palette.accentMetallicColor,
+        base.palette.accentMetallicColor
+      );
+    }
+    if (raw.palette?.cloakColor) reqPalette.cloakColor = normalizeHexColor(raw.palette.cloakColor, base.palette.cloakColor);
+
+    constraints = {
+      requiredFeatures: Array.from(required),
+      optionalFeatures: baseConstraints.optionalFeatures,
+      forbiddenFeatures: Array.from(forbidden),
+      requiredPalette: reqPalette,
+    };
+  }
 
   return {
     ...base,
@@ -347,12 +496,111 @@ export function normalizeCharacterSpec(
       cloakColor: lockArmorColors ? base.palette.cloakColor : normalizeHexColor(raw.palette?.cloakColor, base.palette.cloakColor),
     },
     features,
+    constraints,
     qualityConfig,
     riggingRequirements: {
       ...base.riggingRequirements,
       ...(raw.riggingRequirements || {}),
     },
     updatedAt: new Date().toISOString(),
+  };
+}
+
+export interface SpecificationValidationResult {
+  valid: boolean;
+  violations: string[];
+  checkedConstraints: number;
+}
+
+export function validateCharacterSpecification(
+  spec: CharacterSpecification
+): SpecificationValidationResult {
+  const violations: string[] = [];
+  let checkedConstraints = 0;
+
+  // 1. Validate hex palette fields
+  const hexRegex = /^#[0-9a-fA-F]{6}$/;
+  const paletteEntries = Object.entries(spec.palette) as Array<[keyof CharacterPalette, unknown]>;
+  for (const [key, val] of paletteEntries) {
+    if (key === 'eyeEmissive') continue;
+    checkedConstraints++;
+    if (typeof val !== 'string' || !hexRegex.test(val)) {
+      violations.push(`Palette color "${key}" must be a 6-digit hex color (got "${String(val)}").`);
+    }
+  }
+
+  // 2. Validate anatomical proportions
+  checkedConstraints++;
+  if (spec.proportions.heightMeters < 1.35 || spec.proportions.heightMeters > 2.2) {
+    violations.push(`Height ${spec.proportions.heightMeters}m is outside valid humanoid bounds (1.35m - 2.20m).`);
+  }
+
+  const constraints = spec.constraints;
+  if (constraints) {
+    // 3. Enforce forbidden features
+    for (const forbidden of constraints.forbiddenFeatures) {
+      checkedConstraints++;
+      if (forbidden === 'wings' && spec.features.hasWings) {
+        violations.push('Forbidden feature "wings" was enabled despite not being requested or being explicitly excluded.');
+      }
+      if (forbidden === 'horns' && spec.features.hasHorns) {
+        violations.push('Forbidden feature "horns" was enabled despite not being requested or being explicitly excluded.');
+      }
+      if (forbidden === 'tail' && spec.features.hasTail) {
+        violations.push('Forbidden feature "tail" was enabled despite not being requested or being explicitly excluded.');
+      }
+      if (forbidden === 'cloak' && spec.features.hasCloak) {
+        violations.push('Forbidden feature "cloak" was enabled despite explicit exclusion.');
+      }
+      if (forbidden === 'armor' && spec.features.hasArmor) {
+        violations.push('Forbidden feature "armor" was enabled despite explicit exclusion.');
+      }
+    }
+
+    // 4. Enforce required features
+    for (const req of constraints.requiredFeatures) {
+      checkedConstraints++;
+      if (req === 'armor' && !spec.features.hasArmor) {
+        violations.push('Required feature "armor" from prompt specification is missing.');
+      }
+      if (req === 'cloak' && !spec.features.hasCloak) {
+        violations.push('Required feature "cloak" from prompt specification is missing.');
+      }
+      if (req === 'wings' && !spec.features.hasWings) {
+        violations.push('Required feature "wings" from prompt specification is missing.');
+      }
+      if (req === 'horns' && !spec.features.hasHorns) {
+        violations.push('Required feature "horns" from prompt specification is missing.');
+      }
+      if (req === 'tail' && !spec.features.hasTail) {
+        violations.push('Required feature "tail" from prompt specification is missing.');
+      }
+      if (req.startsWith('earStyle:')) {
+        const expectedEar = req.split(':')[1];
+        if (spec.features.earStyle !== expectedEar) {
+          violations.push(`Required earStyle "${expectedEar}" violated (got "${spec.features.earStyle}").`);
+        }
+      }
+    }
+
+    // 5. Enforce locked prompt palette fidelity
+    for (const [k, expectedHex] of Object.entries(constraints.requiredPalette) as Array<
+      [keyof CharacterPalette, string]
+    >) {
+      checkedConstraints++;
+      const actual = spec.palette[k];
+      if (typeof actual === 'string' && actual.toLowerCase() !== expectedHex.toLowerCase()) {
+        violations.push(
+          `Required palette color "${k}" drifted from "${expectedHex}" to "${actual}".`
+        );
+      }
+    }
+  }
+
+  return {
+    valid: violations.length === 0,
+    violations,
+    checkedConstraints,
   };
 }
 

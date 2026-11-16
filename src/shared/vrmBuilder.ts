@@ -919,3 +919,180 @@ export function buildCharacterVrmAndGlb(spec: CharacterSpecification): BuiltVrmR
     estimates,
   };
 }
+
+export function buildRiggedVrmFromExternalMesh(
+  spec: CharacterSpecification,
+  externalMesh: {
+    positions: Float32Array;
+    normals: Float32Array;
+    uvs: Float32Array;
+    indices: Uint32Array;
+    boundsMin: [number, number, number];
+    boundsMax: [number, number, number];
+  },
+  rawExternalGlbBuffer: Uint8Array
+): BuiltVrmResult {
+  const bones = buildHumanoidSkeleton(spec);
+  const vertCount = Math.floor(externalMesh.positions.length / 3);
+  if (vertCount === 0 || externalMesh.indices.length < 3) {
+    throw new Error('Imported external GLB contains empty geometry.');
+  }
+
+  const [minX, minY, minZ] = externalMesh.boundsMin;
+  const [maxX, maxY, maxZ] = externalMesh.boundsMax;
+  const srcHeight = Math.max(0.001, maxY - minY);
+  const targetHeight = spec.proportions.heightMeters;
+  const scale = targetHeight / srcHeight;
+  const centerX = (minX + maxX) * 0.5;
+  const centerZ = (minZ + maxZ) * 0.5;
+
+  // Locate primary humanoid bones for smooth nearest-bone weight binding
+  const boneIndexByName = new Map<string, number>();
+  bones.forEach((b, i) => boneIndexByName.set(b.name, i));
+  const coreBoneNames = [
+    'hips',
+    'spine',
+    'chest',
+    'upperChest',
+    'neck',
+    'head',
+    'leftUpperArm',
+    'leftLowerArm',
+    'leftHand',
+    'rightUpperArm',
+    'rightLowerArm',
+    'rightHand',
+    'leftUpperLeg',
+    'leftLowerLeg',
+    'leftFoot',
+    'rightUpperLeg',
+    'rightLowerLeg',
+    'rightFoot',
+  ];
+  const coreBones = coreBoneNames
+    .map((name) => {
+      const idx = boneIndexByName.get(name);
+      return idx !== undefined ? { idx, pos: bones[idx].worldPos } : null;
+    })
+    .filter((entry): entry is { idx: number; pos: [number, number, number] } => Boolean(entry));
+
+  const headPos = bones[boneIndexByName.get('head') ?? 0].worldPos;
+  const headCenterY = headPos[1] + 0.08 * spec.proportions.headScale;
+
+  const positions: number[] = new Array(vertCount * 3);
+  const normals: number[] = new Array(vertCount * 3);
+  const uvs: number[] = new Array(vertCount * 2);
+  const joints: number[] = new Array(vertCount * 4);
+  const weights: number[] = new Array(vertCount * 4);
+  const colors: number[] = new Array(vertCount * 4);
+  const faceLocal: number[] = new Array(vertCount * 3);
+  const faceTags: PrimitiveBuild['faceTags'] = new Array(vertCount);
+
+  for (let i = 0; i < vertCount; i++) {
+    const px = (externalMesh.positions[i * 3] - centerX) * scale;
+    const py = (externalMesh.positions[i * 3 + 1] - minY) * scale;
+    const pz = (externalMesh.positions[i * 3 + 2] - centerZ) * scale;
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = py;
+    positions[i * 3 + 2] = pz;
+
+    const nx = externalMesh.normals[i * 3] ?? 0;
+    const ny = externalMesh.normals[i * 3 + 1] ?? 1;
+    const nz = externalMesh.normals[i * 3 + 2] ?? 0;
+    const nLen = Math.hypot(nx, ny, nz) || 1;
+    normals[i * 3] = nx / nLen;
+    normals[i * 3 + 1] = ny / nLen;
+    normals[i * 3 + 2] = nz / nLen;
+
+    uvs[i * 2] = externalMesh.uvs[i * 2] ?? 0.5;
+    uvs[i * 2 + 1] = externalMesh.uvs[i * 2 + 1] ?? 0.5;
+    colors[i * 4] = 1;
+    colors[i * 4 + 1] = 1;
+    colors[i * 4 + 2] = 1;
+    colors[i * 4 + 3] = 1;
+
+    // Nearest 2 bones inverse-distance weighting
+    let bestA = 0;
+    let bestB = 0;
+    let dA = Infinity;
+    let dB = Infinity;
+    for (const cb of coreBones) {
+      const dx = px - cb.pos[0];
+      const dy = py - cb.pos[1];
+      const dz = pz - cb.pos[2];
+      const distSq = dx * dx + dy * dy + dz * dz;
+      if (distSq < dA) {
+        dB = dA;
+        bestB = bestA;
+        dA = distSq;
+        bestA = cb.idx;
+      } else if (distSq < dB) {
+        dB = distSq;
+        bestB = cb.idx;
+      }
+    }
+    const invA = 1 / (Math.sqrt(dA) + 0.02);
+    const invB = 1 / (Math.sqrt(dB) + 0.02);
+    const sum = invA + invB;
+    joints[i * 4] = bestA;
+    joints[i * 4 + 1] = bestB;
+    joints[i * 4 + 2] = 0;
+    joints[i * 4 + 3] = 0;
+    weights[i * 4] = invA / sum;
+    weights[i * 4 + 1] = invB / sum;
+    weights[i * 4 + 2] = 0;
+    weights[i * 4 + 3] = 0;
+
+    // Map head-region vertices into faceLocal so VRM expression morphs deform cleanly
+    const flx = px / (0.095 * spec.proportions.headScale);
+    const fly = (py - headCenterY) / (0.115 * spec.proportions.headScale);
+    const flz = pz / (0.105 * spec.proportions.headScale);
+    const inHead = py >= headPos[1] - 0.02 && Math.abs(flx) <= 1.25 && Math.abs(fly) <= 1.25;
+    faceLocal[i * 3] = inHead ? flx : 0;
+    faceLocal[i * 3 + 1] = inHead ? fly : 0;
+    faceLocal[i * 3 + 2] = inHead ? Math.max(-1, flz) : -1;
+    faceTags[i] = { region: 'none' };
+  }
+
+  const importedPrim: PrimitiveBuild = {
+    name: 'External_Imported_Humanoid',
+    materialIndex: 0,
+    hasMorphTargets: true,
+    positions,
+    normals,
+    uvs,
+    colors,
+    joints,
+    weights,
+    indices: Array.from(externalMesh.indices),
+    faceTags,
+    faceLocal,
+  };
+
+  const packedTexturePx = resolvePackedTextureSize(spec.qualityConfig);
+  const vrmPackage = assembleGltfPackage(spec, bones, [importedPrim], packedTexturePx, false);
+  const textureTargetPx = textureResolutionToTargetPx(spec.qualityConfig.textureResolution);
+  const estimatedTextureMemoryMb = Number(
+    ((12 * textureTargetPx * textureTargetPx * 4) / (1024 * 1024)).toFixed(1)
+  );
+
+  return {
+    vrmBuffer: vrmPackage.vrmBuffer,
+    glbBuffer: vrmPackage.glbBuffer,
+    sourceGlbBuffer: rawExternalGlbBuffer,
+    stats: vrmPackage.stats,
+    sourceStats: vrmPackage.stats,
+    estimates: {
+      sourceTriangles: vrmPackage.stats.triangleCount,
+      sourceVertices: vrmPackage.stats.vertexCount,
+      optimizedTriangles: vrmPackage.stats.triangleCount,
+      optimizedVertices: vrmPackage.stats.vertexCount,
+      textureTargetPx,
+      packedTexturePx,
+      estimatedTextureMemoryMb,
+      estimatedVrmSizeKb: Math.round(vrmPackage.vrmBuffer.byteLength / 1024),
+      estimatedSourceGlbSizeKb: Math.round(rawExternalGlbBuffer.byteLength / 1024),
+    },
+  };
+}
+

@@ -1,39 +1,147 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { ChildProcess, spawn } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
+let activeBackendUrl: string | null = null;
 
-const BACKEND_PORT = 8765;
+function getProjectsDir(): string {
+  return path.join(app.getPath('userData'), 'projects');
+}
 
-function startPythonBackend() {
-  const isPackaged = app.isPackaged;
-  const backendDir = isPackaged
-    ? path.join(process.resourcesPath, 'backend')
-    : path.resolve(__dirname, '../../backend');
-  const pythonExec = process.env.VRM_FORGE_PYTHON || 'python';
+function isStrictBlenderBinaryName(candidatePath: string): boolean {
+  const base = path.basename(candidatePath);
+  if (process.platform === 'win32') {
+    return base.toLowerCase() === 'blender.exe';
+  }
+  return base === 'blender';
+}
 
-  backendProcess = spawn(
-    pythonExec,
-    ['-m', 'uvicorn', 'app:app', '--host', '127.0.0.1', '--port', String(BACKEND_PORT)],
-    {
-      cwd: backendDir,
-      stdio: 'pipe',
-      env: { ...process.env, PYTHONUNBUFFERED: '1' },
-    }
-  );
+function isWithinDirectory(targetPath: string, rootDir: string): boolean {
+  const rel = path.relative(path.resolve(rootDir), path.resolve(targetPath));
+  return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
 
-  backendProcess.stdout?.on('data', (chunk) => {
-    console.log('[FastAPI]', chunk.toString().trim());
-  });
-  backendProcess.stderr?.on('data', (chunk) => {
-    console.error('[FastAPI:err]', chunk.toString().trim());
+function pollBackendHealth(port: number, timeoutMs = 15000): Promise<void> {
+  const started = Date.now();
+  return new Promise((resolve, reject) => {
+    const attempt = () => {
+      const req = http.get(`http://127.0.0.1:${port}/api/health`, (res) => {
+        res.resume();
+        if (res.statusCode === 200) {
+          resolve();
+          return;
+        }
+        retry();
+      });
+      req.on('error', retry);
+      req.setTimeout(1500, () => {
+        req.destroy();
+        retry();
+      });
+    };
+
+    const retry = () => {
+      if (Date.now() - started >= timeoutMs) {
+        reject(new Error(`Timed out waiting for Express backend on 127.0.0.1:${port}`));
+        return;
+      }
+      setTimeout(attempt, 200);
+    };
+
+    attempt();
   });
 }
 
-function createWindow() {
+async function startExpressBackend(): Promise<string> {
+  const devExternalUrl = process.env.VRM_FORGE_DEV_URL;
+  if (!app.isPackaged && devExternalUrl) {
+    return devExternalUrl;
+  }
+
+  const isPackaged = app.isPackaged;
+  const resourcesRoot = isPackaged ? process.resourcesPath : path.resolve(__dirname, '../..');
+  const serverBundlePath = path.join(resourcesRoot, 'dist-server', 'server.cjs');
+  const publicDir = path.join(resourcesRoot, 'dist');
+  const blenderScriptsDir = path.join(resourcesRoot, 'blender_scripts');
+  const backendDir = path.join(resourcesRoot, 'backend');
+  const projectsDir = getProjectsDir();
+  fs.mkdirSync(projectsDir, { recursive: true });
+
+  if (!fs.existsSync(serverBundlePath)) {
+    throw new Error(
+      `Bundled Express backend not found at ${serverBundlePath}. Run "npm run build:all" before launching desktop shell.`
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const child = spawn(process.execPath, [serverBundlePath], {
+      cwd: resourcesRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        NODE_ENV: 'production',
+        PORT: '0',
+        VRM_FORGE_HOST: '127.0.0.1',
+        VRM_FORGE_PUBLIC_DIR: publicDir,
+        VRM_FORGE_PROJECTS_DIR: projectsDir,
+        VRM_FORGE_BLENDER_SCRIPTS_DIR: blenderScriptsDir,
+        VRM_FORGE_BACKEND_DIR: backendDir,
+      },
+    });
+    backendProcess = child;
+
+    const handleChunk = async (chunk: Buffer) => {
+      const text = chunk.toString('utf8');
+      for (const line of text.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        console.log('[Express]', line);
+        const match = /^VRM_FORGE_READY:(\d+)$/.exec(line.trim());
+        if (match && !settled) {
+          settled = true;
+          const port = Number(match[1]);
+          try {
+            await pollBackendHealth(port);
+            resolve(`http://127.0.0.1:${port}`);
+          } catch (err) {
+            reject(err);
+          }
+        }
+      }
+    };
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      void handleChunk(chunk);
+    });
+    child.stderr?.on('data', (chunk: Buffer) => {
+      console.error('[Express:err]', chunk.toString('utf8').trim());
+    });
+    child.on('exit', (code) => {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`Express backend exited prematurely with code ${code ?? 'unknown'}`));
+      }
+    });
+  });
+}
+
+function stopExpressBackend() {
+  if (backendProcess) {
+    try {
+      backendProcess.kill();
+    } catch {
+      // Ignore already exited child
+    }
+    backendProcess = null;
+  }
+}
+
+function createWindow(targetUrl: string) {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -45,15 +153,12 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
 
-  const devUrl = process.env.VRM_FORGE_DEV_URL || 'http://localhost:3000';
-  if (!app.isPackaged) {
-    mainWindow.loadURL(devUrl);
-  } else {
-    mainWindow.loadFile(path.resolve(__dirname, '../../dist/index.html'));
-  }
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.loadURL(targetUrl);
 }
 
 ipcMain.handle('dialog:selectDirectory', async () => {
@@ -69,43 +174,80 @@ ipcMain.handle('dialog:selectBlenderExecutable', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Select Blender Executable',
     filters: [
-      { name: 'Executables', extensions: process.platform === 'win32' ? ['exe'] : ['*'] },
+      {
+        name: 'Blender Executable',
+        extensions: process.platform === 'win32' ? ['exe'] : ['*'],
+      },
     ],
     properties: ['openFile'],
   });
-  return result.canceled ? null : result.filePaths[0];
+  if (result.canceled || !result.filePaths[0]) return null;
+  const selected = result.filePaths[0];
+  if (!isStrictBlenderBinaryName(selected)) {
+    return null;
+  }
+  return selected;
 });
 
-ipcMain.handle('blender:openProject', async (_event, args: { blenderPath: string; blendFilePath: string }) => {
-  if (!args.blenderPath || !fs.existsSync(args.blendFilePath)) {
-    return { launched: false, error: 'Blender executable or .blend file not found.' };
+ipcMain.handle(
+  'blender:openProject',
+  async (_event, args: { blenderPath: string; blendFilePath: string }) => {
+    const projectsRoot = getProjectsDir();
+    if (
+      !args.blenderPath ||
+      !isStrictBlenderBinaryName(args.blenderPath) ||
+      !fs.existsSync(args.blenderPath)
+    ) {
+      return { launched: false, error: 'Selected Blender executable is invalid or missing.' };
+    }
+    if (
+      !args.blendFilePath ||
+      path.extname(args.blendFilePath).toLowerCase() !== '.blend' ||
+      !isWithinDirectory(args.blendFilePath, projectsRoot) ||
+      !fs.existsSync(args.blendFilePath)
+    ) {
+      return { launched: false, error: '.blend project file must reside inside app projects directory.' };
+    }
+    const child = spawn(args.blenderPath, [args.blendFilePath], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+    return { launched: true };
   }
-  const child = spawn(args.blenderPath, [args.blendFilePath], {
-    detached: true,
-    stdio: 'ignore',
-  });
-  child.unref();
-  return { launched: true };
-});
+);
 
 ipcMain.handle('shell:openFolder', async (_event, folderPath: string) => {
-  if (fs.existsSync(folderPath)) {
+  const allowedRoot = app.getPath('userData');
+  if (
+    folderPath &&
+    (path.resolve(folderPath) === path.resolve(allowedRoot) ||
+      isWithinDirectory(folderPath, allowedRoot)) &&
+    fs.existsSync(folderPath)
+  ) {
     await shell.openPath(folderPath);
     return true;
   }
   return false;
 });
 
-app.whenReady().then(() => {
-  startPythonBackend();
-  createWindow();
+app.whenReady().then(async () => {
+  try {
+    activeBackendUrl = await startExpressBackend();
+    createWindow(activeBackendUrl);
+  } catch (err) {
+    console.error('Desktop startup failure:', err);
+    dialog.showErrorBox('VRM Forge Studio Startup Error', (err as Error).message);
+    app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  stopExpressBackend();
 });
 
 app.on('window-all-closed', () => {
-  if (backendProcess) {
-    backendProcess.kill();
-    backendProcess = null;
-  }
+  stopExpressBackend();
   if (process.platform !== 'darwin') {
     app.quit();
   }

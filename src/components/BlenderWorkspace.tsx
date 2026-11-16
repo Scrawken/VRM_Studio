@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Play,
+  FolderOpen,
 } from 'lucide-react';
 import {
   BlenderDetectionResult,
@@ -14,6 +15,11 @@ import {
   ProviderStatus,
 } from '../shared/types';
 import { generateBlenderCharacterScript } from '../shared/blenderScriptGen';
+
+interface VrmForgeDesktopBridge {
+  isDesktop?: boolean;
+  selectBlenderExecutable?: () => Promise<string | null>;
+}
 
 interface BlenderWorkspaceProps {
   activeProject: ProjectRecord | null;
@@ -24,6 +30,7 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
   const [hardware, setHardware] = useState<HardwareCapabilities | null>(null);
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [customPath, setCustomPath] = useState('');
+  const [configError, setConfigError] = useState<string | null>(null);
   const [loadingProbe, setLoadingProbe] = useState(true);
   const [runningTest, setRunningTest] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -32,17 +39,26 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
     note?: string;
     stdout?: string;
     error?: string;
+    vrmAddonInstalled?: boolean;
+    vrmExported?: boolean;
+    vrmReloadValid?: boolean;
+    deformationMaxDelta?: number | null;
   } | null>(null);
 
-  const loadCapabilities = async (overridePath?: string) => {
+  const desktopBridge = (window as unknown as { vrmForgeDesktop?: VrmForgeDesktopBridge })
+    .vrmForgeDesktop;
+
+  const loadCapabilities = async () => {
     setLoadingProbe(true);
     try {
-      const q = overridePath ? `?blenderPath=${encodeURIComponent(overridePath)}` : '';
-      const res = await fetch(`/api/system/capabilities${q}`);
+      const res = await fetch('/api/system/capabilities');
       const data = await res.json();
       setBlender(data.blender);
       setHardware(data.hardware);
       setProviders(data.providers || []);
+      if (data.blender?.executablePath) {
+        setCustomPath(data.blender.executablePath);
+      }
     } finally {
       setLoadingProbe(false);
     }
@@ -52,9 +68,45 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
     loadCapabilities();
   }, []);
 
-  const handleProbePath = async (e: React.FormEvent) => {
+  const configureBlender = async (executablePath: string, fromDesktopPicker: boolean) => {
+    setConfigError(null);
+    setLoadingProbe(true);
+    try {
+      const res = await fetch('/api/blender/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ executablePath, fromDesktopPicker }),
+      });
+      const data = await res.json();
+      if (data.blender) {
+        setBlender(data.blender);
+      }
+      if (!res.ok) {
+        setConfigError(data.error || 'Rejected Blender executable path.');
+      } else {
+        await loadCapabilities();
+      }
+    } finally {
+      setLoadingProbe(false);
+    }
+  };
+
+  const handleConfigurePath = async (e: React.FormEvent) => {
     e.preventDefault();
-    await loadCapabilities(customPath.trim() || undefined);
+    if (!customPath.trim()) {
+      setConfigError('Enter a valid standard Blender executable path.');
+      return;
+    }
+    await configureBlender(customPath.trim(), false);
+  };
+
+  const handleBrowseBlender = async () => {
+    if (!desktopBridge?.selectBlenderExecutable) return;
+    const picked = await desktopBridge.selectBlenderExecutable();
+    if (picked) {
+      setCustomPath(picked);
+      await configureBlender(picked, true);
+    }
   };
 
   const handleRunTest = async () => {
@@ -63,7 +115,7 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
       const res = await fetch('/api/blender/run-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customPath: customPath.trim() || undefined }),
+        body: JSON.stringify({ projectId: activeProject?.id }),
       });
       const data = await res.json();
       setTestResult(data);
@@ -81,6 +133,21 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
     window.location.href = `${activeProject.blenderScriptUrl}&download=1`;
   };
 
+  const renderProviderBadge = (p: ProviderStatus) => {
+    switch (p.capabilityState) {
+      case 'verified_live':
+        return <span className="text-emerald-400">VERIFIED LIVE</span>;
+      case 'ready':
+        return <span className="text-sky-400">READY</span>;
+      case 'unverified_key':
+        return <span className="text-amber-400">KEY UNVERIFIED</span>;
+      case 'failed':
+        return <span className="text-red-400">FAILED</span>;
+      default:
+        return <span className="text-slate-500">UNCONFIGURED</span>;
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-[#0e1116] p-6">
       <div className="max-w-6xl mx-auto flex flex-col gap-6">
@@ -90,12 +157,12 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
               Blender & Desktop Runtime
             </h1>
             <p className="text-sm text-slate-400 mt-1">
-              Blender executable detection, hardware capability assessment, provider routing, and bpy automation scripts.
+              Trusted Blender executable verification, hardware capability assessment, honest provider routing, and bpy automation scripts.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => loadCapabilities(customPath.trim() || undefined)}
+            onClick={loadCapabilities}
             disabled={loadingProbe}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-[#262d38] bg-[#161b22] hover:border-slate-500 text-xs font-medium text-slate-200 cursor-pointer"
           >
@@ -128,12 +195,12 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              {blender?.statusMessage || 'Scanning local Blender installation paths...'}
+              {blender?.statusMessage || 'Scanning trusted Blender installation paths...'}
             </p>
 
-            <form onSubmit={handleProbePath} className="flex gap-2">
+            <form onSubmit={handleConfigurePath} className="flex gap-2">
               <label htmlFor="blender-path-input" className="sr-only">
-                Custom Blender Executable Path
+                Trusted Blender Executable Path
               </label>
               <input
                 id="blender-path-input"
@@ -143,17 +210,33 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
                 placeholder="C:\Program Files\Blender Foundation\Blender 4.2\blender.exe"
                 className="flex-1 rounded-md border border-[#262d38] bg-[#0b0e13] px-3 py-2 text-xs font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
               />
+              {desktopBridge?.selectBlenderExecutable && (
+                <button
+                  type="button"
+                  onClick={handleBrowseBlender}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-[#262d38] bg-[#161b22] hover:border-sky-500 text-xs font-medium text-slate-200 whitespace-nowrap cursor-pointer"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" aria-hidden="true" />
+                  Browse...
+                </button>
+              )}
               <button
                 type="submit"
                 className="px-3.5 py-2 rounded-md border border-[#262d38] bg-[#161b22] hover:border-sky-500 text-xs font-medium text-slate-200 whitespace-nowrap cursor-pointer"
               >
-                Verify Path
+                Configure
               </button>
             </form>
 
+            {configError && (
+              <p className="text-xs text-red-400" role="alert">
+                {configError}
+              </p>
+            )}
+
             <div className="border-t border-[#262d38] pt-3 flex items-center justify-between gap-3">
               <span className="text-xs text-slate-400">
-                Milestone 2 Mesh + Armature Verification
+                Humanoid GLB Import, Rigging, Deformation & VRM Export Check
               </span>
               <button
                 type="button"
@@ -170,13 +253,33 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
               <div className="rounded-md border border-[#262d38] bg-[#0b0e13] p-3 text-xs">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="font-semibold text-slate-200">
-                    Result: {testResult.mode}
+                    Mode: {testResult.mode}
                   </span>
-                  <span className={testResult.executed ? 'text-emerald-400' : 'text-red-400'}>
-                    {testResult.executed ? 'PASSED' : 'ERROR'}
+                  <span
+                    className={
+                      testResult.executed
+                        ? 'text-emerald-400'
+                        : testResult.mode === 'blender_not_installed'
+                          ? 'text-amber-400'
+                          : 'text-red-400'
+                    }
+                  >
+                    {testResult.executed
+                      ? 'BLENDER VERIFIED'
+                      : testResult.mode === 'blender_not_installed'
+                        ? 'BLENDER ABSENT'
+                        : 'FAILED'}
                   </span>
                 </div>
                 {testResult.note && <p className="text-slate-400 mb-2">{testResult.note}</p>}
+                {testResult.error && <p className="text-red-400 mb-2">{testResult.error}</p>}
+                {testResult.executed && (
+                  <div className="text-[11px] text-slate-300 mb-2 flex flex-wrap gap-3">
+                    <span>Deformation Δ: {testResult.deformationMaxDelta ?? 'n/a'}</span>
+                    <span>VRM Add-on: {testResult.vrmAddonInstalled ? 'Yes' : 'No'}</span>
+                    <span>VRM Export & Reload: {testResult.vrmReloadValid ? 'Verified' : 'Skipped/Failed'}</span>
+                  </div>
+                )}
                 {testResult.stdout && (
                   <pre className="font-mono text-[11px] text-slate-300 overflow-x-auto max-h-36 whitespace-pre-wrap">
                     {testResult.stdout}
@@ -248,7 +351,7 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
                   <th className="py-2 pr-4 font-medium">Provider</th>
                   <th className="py-2 pr-4 font-medium">Role</th>
                   <th className="py-2 pr-4 font-medium">Modes</th>
-                  <th className="py-2 pr-4 font-medium">Cost / Licensing</th>
+                  <th className="py-2 pr-4 font-medium">Verification Detail</th>
                   <th className="py-2 font-medium text-right">Status</th>
                 </tr>
               </thead>
@@ -261,11 +364,11 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
                     </td>
                     <td className="py-2.5 pr-4 font-mono text-slate-300">{p.category}</td>
                     <td className="py-2.5 pr-4 text-slate-300">{p.modeSupport.join(' / ')}</td>
-                    <td className="py-2.5 pr-4 text-slate-400">{p.costModel}</td>
-                    <td className="py-2.5 text-right font-mono">
-                      <span className={p.available ? 'text-emerald-400' : 'text-slate-500'}>
-                        {p.available ? 'READY' : 'UNCONFIGURED'}
-                      </span>
+                    <td className="py-2.5 pr-4 text-slate-400">
+                      {p.verificationNote || p.costModel}
+                    </td>
+                    <td className="py-2.5 text-right font-mono whitespace-nowrap">
+                      {renderProviderBadge(p)}
                     </td>
                   </tr>
                 ))}

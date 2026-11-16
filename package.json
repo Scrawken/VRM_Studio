@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "tsx server.ts",
+    "start": "node dist-server/server.cjs",
     "build": "vite build",
+    "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --outfile=dist-server/server.cjs --external:vite --external:esbuild",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build:all": "npm run build && npm run build:server && npm run build:electron",
+    "package:win": "npm run build && npm run build:server && npm --prefix electron run package:win",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist dist-server electron/dist server.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

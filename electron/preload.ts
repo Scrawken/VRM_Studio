@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('vrmForgeDesktop', {
+  isDesktop: true,
   selectDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:selectDirectory'),
   selectBlenderExecutable: (): Promise<string | null> =>
     ipcRenderer.invoke('dialog:selectBlenderExecutable'),

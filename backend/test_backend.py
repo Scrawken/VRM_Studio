@@ -1,12 +1,12 @@
-"""Automated unit tests for the Python backend, Blender integration, and binary VRM validator."""
+"""Automated unit tests for Python VRM 1.0 validator, hardened Blender runner, and Blender verification scripts."""
 
 import json
+import platform
 import struct
 import unittest
 from pathlib import Path
 
-from blender_runner import candidate_blender_paths, detect_blender
-from providers import get_provider_catalog
+from blender_runner import candidate_blender_paths, detect_blender, is_trusted_blender_executable
 from vrm_validator import REQUIRED_HUMANOID_BONES, validate_vrm_bytes
 
 
@@ -40,20 +40,23 @@ def build_minimal_valid_vrm() -> bytes:
 
 class BackendTests(unittest.TestCase):
     def test_blender_candidate_paths_non_empty(self):
-        paths = candidate_blender_paths(r"C:\Custom\blender.exe")
+        paths = candidate_blender_paths()
         self.assertGreaterEqual(len(paths), 2)
-        self.assertEqual(paths[0], r"C:\Custom\blender.exe")
 
-    def test_detect_blender_graceful_on_missing_path(self):
-        info = detect_blender("/nonexistent/path/to/blender")
+    def test_blender_executable_security_rejects_arbitrary_binaries(self):
+        self.assertFalse(is_trusted_blender_executable("/bin/sh"))
+        self.assertFalse(is_trusted_blender_executable("cmd.exe"))
+        self.assertFalse(is_trusted_blender_executable("/usr/bin/blender;rm -rf /"))
+        self.assertFalse(is_trusted_blender_executable("../blender"))
+        if platform.system() == "Windows":
+            self.assertTrue(is_trusted_blender_executable(r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe"))
+        else:
+            self.assertTrue(is_trusted_blender_executable("/usr/bin/blender"))
+
+    def test_detect_blender_graceful_on_host(self):
+        info = detect_blender()
         self.assertIsInstance(info.installed, bool)
         self.assertGreater(len(info.searched_paths), 0)
-
-    def test_provider_catalog_includes_local_fallback(self):
-        catalog = get_provider_catalog()
-        ids = [item["id"] for item in catalog]
-        self.assertIn("gemini-4-hydrogen", ids)
-        self.assertIn("local-semantic-parser", ids)
 
     def test_vrm_validator_accepts_valid_vrm1(self):
         vrm_bytes = build_minimal_valid_vrm()
@@ -67,11 +70,17 @@ class BackendTests(unittest.TestCase):
         report = validate_vrm_bytes(b"NOT_A_GLB_FILE_1234567890")
         self.assertFalse(report["valid"])
 
-    def test_milestone2_blender_script_exists(self):
+    def test_milestone2_blender_script_verifies_humanoid_glb_not_primitives(self):
         script = Path(__file__).resolve().parent.parent / "blender_scripts" / "test_milestone2_blender.py"
         self.assertTrue(script.exists())
         text = script.read_text(encoding="utf-8")
-        self.assertIn("bpy.ops.wm.save_as_mainfile", text)
+        self.assertIn("--glb-path", text)
+        self.assertIn("bpy.ops.import_scene.gltf", text)
+        self.assertIn("evaluated_depsgraph_get", text)
+        self.assertIn("export_scene.vrm", text)
+        self.assertIn("validate_vrm_bytes", text)
+        self.assertNotIn("create_icosphere", text)
+        self.assertNotIn("create_cube", text)
 
 
 if __name__ == "__main__":

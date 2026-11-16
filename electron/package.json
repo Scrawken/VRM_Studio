@@ -6,12 +6,10 @@
   "scripts": {
     "build:ts": "tsc -p tsconfig.json",
     "start": "npm run build:ts && electron .",
-    "package:win": "npm run build:ts && electron-builder --win nsis"
-  },
-  "dependencies": {
-    "electron-store": "^10.0.0"
+    "package:win": "npm run build:ts && electron-builder --win nsis portable"
   },
   "devDependencies": {
+    "@types/node": "^22.14.0",
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
     "typescript": "^5.6.3"
@@ -19,17 +17,28 @@
   "build": {
     "appId": "com.vrmforge.studio",
     "productName": "VRM Forge Studio",
+    "directories": {
+      "output": "../release"
+    },
     "win": {
       "target": ["nsis", "portable"]
     },
     "extraResources": [
       {
-        "from": "../backend",
-        "to": "backend"
+        "from": "../dist",
+        "to": "dist"
+      },
+      {
+        "from": "../dist-server",
+        "to": "dist-server"
       },
       {
         "from": "../blender_scripts",
         "to": "blender_scripts"
+      },
+      {
+        "from": "../backend",
+        "to": "backend"
       }
     ]
   }

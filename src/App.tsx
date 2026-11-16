@@ -24,6 +24,10 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationNotice, setGenerationNotice] = useState<{
+    usedFallback: boolean;
+    text: string;
+  } | null>(null);
   const [liveStages, setLiveStages] = useState<PipelineStageResult[]>([]);
 
   // 3D Viewport State
@@ -64,6 +68,7 @@ export default function App() {
   }) => {
     setIsGenerating(true);
     setGenerationError(null);
+    setGenerationNotice(null);
     setLiveStages([
       {
         id: 'interpret',
@@ -114,6 +119,15 @@ export default function App() {
       }
       const created = data.project as ProjectRecord;
       setLiveStages(created.stages);
+      if (data.usedFallback) {
+        setGenerationNotice({
+          usedFallback: true,
+          text:
+            data.fallbackReason ||
+            data.note ||
+            'Requested external provider could not run; fell back to built-in Sculpted Anatomical VRM Engine.',
+        });
+      }
       setExpressionWeights({});
       setCameraPreset('full');
       await loadProjects(created.id);
@@ -194,6 +208,7 @@ export default function App() {
           activeProject={activeProject}
           isGenerating={isGenerating}
           generationError={generationError}
+          generationNotice={generationNotice}
           liveStages={liveStages}
           onGenerate={handleGenerate}
           onOpenInspector={() => setActiveTab('inspector')}

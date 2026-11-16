@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { generateBlenderCharacterScript } from '../src/shared/blenderScriptGen';
-import { parseCharacterPromptFallback } from '../src/shared/characterParser';
+import {
+  parseCharacterPromptFallback,
+  validateCharacterSpecification,
+} from '../src/shared/characterParser';
 import { registerPngCompressor } from '../src/shared/pngEncoder';
 import {
   CharacterSpecification,
@@ -10,25 +13,39 @@ import {
   PipelineStageResult,
   ProjectRecord,
 } from '../src/shared/types';
-import { buildCharacterVrmAndGlb } from '../src/shared/vrmBuilder';
+import {
+  buildCharacterVrmAndGlb,
+  buildRiggedVrmFromExternalMesh,
+} from '../src/shared/vrmBuilder';
 import { validateVrmBinary } from '../src/shared/vrmValidator';
 import { buildVisualDesignPlan } from './generationProviders';
+import { ParsedGlbAsset } from './glbImporter';
+import {
+  SecurityValidationError,
+  assertAllowedArtifactFileName,
+  assertValidProjectId,
+  resolveSafePathWithinRoot,
+} from './security';
 
 // Register native Node zlib deflate compressor so 256px-1024px embedded PNGs encode compactly
 registerPngCompressor((raw) => new Uint8Array(zlib.deflateSync(raw, { level: 6 })));
 
-const PROJECTS_ROOT = path.resolve(process.cwd(), 'projects');
-
-function ensureRoot() {
-  if (!fs.existsSync(PROJECTS_ROOT)) {
-    fs.mkdirSync(PROJECTS_ROOT, { recursive: true });
-  }
+export function getProjectsRoot(): string {
+  return path.resolve(process.env.VRM_FORGE_PROJECTS_DIR || path.join(process.cwd(), 'projects'));
 }
 
-function projectDir(id: string): string {
-  const safe = id.replace(/[^a-zA-Z0-9_-]/g, '');
-  if (!safe) throw new Error('Invalid project ID');
-  return path.join(PROJECTS_ROOT, safe);
+function ensureRoot(): string {
+  const root = getProjectsRoot();
+  if (!fs.existsSync(root)) {
+    fs.mkdirSync(root, { recursive: true });
+  }
+  return root;
+}
+
+export function getSafeProjectDir(id: string): string {
+  const safeId = assertValidProjectId(id);
+  const root = ensureRoot();
+  return resolveSafePathWithinRoot(root, safeId);
 }
 
 export function buildTenStagePipelineSummary(
@@ -128,13 +145,34 @@ export function saveProjectArtifacts(
   spec: CharacterSpecification,
   mode: GenerationMode,
   stages: PipelineStageResult[],
-  summary = 'Initial character generation'
+  summary = 'Initial character generation',
+  externalGeometry?: {
+    glbBuffer: Uint8Array;
+    parsedMesh: ParsedGlbAsset;
+  }
 ): ProjectRecord {
+  // Pre-geometry Character Specification Fidelity Gate
+  const specValidation = validateCharacterSpecification(spec);
+  if (!specValidation.valid) {
+    throw new SecurityValidationError(
+      `Character specification failed fidelity audit: ${specValidation.violations.join('; ')}`,
+      422
+    );
+  }
+
   ensureRoot();
-  const dir = projectDir(spec.id);
+  const dir = getSafeProjectDir(spec.id);
   fs.mkdirSync(dir, { recursive: true });
 
-  const built = buildCharacterVrmAndGlb(spec);
+  const built =
+    externalGeometry && externalGeometry.parsedMesh.valid
+      ? buildRiggedVrmFromExternalMesh(
+          spec,
+          externalGeometry.parsedMesh,
+          externalGeometry.glbBuffer
+        )
+      : buildCharacterVrmAndGlb(spec);
+
   const validation = validateVrmBinary(built.vrmBuffer);
   if (!validation.valid) {
     throw new Error(
@@ -147,14 +185,23 @@ export function saveProjectArtifacts(
 
   const blenderScript = generateBlenderCharacterScript(spec, dir);
 
-  fs.writeFileSync(path.join(dir, 'character.vrm'), built.vrmBuffer);
-  fs.writeFileSync(path.join(dir, 'character.glb'), built.glbBuffer);
-  fs.writeFileSync(path.join(dir, 'source_high.glb'), built.sourceGlbBuffer);
-  fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify(spec, null, 2));
-  fs.writeFileSync(path.join(dir, 'validation.json'), JSON.stringify(validation, null, 2));
-  fs.writeFileSync(path.join(dir, 'blender_build.py'), blenderScript);
+  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'character.vrm'), built.vrmBuffer);
+  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'character.glb'), built.glbBuffer);
+  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'source_high.glb'), built.sourceGlbBuffer);
+  if (externalGeometry) {
+    fs.writeFileSync(
+      resolveSafePathWithinRoot(dir, 'external_source.glb'),
+      externalGeometry.glbBuffer
+    );
+  }
+  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'spec.json'), JSON.stringify(spec, null, 2));
+  fs.writeFileSync(
+    resolveSafePathWithinRoot(dir, 'validation.json'),
+    JSON.stringify(validation, null, 2)
+  );
+  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'blender_build.py'), blenderScript);
 
-  const metaPath = path.join(dir, 'meta.json');
+  const metaPath = resolveSafePathWithinRoot(dir, 'meta.json');
   let existingRevisions: ProjectRecord['revisions'] = [];
   let createdAt = spec.createdAt;
   if (fs.existsSync(metaPath)) {
@@ -197,12 +244,12 @@ export function saveProjectArtifacts(
 }
 
 export function listProjects(): ProjectRecord[] {
-  ensureRoot();
-  const entries = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true });
+  const root = ensureRoot();
+  const entries = fs.readdirSync(root, { withFileTypes: true });
   const list: ProjectRecord[] = [];
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const metaPath = path.join(PROJECTS_ROOT, entry.name, 'meta.json');
+    if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
+    const metaPath = path.join(root, entry.name, 'meta.json');
     if (!fs.existsSync(metaPath)) continue;
     try {
       const parsed = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as ProjectRecord;
@@ -215,22 +262,16 @@ export function listProjects(): ProjectRecord[] {
 }
 
 export function getProject(id: string): ProjectRecord | null {
-  const metaPath = path.join(projectDir(id), 'meta.json');
+  const dir = getSafeProjectDir(id);
+  const metaPath = resolveSafePathWithinRoot(dir, 'meta.json');
   if (!fs.existsSync(metaPath)) return null;
   return JSON.parse(fs.readFileSync(metaPath, 'utf8')) as ProjectRecord;
 }
 
 export function getProjectFilePath(id: string, fileName: string): string | null {
-  const allowed = new Set([
-    'character.vrm',
-    'character.glb',
-    'source_high.glb',
-    'spec.json',
-    'validation.json',
-    'blender_build.py',
-  ]);
-  if (!allowed.has(fileName)) return null;
-  const full = path.join(projectDir(id), fileName);
+  const safeFile = assertAllowedArtifactFileName(fileName);
+  const dir = getSafeProjectDir(id);
+  const full = resolveSafePathWithinRoot(dir, safeFile);
   return fs.existsSync(full) ? full : null;
 }
 
@@ -252,10 +293,12 @@ export function duplicateProject(id: string): ProjectRecord | null {
 export function seedInitialProjectsIfEmpty(): void {
   ensureRoot();
   const existing = listProjects();
-  // Upgrade / re-seed if empty or if existing projects came from the legacy primitive generator
   const hasHighDetailSeed =
     existing.length >= 3 &&
-    existing.every((p) => Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig));
+    existing.every(
+      (p) =>
+        Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints)
+    );
   if (hasHighDetailSeed) return;
 
   const seedSpecs: Array<{

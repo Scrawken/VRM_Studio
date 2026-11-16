@@ -28,6 +28,7 @@ interface StudioWorkspaceProps {
   activeProject: ProjectRecord | null;
   isGenerating: boolean;
   generationError: string | null;
+  generationNotice?: { usedFallback: boolean; text: string } | null;
   liveStages: PipelineStageResult[];
   onGenerate: (params: {
     prompt: string;
@@ -72,6 +73,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   activeProject,
   isGenerating,
   generationError,
+  generationNotice,
   liveStages,
   onGenerate,
   onOpenInspector,
@@ -494,6 +496,18 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             >
               <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" aria-hidden="true" />
               <span>{formError || generationError}</span>
+            </div>
+          )}
+
+          {generationNotice?.usedFallback && (
+            <div
+              role="status"
+              className="rounded-md border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 flex items-start gap-2"
+            >
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                External provider fallback active: {generationNotice.text}
+              </span>
             </div>
           )}
 

@@ -75,6 +75,13 @@ export interface AnatomicalFeatures {
   hasHorns: boolean;
 }
 
+export interface CharacterConstraints {
+  requiredFeatures: string[];
+  optionalFeatures: string[];
+  forbiddenFeatures: string[];
+  requiredPalette: Partial<Record<keyof CharacterPalette, string>>;
+}
+
 export interface CharacterSpecification {
   id: string;
   name: string;
@@ -91,6 +98,7 @@ export interface CharacterSpecification {
   proportions: CharacterProportions;
   palette: CharacterPalette;
   features: AnatomicalFeatures;
+  constraints?: CharacterConstraints;
   qualityConfig: QualityConfig;
   riggingRequirements: {
     vrmVersion: '1.0' | '0.x';
@@ -296,6 +304,8 @@ export interface ProviderStatus {
   modeSupport: GenerationMode[];
   configured: boolean;
   available: boolean;
+  capabilityState: 'ready' | 'unverified_key' | 'verified_live' | 'failed' | 'unconfigured';
+  verificationNote?: string;
   costModel: string;
   description: string;
 }

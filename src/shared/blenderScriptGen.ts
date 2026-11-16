@@ -293,35 +293,85 @@ def build_anatomical_fallback_scene(name, h_scale=${hScale}):
 
 def run_deformation_check(arm_obj):
     if not arm_obj or arm_obj.type != "ARMATURE":
-        return False
+        return {"deformed": False, "max_delta": 0.0, "weighted_vertices": 0}
+    mesh_objs = [o for o in bpy.data.objects if o.type == "MESH"]
+    if not mesh_objs:
+        return {"deformed": False, "max_delta": 0.0, "weighted_vertices": 0}
+
+    target_mesh = max(mesh_objs, key=lambda o: len(o.data.vertices))
+    weighted_verts = sum(
+        1 for o in mesh_objs for v in o.data.vertices if any(g.weight > 0.001 for g in v.groups)
+    )
+    deps_before = bpy.context.evaluated_depsgraph_get()
+    eval_before = target_mesh.evaluated_get(deps_before).to_mesh()
+    rest_coords = [v.co.copy() for v in eval_before.vertices]
+    target_mesh.evaluated_get(deps_before).to_mesh_clear()
+
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode="POSE")
     for bname in ("leftUpperArm", "rightUpperArm", "hips"):
         pb = arm_obj.pose.bones.get(bname)
         if pb:
             pb.rotation_mode = "XYZ"
-            pb.rotation_euler = (0.0, 0.0, 0.25 if "left" in bname else -0.25)
+            pb.rotation_euler = (0.25, 0.0, 0.25 if "left" in bname else -0.25)
     bpy.context.view_layer.update()
+
+    deps_after = bpy.context.evaluated_depsgraph_get()
+    eval_after = target_mesh.evaluated_get(deps_after).to_mesh()
+    max_delta = 0.0
+    for i, v in enumerate(eval_after.vertices):
+        if i < len(rest_coords):
+            delta = (v.co - rest_coords[i]).length
+            if delta > max_delta:
+                max_delta = delta
+    target_mesh.evaluated_get(deps_after).to_mesh_clear()
+
     for pb in arm_obj.pose.bones:
         pb.rotation_euler = (0.0, 0.0, 0.0)
+    bpy.context.view_layer.update()
     bpy.ops.object.mode_set(mode="OBJECT")
-    return True
+    return {"deformed": max_delta > 1e-4, "max_delta": round(float(max_delta), 6), "weighted_vertices": weighted_verts}
 
 
-def configure_vrm_addon_and_export(arm_obj, out_dir):
+REQUIRED_VRM_HUMANOID_BONES = [
+    "hips", "spine", "chest", "neck", "head",
+    "leftUpperArm", "leftLowerArm", "leftHand",
+    "rightUpperArm", "rightLowerArm", "rightHand",
+    "leftUpperLeg", "leftLowerLeg", "leftFoot",
+    "rightUpperLeg", "rightLowerLeg", "rightFoot",
+]
+
+
+def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None):
     vrm_path = os.path.join(out_dir, "${safeName}.vrm")
     blend_path = os.path.join(out_dir, "${safeName}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
+    vrm_addon_installed = hasattr(bpy.ops, "export_scene") and hasattr(bpy.ops.export_scene, "vrm")
     vrm_exported = False
+    vrm_reload_valid = False
     vrm_error = None
-    if arm_obj and hasattr(bpy.ops, "export_scene") and hasattr(bpy.ops.export_scene, "vrm"):
+    bone_names = {b.name for b in arm_obj.data.bones} if arm_obj else set()
+    missing_bones = [b for b in REQUIRED_VRM_HUMANOID_BONES if b not in bone_names]
+
+    if arm_obj and vrm_addon_installed:
         try:
             ext = arm_obj.data.vrm_addon_extension
             ext.spec_version = "1.0"
             ext.vrm1.meta.vrm_name = CHAR_SPEC["name"]
+            human_bones = ext.vrm1.humanoid.human_bones
+            for req_bone in REQUIRED_VRM_HUMANOID_BONES:
+                if hasattr(human_bones, req_bone) and req_bone in bone_names:
+                    setattr(getattr(human_bones, req_bone).node, "bone_name", req_bone)
             bpy.ops.export_scene.vrm(filepath=vrm_path)
             vrm_exported = os.path.exists(vrm_path)
+            if vrm_exported:
+                with open(vrm_path, "rb") as vf:
+                    header = vf.read(12)
+                    vrm_reload_valid = header[:4] == b"glTF"
+                bpy.ops.wm.read_factory_settings(use_empty=True)
+                bpy.ops.import_scene.gltf(filepath=vrm_path)
+                vrm_reload_valid = vrm_reload_valid and any(o.type == "MESH" for o in bpy.data.objects)
         except Exception as exc:
             vrm_error = str(exc)
     else:
@@ -338,12 +388,16 @@ def configure_vrm_addon_and_export(arm_obj, out_dir):
         "target_texture_px": TARGET_TEXTURE_PX,
         "blender_version": bpy.app.version_string,
         "blend_path": blend_path,
+        "vrm_addon_installed": vrm_addon_installed,
         "vrm_path": vrm_path if vrm_exported else None,
         "vrm_exported": vrm_exported,
+        "vrm_reload_valid": vrm_reload_valid,
         "vrm_note": vrm_error,
         "vertex_count": total_verts,
         "polygon_count": total_polys,
-        "bone_count": len(arm_obj.data.bones) if arm_obj else 0,
+        "bone_count": len(bone_names),
+        "missing_required_bones": missing_bones,
+        "deformation": deform_stats or {},
     }
     report_path = os.path.join(out_dir, "${safeName}_report.json")
     with open(report_path, "w", encoding="utf-8") as f:
@@ -371,9 +425,10 @@ def main():
     else:
         arm_obj, _meshes = build_anatomical_fallback_scene("${safeName}")
 
+    deform_stats = None
     if arm_obj:
-        run_deformation_check(arm_obj)
-    configure_vrm_addon_and_export(arm_obj, out_dir)
+        deform_stats = run_deformation_check(arm_obj)
+    configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats)
 
 
 if __name__ == "__main__":
