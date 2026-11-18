@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import {
   applyCharacterEdits,
+  createDefaultVrmMetadata,
   normalizeCharacterSpec,
   parseCharacterPromptFallback,
   validateCharacterSpecification,
@@ -33,7 +36,10 @@ import {
   getProviderRuntimeRecord,
   resolveGeometryProviderExecution,
 } from '../../server/generationProviders';
-import { buildMeasuredPipelineStages } from '../../server/projectStore';
+import {
+  buildMeasuredPipelineStages,
+  executeCharacterPipeline,
+} from '../../server/projectStore';
 
 registerPngCompressor((raw) => new Uint8Array(zlib.deflateSync(raw, { level: 6 })));
 
@@ -63,6 +69,47 @@ function packTestGlb(gltf: Record<string, unknown>, binBytes: Uint8Array): Uint8
   dv.setUint32(binHeaderOff + 4, 0x004e4942, true);
   out.set(binChunk, binHeaderOff + 8);
   return out;
+}
+
+function readGlbJson(bytes: Uint8Array): Record<string, any> {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 12;
+  while (offset + 8 <= bytes.byteLength) {
+    const chunkLen = view.getUint32(offset, true);
+    const chunkType = view.getUint32(offset + 4, true);
+    const start = offset + 8;
+    const end = start + chunkLen;
+    if (chunkType === 0x4e4f534a) {
+      return JSON.parse(new TextDecoder().decode(bytes.subarray(start, end)));
+    }
+    offset = end;
+  }
+  throw new Error('No JSON chunk found in GLB');
+}
+
+function computeGltfNodeWorldPositions(gltf: Record<string, any>): Map<number, [number, number, number]> {
+  const nodes = (gltf.nodes ?? []) as Array<{ translation?: number[]; children?: number[] }>;
+  const world = new Map<number, [number, number, number]>();
+  const hasParent = new Set<number>();
+  for (const n of nodes) {
+    for (const c of n.children ?? []) hasParent.add(c);
+  }
+  const visit = (idx: number, parentPos: [number, number, number]) => {
+    const n = nodes[idx];
+    if (!n) return;
+    const t = n.translation ?? [0, 0, 0];
+    const wp: [number, number, number] = [
+      parentPos[0] + (t[0] ?? 0),
+      parentPos[1] + (t[1] ?? 0),
+      parentPos[2] + (t[2] ?? 0),
+    ];
+    world.set(idx, wp);
+    for (const ch of n.children ?? []) visit(ch, wp);
+  };
+  for (let i = 0; i < nodes.length; i++) {
+    if (!hasParent.has(i)) visit(i, [0, 0, 0]);
+  }
+  return world;
 }
 
 function makeSolidPngBytes(r: number, g: number, b: number): Uint8Array {
@@ -764,17 +811,35 @@ test('Milestone 3 (Priorities 1, 2A, 3, 4): Multi-material unrigged GLB preserve
     assert.ok((jAudit?.maxRotationTestDelta ?? 0) > 0.01);
   }
 
-  // Reload exported VRM independently & verify exact materials, PNG bytes, UVs, colors, bones, and expressions
-  const vrmReport = validateVrmBinary(built.vrmBuffer);
-  assert.equal(vrmReport.valid, true, `VRM audit failed: ${JSON.stringify(vrmReport.checks)}`);
+  // Reload exported VRM 0.0 (primary default) independently & verify exact materials, PNG bytes, UVs, colors, bones, and expressions
+  const vrmReport = validateVrmBinary(built.vrmBuffer, '0.0');
+  assert.equal(vrmReport.valid, true, `VRM 0.0 audit failed: ${JSON.stringify(vrmReport.checks)}`);
+  assert.equal(vrmReport.vrmVersion, '0.0');
   assert.equal(vrmReport.materialCount, 2);
   assert.equal(vrmReport.textureCount, 4);
   assert.equal(vrmReport.skinWeightsValid, true);
   assert.equal(vrmReport.missingRequiredBones.length, 0);
-  for (const coreExpr of ['blink', 'blinkLeft', 'blinkRight', 'happy', 'angry', 'sad', 'surprised']) {
+  for (const coreExpr of ['blink', 'blink_l', 'blink_r', 'joy', 'angry', 'sorrow', 'a']) {
     assert.ok(
       vrmReport.nonEmptyExpressions.includes(coreExpr),
-      `Expected core expression '${coreExpr}' to have verified non-zero morph deltas`
+      `Expected core VRM 0.0 expression '${coreExpr}' to have verified non-zero morph deltas`
+    );
+  }
+
+  // Also verify optional VRM 1.0 export from the same external mesh
+  const vaelithV1 = parseCharacterPromptFallback(DARK_ELF_PROMPT, {
+    id: 'dark_elf_vaelith_ext_v1',
+    name: 'Vaelith Nightshade V1',
+    vrmVersion: '1.0',
+  });
+  const builtV1 = buildRiggedVrmFromExternalMesh(vaelithV1, parsed, glb);
+  const vrm1Report = validateVrmBinary(builtV1.vrmBuffer, '1.0');
+  assert.equal(vrm1Report.valid, true, `VRM 1.0 audit failed: ${JSON.stringify(vrm1Report.checks)}`);
+  assert.equal(vrm1Report.vrmVersion, '1.0');
+  for (const coreExpr of ['blink', 'blinkLeft', 'blinkRight', 'happy', 'angry', 'sad', 'surprised']) {
+    assert.ok(
+      vrm1Report.nonEmptyExpressions.includes(coreExpr),
+      `Expected core VRM 1.0 expression '${coreExpr}' to have verified non-zero morph deltas`
     );
   }
 
@@ -898,7 +963,7 @@ test('dual source GLB and optimized VRM preserve source detail independently of 
   assert.equal(built.stats.textureCount, 12);
 });
 
-test('3-character quality assessment (Dark Elf, Realistic Human, Aurelia Seraphis) all pass independent VRM 1.0 audit', () => {
+test('3-character quality assessment (Dark Elf, Realistic Human, Aurelia Seraphis) pass VRM 0.0 (primary) & VRM 1.0 (optional) audits with strict version separation', () => {
   const prompts = [
     { label: 'Dark Elf', prompt: DARK_ELF_PROMPT, artStyle: 'semi_realistic' as const },
     { label: 'Realistic Human', prompt: REALISTIC_HUMAN_PROMPT, artStyle: 'realistic_human' as const },
@@ -906,21 +971,88 @@ test('3-character quality assessment (Dark Elf, Realistic Human, Aurelia Seraphi
   ];
 
   for (const item of prompts) {
-    const spec = parseCharacterPromptFallback(item.prompt, { artStyle: item.artStyle });
-    const built = buildCharacterVrmAndGlb(spec);
-    const report = validateVrmBinary(built.vrmBuffer);
+    // Primary VRM 0.0 default
+    const spec0 = parseCharacterPromptFallback(item.prompt, { artStyle: item.artStyle });
+    assert.equal(spec0.riggingRequirements.vrmVersion, '0.0');
+    const built0 = buildCharacterVrmAndGlb(spec0);
+    assert.equal(built0.vrmVersion, '0.0');
+    const report0 = validateVrmBinary(built0.vrmBuffer, '0.0');
 
-    assert.equal(report.valid, true, `${item.label} failed validation: ${JSON.stringify(report.checks)}`);
-    assert.equal(report.vrmVersion, '1.0');
-    assert.equal(report.missingRequiredBones.length, 0);
+    assert.equal(report0.valid, true, `${item.label} VRM 0.0 failed validation: ${JSON.stringify(report0.checks)}`);
+    assert.equal(report0.vrmVersion, '0.0');
+    assert.equal(report0.missingRequiredBones.length, 0);
     for (const reqBone of VRM_REQUIRED_HUMANOID_BONES) {
-      assert.ok(report.mappedHumanoidBones.includes(reqBone), `${item.label} missing ${reqBone}`);
+      assert.ok(report0.mappedHumanoidBones.includes(reqBone), `${item.label} VRM 0.0 missing ${reqBone}`);
     }
-    assert.ok(report.boneCount >= 55);
-    assert.equal(report.skinWeightsValid, true);
-    assert.ok(report.nonEmptyExpressions.length >= 16);
-    assert.equal(report.textureCount, 12);
-    assert.ok(report.triangleCount >= 10000);
+    assert.ok(report0.boneCount >= 55);
+    assert.equal(report0.skinWeightsValid, true);
+    assert.ok(report0.nonEmptyExpressions.length >= 15);
+    assert.ok((report0.blendShapeGroupCount ?? 0) >= 16);
+    assert.ok((report0.secondaryBoneGroupCount ?? 0) >= 1);
+    assert.equal(report0.metaSummary?.commercialUsage, 'Disallow');
+    assert.equal(report0.textureCount, 12);
+    assert.ok(report0.triangleCount >= 10000);
+
+    // Verify official VRM 0.0 (-Z forward) orientation while glbBuffer retains standard glTF 2.0 (+Z)
+    const v0Gltf = readGlbJson(built0.vrmBuffer);
+    const v0Bones = new Map<string, number>(
+      ((v0Gltf.extensions?.VRM?.humanoid?.humanBones ?? []) as Array<{ bone: string; node: number }>).map(
+        (b) => [b.bone, b.node]
+      )
+    );
+    const v0World = computeGltfNodeWorldPositions(v0Gltf);
+    assert.ok(
+      (v0World.get(v0Bones.get('leftUpperArm')!)?.[0] ?? 0) < 0,
+      `${item.label} VRM 0.0 leftUpperArm must be at -X (-Z forward convention)`
+    );
+    assert.ok(
+      (v0World.get(v0Bones.get('rightUpperArm')!)?.[0] ?? 0) > 0,
+      `${item.label} VRM 0.0 rightUpperArm must be at +X (-Z forward convention)`
+    );
+    assert.ok(
+      (v0World.get(v0Bones.get('leftEye')!)?.[2] ?? 0) < (v0World.get(v0Bones.get('head')!)?.[2] ?? 0),
+      `${item.label} VRM 0.0 eyes must point toward -Z`
+    );
+    assert.ok(!v0Bones.has('leftThumbMetacarpal'), 'VRM 0.0 must use leftThumbProximal/Intermediate');
+    assert.ok(v0Bones.has('leftThumbProximal') && v0Bones.has('leftThumbIntermediate'));
+
+    const glbWorld = computeGltfNodeWorldPositions(readGlbJson(built0.glbBuffer));
+    assert.ok(
+      (glbWorld.get(v0Bones.get('leftUpperArm')!)?.[0] ?? 0) > 0,
+      `${item.label} character.glb must remain standard glTF 2.0 (+Z forward)`
+    );
+
+    // Cross-version rejection: VRM 0.0 binary MUST fail when validated against expectedVersion='1.0'
+    const mismatch0As1 = validateVrmBinary(built0.vrmBuffer, '1.0');
+    assert.equal(mismatch0As1.valid, false);
+
+    // Optional VRM 1.0 format
+    const spec1 = parseCharacterPromptFallback(item.prompt, {
+      artStyle: item.artStyle,
+      vrmVersion: '1.0',
+    });
+    const built1 = buildCharacterVrmAndGlb(spec1);
+    assert.equal(built1.vrmVersion, '1.0');
+    const report1 = validateVrmBinary(built1.vrmBuffer, '1.0');
+    assert.equal(report1.valid, true, `${item.label} VRM 1.0 failed validation: ${JSON.stringify(report1.checks)}`);
+    assert.equal(report1.vrmVersion, '1.0');
+    assert.ok(report1.nonEmptyExpressions.length >= 16);
+
+    const v1Gltf = readGlbJson(built1.vrmBuffer);
+    const v1World = computeGltfNodeWorldPositions(v1Gltf);
+    const v1Bones = v1Gltf.extensions?.VRMC_vrm?.humanoid?.humanBones ?? {};
+    assert.ok(
+      (v1World.get(v1Bones.leftUpperArm?.node)?.[0] ?? 0) > 0,
+      `${item.label} VRM 1.0 leftUpperArm must be at +X (+Z forward convention)`
+    );
+    assert.ok(
+      (v1World.get(v1Bones.leftEye?.node)?.[2] ?? 0) > (v1World.get(v1Bones.head?.node)?.[2] ?? 0),
+      `${item.label} VRM 1.0 eyes must point toward +Z`
+    );
+
+    // Cross-version rejection: VRM 1.0 binary MUST fail when validated against expectedVersion='0.0'
+    const mismatch1As0 = validateVrmBinary(built1.vrmBuffer, '0.0');
+    assert.equal(mismatch1As0.valid, false);
   }
 });
 
@@ -931,12 +1063,375 @@ test('vrmValidator rejects corrupted binary payloads', () => {
   assert.ok(report.checks.some((c) => c.status === 'fail'));
 });
 
-test('Priority 4 & Milestone 3: blenderScriptGen & test_milestone2_blender.py support unrigged auto-rigging, material/texture preservation, and fail if VRM export/reload fails', () => {
+test('Metadata policy: conservative non-commercial defaults and zero sample attribution contamination', () => {
+  const meta = createDefaultVrmMetadata('Aether Knight');
+  assert.equal(meta.title, 'Aether Knight');
+  assert.equal(meta.commercialUsage, 'Disallow');
+  assert.equal(meta.allowedUserName, 'OnlyAuthor');
+  assert.equal(meta.violentUsage, 'Disallow');
+  assert.equal(meta.sexualUsage, 'Disallow');
+
+  const spec = parseCharacterPromptFallback(AURELIA_SERAPHIS_PROMPT, {
+    id: 'meta_clean_test',
+    name: 'Aurelia Seraphis',
+  });
+  const built = buildCharacterVrmAndGlb(spec);
+  const outGltf = readGlbJson(built.vrmBuffer);
+  const vrm0 = outGltf.extensions?.VRM as { meta?: Record<string, unknown> } | undefined;
+  assert.ok(vrm0?.meta);
+  assert.equal(vrm0.meta.commercialUssageName, 'Disallow');
+  assert.equal(vrm0.meta.allowedUserName, 'OnlyAuthor');
+  const serializedMeta = JSON.stringify(vrm0.meta);
+  assert.ok(!serializedMeta.includes('VRoid'));
+  assert.ok(!serializedMeta.includes('"Ren"'));
+});
+
+test('VRoid J_Bip_* + finger + J_Sec_* hair spring rigged GLB maps full humanoid, fingers, and spring roots into VRM 0.0', () => {
+  const { pos, uv, col, idx } = (() => {
+    const parts = [
+      makeBoxPart(0, 1.56, 0, 0.09, 0.11, 0.095),
+      makeBoxPart(0, 1.15, 0, 0.16, 0.25, 0.10),
+      makeBoxPart(0.36, 1.24, 0, 0.20, 0.05, 0.05),
+      makeBoxPart(-0.36, 1.24, 0, 0.20, 0.05, 0.05),
+      makeBoxPart(0.10, 0.45, 0, 0.06, 0.43, 0.06),
+      makeBoxPart(-0.10, 0.45, 0, 0.06, 0.43, 0.06),
+    ];
+    const pArr: number[] = [];
+    const uArr: number[] = [];
+    const cArr: number[] = [];
+    const iArr: number[] = [];
+    for (const p of parts) {
+      const base = pArr.length / 3;
+      pArr.push(...p.positions);
+      uArr.push(...p.uvs);
+      cArr.push(...p.colors);
+      for (const k of p.indices) iArr.push(base + k);
+    }
+    return {
+      pos: new Float32Array(pArr),
+      uv: new Float32Array(uArr),
+      col: new Float32Array(cArr),
+      idx: new Uint32Array(iArr),
+    };
+  })();
+
+  const jointDefs: Array<[string, number, [number, number, number]]> = [
+    ['J_Bip_C_Hips', -1, [0, 0.9, 0]],
+    ['J_Bip_C_Spine', 0, [0, 0.14, 0]],
+    ['J_Bip_C_Chest', 1, [0, 0.18, 0]],
+    ['J_Bip_C_UpperChest', 2, [0, 0.12, 0]],
+    ['J_Bip_C_Neck', 3, [0, 0.12, 0]],
+    ['J_Bip_C_Head', 4, [0, 0.12, 0]],
+    ['J_Adj_L_FaceEye', 5, [0.03, 0.08, 0.07]],
+    ['J_Adj_R_FaceEye', 5, [-0.03, 0.08, 0.07]],
+    ['J_Sec_Hair1_01', 5, [0, 0.1, -0.09]],
+    ['J_Sec_Hair1_02', 8, [0, -0.15, -0.02]],
+    ['J_Bip_L_Shoulder', 3, [0.06, 0.1, 0]],
+    ['J_Bip_L_UpperArm', 10, [0.12, 0, 0]],
+    ['J_Bip_L_LowerArm', 11, [0.24, 0, 0]],
+    ['J_Bip_L_Hand', 12, [0.22, 0, 0]],
+    ['J_Bip_L_Thumb1', 13, [0.02, -0.01, 0.02]],
+    ['J_Bip_L_Thumb2', 14, [0.02, 0, 0.02]],
+    ['J_Bip_L_Thumb3', 15, [0.02, 0, 0.01]],
+    ['J_Bip_L_Index1', 13, [0.06, 0, 0.02]],
+    ['J_Bip_L_Index2', 17, [0.03, 0, 0]],
+    ['J_Bip_L_Index3', 18, [0.02, 0, 0]],
+    ['J_Bip_R_Shoulder', 3, [-0.06, 0.1, 0]],
+    ['J_Bip_R_UpperArm', 20, [-0.12, 0, 0]],
+    ['J_Bip_R_LowerArm', 21, [-0.24, 0, 0]],
+    ['J_Bip_R_Hand', 22, [-0.22, 0, 0]],
+    ['J_Bip_R_Index1', 23, [-0.06, 0, 0.02]],
+    ['J_Bip_R_Index2', 24, [-0.03, 0, 0]],
+    ['J_Bip_R_Index3', 25, [-0.02, 0, 0]],
+    ['J_Bip_L_UpperLeg', 0, [0.1, -0.05, 0]],
+    ['J_Bip_L_LowerLeg', 27, [0, -0.4, 0]],
+    ['J_Bip_L_Foot', 28, [0, -0.4, 0]],
+    ['J_Bip_R_UpperLeg', 0, [-0.1, -0.05, 0]],
+    ['J_Bip_R_LowerLeg', 30, [0, -0.4, 0]],
+    ['J_Bip_R_Foot', 31, [0, -0.4, 0]],
+  ];
+
+  const chunks: Uint8Array[] = [];
+  const bufferViews: Array<Record<string, unknown>> = [];
+  const accessors: Array<Record<string, unknown>> = [];
+  let off = 0;
+  const push = (bytes: Uint8Array, target?: number) => {
+    const pad = (4 - (off % 4)) % 4;
+    if (pad) {
+      chunks.push(new Uint8Array(pad));
+      off += pad;
+    }
+    const idxBv = bufferViews.length;
+    bufferViews.push({ buffer: 0, byteOffset: off, byteLength: bytes.length, ...(target ? { target } : {}) });
+    chunks.push(bytes);
+    off += bytes.length;
+    return idxBv;
+  };
+
+  const posAcc = accessors.length;
+  accessors.push({ bufferView: push(new Uint8Array(pos.buffer), 34962), componentType: 5126, count: pos.length / 3, type: 'VEC3', min: [-0.25, 0.25, -0.12], max: [0.25, 1.75, 0.12] });
+  const uvAcc = accessors.length;
+  accessors.push({ bufferView: push(new Uint8Array(uv.buffer), 34962), componentType: 5126, count: uv.length / 2, type: 'VEC2' });
+  const colAcc = accessors.length;
+  accessors.push({ bufferView: push(new Uint8Array(col.buffer), 34962), componentType: 5126, count: col.length / 4, type: 'VEC4' });
+  const idxAcc = accessors.length;
+  accessors.push({ bufferView: push(new Uint8Array(idx.buffer), 34963), componentType: 5125, count: idx.length, type: 'SCALAR' });
+
+  const vc = pos.length / 3;
+  const jBytes = new Uint8Array(vc * 4);
+  const wFloats = new Float32Array(vc * 4);
+  for (let v = 0; v < vc; v++) {
+    jBytes[v * 4] = v < 4 ? 5 : 2;
+    wFloats[v * 4] = 1.0;
+  }
+  const jAcc = accessors.length;
+  accessors.push({ bufferView: push(jBytes, 34962), componentType: 5121, count: vc, type: 'VEC4' });
+  const wAcc = accessors.length;
+  accessors.push({ bufferView: push(new Uint8Array(wFloats.buffer), 34962), componentType: 5126, count: vc, type: 'VEC4' });
+
+  const ibm = new Float32Array(jointDefs.length * 16);
+  const worldPos: Array<[number, number, number]> = [];
+  for (let i = 0; i < jointDefs.length; i++) {
+    const [, pIdx, tr] = jointDefs[i];
+    const wp: [number, number, number] =
+      pIdx >= 0
+        ? [worldPos[pIdx][0] + tr[0], worldPos[pIdx][1] + tr[1], worldPos[pIdx][2] + tr[2]]
+        : tr;
+    worldPos.push(wp);
+    ibm[i * 16] = 1; ibm[i * 16 + 5] = 1; ibm[i * 16 + 10] = 1; ibm[i * 16 + 15] = 1;
+    ibm[i * 16 + 12] = -wp[0]; ibm[i * 16 + 13] = -wp[1]; ibm[i * 16 + 14] = -wp[2];
+  }
+  const ibmAcc = accessors.length;
+  accessors.push({ bufferView: push(new Uint8Array(ibm.buffer)), componentType: 5126, count: jointDefs.length, type: 'MAT4' });
+
+  const nodes: Array<Record<string, unknown>> = [{ name: 'VRoidBodyNode', mesh: 0, skin: 0 }];
+  const jointBase = 1;
+  const childMap = new Map<number, number[]>();
+  jointDefs.forEach(([, p], i) => {
+    if (p >= 0) {
+      const list = childMap.get(p) ?? [];
+      list.push(jointBase + i);
+      childMap.set(p, list);
+    }
+  });
+  jointDefs.forEach(([name, , tr], i) => {
+    const n: Record<string, unknown> = { name, translation: tr };
+    const ch = childMap.get(i);
+    if (ch && ch.length > 0) n.children = ch;
+    nodes.push(n);
+  });
+
+  const bin = new Uint8Array(off);
+  let wp = 0;
+  for (const ch of chunks) {
+    bin.set(ch, wp);
+    wp += ch.length;
+  }
+
+  const vroidGlb = packTestGlb(
+    {
+      asset: { version: '2.0', generator: 'VRoidTestFixture' },
+      scene: 0,
+      scenes: [{ nodes: [0, 1] }],
+      nodes,
+      skins: [{
+        name: 'VRoidSkin',
+        inverseBindMatrices: ibmAcc,
+        skeleton: 1,
+        joints: jointDefs.map((_, i) => jointBase + i),
+      }],
+      meshes: [{
+        name: 'Body',
+        primitives: [{
+          attributes: { POSITION: posAcc, TEXCOORD_0: uvAcc, COLOR_0: colAcc, JOINTS_0: jAcc, WEIGHTS_0: wAcc },
+          indices: idxAcc,
+          material: 0,
+        }],
+      }],
+      materials: [{ name: 'VRoidSkinMat', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1] } }],
+      accessors,
+      bufferViews,
+      buffers: [{ byteLength: bin.length }],
+    },
+    bin
+  );
+
+  const parsed = parseAndValidateGlbAsset(vroidGlb);
+  assert.equal(parsed.valid, true);
+  assert.equal(parsed.hasExistingSkin, true);
+  const spec = parseCharacterPromptFallback('VRoid character import test', {
+    id: 'vroid_jbip_test',
+    name: 'VRoid Test Avatar',
+    vrmVersion: '0.0',
+  });
+  const built = buildRiggedVrmFromExternalMesh(spec, parsed, vroidGlb);
+  assert.equal(built.vrmVersion, '0.0');
+  assert.equal(built.rigReport?.sourceState, 'valid_preserved');
+  assert.equal(built.rigReport?.mappingSource, 'name_heuristic');
+  assert.ok((built.rigReport?.mappedCount ?? 0) >= 24);
+
+  const report = validateVrmBinary(built.vrmBuffer, '0.0');
+  assert.equal(report.valid, true, `VRoid VRM 0.0 audit failed: ${JSON.stringify(report.checks)}`);
+  assert.equal(report.missingRequiredBones.length, 0);
+  assert.ok(report.mappedHumanoidBones.includes('leftEye'));
+  assert.ok(report.mappedHumanoidBones.includes('leftThumbProximal'));
+  assert.ok(report.mappedHumanoidBones.includes('leftThumbIntermediate'));
+  assert.ok(!report.mappedHumanoidBones.includes('leftThumbMetacarpal'));
+  assert.ok(report.mappedHumanoidBones.includes('rightIndexDistal'));
+  assert.ok((report.secondaryBoneGroupCount ?? 0) >= 1, 'Expected J_Sec_Hair1_01 to populate secondaryAnimation.boneGroups');
+
+  const outGltf = readGlbJson(built.vrmBuffer);
+  const vroidWorld = computeGltfNodeWorldPositions(outGltf);
+  const vroidBones = new Map<string, number>(
+    ((outGltf.extensions?.VRM?.humanoid?.humanBones ?? []) as Array<{ bone: string; node: number }>).map(
+      (b) => [b.bone, b.node]
+    )
+  );
+  assert.ok(
+    (vroidWorld.get(vroidBones.get('leftUpperArm')!)?.[0] ?? 0) < 0,
+    'Exported VRM 0.0 from VRoid GLB must face -Z (leftUpperArm at -X)'
+  );
+  assert.ok(
+    (vroidWorld.get(vroidBones.get('leftEye')!)?.[2] ?? 0) < (vroidWorld.get(vroidBones.get('head')!)?.[2] ?? 0),
+    'Exported VRM 0.0 from VRoid GLB must orient eyes toward -Z'
+  );
+  const sec = (outGltf.extensions?.VRM as {
+    secondaryAnimation?: { boneGroups?: Array<{ bones?: number[] }> };
+  } | undefined)?.secondaryAnimation;
+  const springBoneNodeIndices = new Set((sec?.boneGroups ?? []).flatMap((g) => g.bones ?? []));
+  assert.ok(springBoneNodeIndices.has(jointBase + 8), 'J_Sec_Hair1_01 must be in boneGroups');
+  assert.ok(!springBoneNodeIndices.has(jointBase + 0), 'hips must NOT be added to spring boneGroups');
+});
+
+test('glbImporter decodes glTF 2.0 sparse POSITION morph target accessors', () => {
+  const basePos = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+  const idxArr = new Uint16Array([0, 1, 2]);
+  const sparseIdx = new Uint16Array([2]);
+  const sparseVals = new Float32Array([0, 0.25, 0]);
+
+  const chunks: Uint8Array[] = [];
+  const bufferViews: Array<Record<string, unknown>> = [];
+  let off = 0;
+  const push = (bytes: Uint8Array, target?: number) => {
+    const pad = (4 - (off % 4)) % 4;
+    if (pad) {
+      chunks.push(new Uint8Array(pad));
+      off += pad;
+    }
+    const bv = bufferViews.length;
+    bufferViews.push({ buffer: 0, byteOffset: off, byteLength: bytes.length, ...(target ? { target } : {}) });
+    chunks.push(bytes);
+    off += bytes.length;
+    return bv;
+  };
+  const posBv = push(new Uint8Array(basePos.buffer), 34962);
+  const idxBv = push(new Uint8Array(idxArr.buffer), 34963);
+  const spIdxBv = push(new Uint8Array(sparseIdx.buffer));
+  const spValBv = push(new Uint8Array(sparseVals.buffer));
+
+  const bin = new Uint8Array(off);
+  let wp = 0;
+  for (const ch of chunks) {
+    bin.set(ch, wp);
+    wp += ch.length;
+  }
+
+  const sparseGlb = packTestGlb(
+    {
+      asset: { version: '2.0' },
+      scene: 0,
+      scenes: [{ nodes: [0] }],
+      nodes: [{ name: 'SparseNode', mesh: 0 }],
+      meshes: [{
+        name: 'SparseMesh',
+        extras: { targetNames: ['Smile'] },
+        primitives: [{ attributes: { POSITION: 0 }, indices: 1, targets: [{ POSITION: 2 }] }],
+      }],
+      accessors: [
+        { bufferView: posBv, componentType: 5126, count: 3, type: 'VEC3', min: [0, 0, 0], max: [1, 1, 0] },
+        { bufferView: idxBv, componentType: 5123, count: 3, type: 'SCALAR' },
+        {
+          componentType: 5126,
+          count: 3,
+          type: 'VEC3',
+          sparse: {
+            count: 1,
+            indices: { bufferView: spIdxBv, componentType: 5123 },
+            values: { bufferView: spValBv },
+          },
+        },
+      ],
+      bufferViews,
+      buffers: [{ byteLength: bin.length }],
+    },
+    bin
+  );
+
+  const parsed = parseAndValidateGlbAsset(sparseGlb);
+  assert.equal(parsed.valid, true);
+  assert.equal(parsed.hasMorphTargets, true);
+  const target = parsed.meshes[0].primitives[0].morphTargets[0];
+  assert.equal(target.name, 'Smile');
+  assert.ok(Math.abs(target.positions[2 * 3 + 1] - 0.25) < 1e-5);
+  assert.equal(target.positions[0], 0);
+});
+
+test('Honest pipeline telemetry: blender-bpy-bridge reports unavailable when binary absent and executeCharacterPipeline marks typescript_fallback', async () => {
+  const prevDir = process.env.VRM_FORGE_PROJECTS_DIR;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vrm-studio-test-'));
+  process.env.VRM_FORGE_PROJECTS_DIR = tmpDir;
+
+  try {
+    const spec = parseCharacterPromptFallback(AURELIA_SERAPHIS_PROMPT, {
+      id: 'honest_fallback_check',
+      name: 'Honest Check Avatar',
+      vrmVersion: '0.0',
+      qualityConfig: { geometryQuality: 'performance', vrmOptimization: 'unoptimized' },
+    });
+
+    const bridgeExec = await resolveGeometryProviderExecution(spec, 'blender-bpy-bridge');
+    assert.equal(bridgeExec.externalGenerationSucceeded, false);
+    assert.equal(bridgeExec.usedFallback, true);
+
+    const { record } = await executeCharacterPipeline(
+      spec,
+      'local',
+      {
+        interpretMs: 1,
+        interpretUsedFallback: false,
+        interpreterNote: 'Test semantic spec',
+        designValidationMs: 1,
+        geometryResolveMs: 1,
+        geometryUsedFallback: false,
+        externalGenerationSucceeded: false,
+        adapterDetail: 'Local test GLB',
+      },
+      'Test fallback status',
+      undefined,
+      { skipLiveBlender: true }
+    );
+
+    assert.equal(record.vrmVersion, '0.0');
+    assert.equal(record.productionPath, 'typescript_fallback');
+    assert.equal(record.blenderReportUrl, undefined);
+    assert.equal(record.stages.find((s) => s.id === 'blender_prep')?.status, 'prepared');
+    assert.equal(record.validation.valid, true);
+    assert.equal(record.validation.vrmVersion, '0.0');
+  } finally {
+    if (prevDir !== undefined) process.env.VRM_FORGE_PROJECTS_DIR = prevDir;
+    else delete process.env.VRM_FORGE_PROJECTS_DIR;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('Priority 4 & Milestone 3: blenderScriptGen (VRM 0.0 + py_compile), blender_production_pipeline.py & test_milestone2_blender.py are valid Python and complete', () => {
   const spec = parseCharacterPromptFallback(AURELIA_SERAPHIS_PROMPT, {
     qualityConfig: { geometryQuality: 'high', textureResolution: '4k', vrmOptimization: 'balanced' },
   });
   const py = generateBlenderCharacterScript(spec);
   assert.ok(py.includes('import bpy'));
+  assert.ok(py.includes('TARGET_VRM_VERSION = "0.0"'));
+  assert.ok(py.includes('VROID_AND_CANONICAL_ALIASES'));
   assert.ok(py.includes('create_humanoid_armature'));
   assert.ok(py.includes('evaluated_depsgraph_get'));
   assert.ok(py.includes('REQUIRED_VRM_HUMANOID_BONES'));
@@ -946,8 +1441,21 @@ test('Priority 4 & Milestone 3: blenderScriptGen & test_milestone2_blender.py su
   assert.ok(!py.includes('create_uvsphere'));
   assert.ok(!py.includes('create_cube'));
 
+  // Verify generated Python script parses & compiles cleanly without syntax errors
+  const tmpPy = path.join(os.tmpdir(), `vrm_gen_check_${Date.now()}.py`);
+  fs.writeFileSync(tmpPy, py, 'utf8');
+  try {
+    execFileSync('python3', ['-m', 'py_compile', tmpPy], { stdio: 'pipe' });
+  } finally {
+    fs.rmSync(tmpPy, { force: true });
+  }
+
   const m2Path = path.resolve(process.cwd(), 'blender_scripts', 'test_milestone2_blender.py');
+  const prodPath = path.resolve(process.cwd(), 'blender_scripts', 'blender_production_pipeline.py');
   const m2 = fs.readFileSync(m2Path, 'utf8');
+  const prod = fs.readFileSync(prodPath, 'utf8');
+  assert.ok(prod.includes('run_production_pipeline'));
+  assert.ok(prod.includes('ext.vrm0.meta'));
   assert.ok(m2.includes('--glb-path'));
   assert.ok(m2.includes('ARMATURE_AUTO'));
   assert.ok(m2.includes('vertex_group_normalize_all'));
@@ -962,3 +1470,4 @@ test('Priority 4 & Milestone 3: blenderScriptGen & test_milestone2_blender.py su
   assert.ok(!m2.includes('create_icosphere'));
   assert.ok(!m2.includes('create_cube'));
 });
+

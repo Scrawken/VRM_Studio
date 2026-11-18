@@ -82,6 +82,37 @@ export interface CharacterConstraints {
   requiredPalette: Partial<Record<keyof CharacterPalette, string>>;
 }
 
+export type VrmExportVersion = '0.0' | '1.0';
+
+export type VrmAllowedUser = 'OnlyAuthor' | 'ExplicitlyLicensedPerson' | 'Everyone';
+export type VrmAllowance = 'Disallow' | 'Allow';
+
+export interface VrmMetadataConfig {
+  title: string;
+  author: string;
+  version: string;
+  contactInformation: string;
+  reference: string;
+  licenseName: string;
+  otherLicenseUrl: string;
+  allowedUserName: VrmAllowedUser;
+  violentUsage: VrmAllowance;
+  sexualUsage: VrmAllowance;
+  commercialUsage: VrmAllowance;
+  allowRedistribution: boolean;
+  modification: 'prohibited' | 'allowModification' | 'allowModificationRedistribution';
+  sourceAttribution?: string;
+}
+
+export interface RigReport {
+  sourceState: 'unrigged' | 'valid_preserved' | 'repaired' | 'replaced';
+  mappingSource: 'vrm0' | 'vrm1' | 'name_heuristic' | 'generated';
+  mappedCount: number;
+  missingBones: string[];
+  secondaryBoneCount: number;
+  detail: string;
+}
+
 export interface CharacterSpecification {
   id: string;
   name: string;
@@ -101,12 +132,13 @@ export interface CharacterSpecification {
   constraints?: CharacterConstraints;
   qualityConfig: QualityConfig;
   riggingRequirements: {
-    vrmVersion: '1.0' | '0.x';
+    vrmVersion: VrmExportVersion;
     includeFingerBones: boolean;
     includeFaceRig: boolean;
     includeSpringBones: boolean;
     targetPolygonBudget: number;
   };
+  vrmMetadata?: VrmMetadataConfig;
   interpreterProvider: string;
   geometryProvider: string;
   createdAt: string;
@@ -223,6 +255,7 @@ export interface ValidationCheck {
 export interface VrmValidationReport {
   valid: boolean;
   vrmVersion: string;
+  expectedVersion?: VrmExportVersion;
   fileSizeBytes: number;
   meshCount: number;
   primitiveCount: number;
@@ -236,6 +269,15 @@ export interface VrmValidationReport {
   expressionCount: number;
   nonEmptyExpressions: string[];
   springBoneJointCount: number;
+  blendShapeGroupCount?: number;
+  secondaryBoneGroupCount?: number;
+  colliderGroupCount?: number;
+  metaSummary?: {
+    title?: string;
+    author?: string;
+    licenseName?: string;
+    commercialUsage?: string;
+  };
   skinWeightsValid: boolean;
   checks: ValidationCheck[];
   validatedAt: string;
@@ -243,8 +285,10 @@ export interface VrmValidationReport {
 
 export type PipelineStageStatus =
   | 'pending'
+  | 'prepared'
   | 'running'
   | 'completed'
+  | 'validated'
   | 'skipped'
   | 'fallback'
   | 'warning'
@@ -256,6 +300,8 @@ export interface PipelineStageResult {
   status: PipelineStageStatus;
   durationMs: number;
   detail: string;
+  artifact?: string;
+  validationStatus?: 'pass' | 'warn' | 'fail';
 }
 
 export interface ProjectRevision {
@@ -269,15 +315,19 @@ export interface ProjectRecord {
   id: string;
   name: string;
   mode: GenerationMode;
+  vrmVersion?: VrmExportVersion;
+  productionPath?: 'blender_live' | 'typescript_fallback';
   spec: CharacterSpecification;
   validation: VrmValidationReport;
   estimates: ExportEstimates;
+  rigReport?: RigReport;
   stages: PipelineStageResult[];
   revisions: ProjectRevision[];
   vrmUrl: string;
   glbUrl: string;
   sourceGlbUrl: string;
   blenderScriptUrl: string;
+  blenderReportUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -429,6 +479,18 @@ export interface ImportedMeshGroup {
   primitives: ImportedPrimitiveData[];
 }
 
+export interface ImportedSpringGroup {
+  comment?: string;
+  stiffiness: number;
+  gravityPower: number;
+  gravityDir: [number, number, number];
+  dragForce: number;
+  hitRadius: number;
+  centerNodeName?: string;
+  boneNames: string[];
+  colliderGroupNodeNames?: string[];
+}
+
 export interface ParsedGlbAsset {
   valid: boolean;
   error?: string;
@@ -443,7 +505,12 @@ export interface ParsedGlbAsset {
   hasMorphTargets: boolean;
   hasVertexColors: boolean;
   hasNodeTransforms: boolean;
+  hasMultiInfluenceSkin?: boolean;
+  unsupportedFeatures?: string[];
+  sourceVrmVersion?: VrmExportVersion;
+  sourceVrmMeta?: Partial<VrmMetadataConfig>;
   existingVrmHumanoid?: Record<string, string>;
+  existingVrmSprings?: ImportedSpringGroup[];
   boundsMin: [number, number, number];
   boundsMax: [number, number, number];
   meshes: ImportedMeshGroup[];
@@ -457,4 +524,5 @@ export interface ParsedGlbAsset {
   uvs: Float32Array;
   indices: Uint32Array;
 }
+
 

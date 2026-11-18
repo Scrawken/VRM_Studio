@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Play,
   CheckCircle2,
@@ -7,6 +7,9 @@ import {
   ArrowRight,
   Download,
   Sliders,
+  Upload,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { parseCharacterPromptFallback } from '../shared/characterParser';
 import {
@@ -20,6 +23,10 @@ import {
   ProjectRecord,
   QualityConfig,
   TextureResolution,
+  VrmAllowance,
+  VrmAllowedUser,
+  VrmExportVersion,
+  VrmMetadataConfig,
   VrmOptimizationMode,
 } from '../shared/types';
 import { estimateCharacterMetrics } from '../shared/vrmBuilder';
@@ -36,7 +43,15 @@ interface StudioWorkspaceProps {
     interpreterProvider: string;
     geometryProvider: string;
     artStyle?: CharacterArtStyle;
+    vrmVersion: VrmExportVersion;
+    vrmMetadata?: Partial<VrmMetadataConfig>;
     qualityConfig?: QualityConfig;
+  }) => Promise<void>;
+  onImportGlb: (params: {
+    file: File;
+    name?: string;
+    vrmVersion: VrmExportVersion;
+    vrmMetadata?: Partial<VrmMetadataConfig>;
   }) => Promise<void>;
   onOpenInspector: () => void;
   viewportNode: React.ReactNode;
@@ -76,6 +91,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   generationNotice,
   liveStages,
   onGenerate,
+  onImportGlb,
   onOpenInspector,
   viewportNode,
 }) => {
@@ -83,10 +99,29 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
     activeProject?.spec.sourcePrompt || ARCHETYPE_PRESETS[0].prompt
   );
   const [mode, setMode] = useState<GenerationMode>(activeProject?.mode || 'hybrid');
+  const [vrmVersion, setVrmVersion] = useState<VrmExportVersion>(
+    activeProject?.spec.riggingRequirements?.vrmVersion || '0.0'
+  );
   const [artStyleChoice, setArtStyleChoice] = useState<'auto' | CharacterArtStyle>('auto');
   const [interpreterProvider, setInterpreterProvider] = useState<string>('auto');
-  const [geometryProvider, setGeometryProvider] = useState<string>(
-    'sculpted-anatomical-vrm'
+  const [geometryProvider, setGeometryProvider] = useState<string>('sculpted-anatomical-vrm');
+
+  // Local AURA / GLB Direct Import State
+  const glbInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedGlbFile, setSelectedGlbFile] = useState<File | null>(null);
+  const [importCharName, setImportCharName] = useState('');
+
+  // Conservative Avatar Metadata & Rights Defaults
+  const [metaOpen, setMetaOpen] = useState(false);
+  const [metaAuthor, setMetaAuthor] = useState(activeProject?.spec.vrmMetadata?.author || '');
+  const [metaCommercial, setMetaCommercial] = useState<VrmAllowance>(
+    activeProject?.spec.vrmMetadata?.commercialUsage || 'Disallow'
+  );
+  const [metaAllowedUser, setMetaAllowedUser] = useState<VrmAllowedUser>(
+    activeProject?.spec.vrmMetadata?.allowedUserName || 'OnlyAuthor'
+  );
+  const [metaLicenseName, setMetaLicenseName] = useState(
+    activeProject?.spec.vrmMetadata?.licenseName || 'Other'
   );
 
   // Independent Quality, Texture & Optimization Controls
@@ -118,10 +153,18 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   const liveEstimates = useMemo(() => {
     const previewSpec = parseCharacterPromptFallback(prompt || 'Human character', {
       artStyle: artStyleChoice === 'auto' ? undefined : artStyleChoice,
+      vrmVersion,
       qualityConfig,
     });
     return estimateCharacterMetrics(previewSpec);
-  }, [prompt, artStyleChoice, qualityConfig]);
+  }, [prompt, artStyleChoice, vrmVersion, qualityConfig]);
+
+  const vrmMetadataPayload: Partial<VrmMetadataConfig> = {
+    author: metaAuthor,
+    commercialUsage: metaCommercial,
+    allowedUserName: metaAllowedUser,
+    licenseName: metaLicenseName,
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,34 +184,135 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
           : interpreterProvider,
       geometryProvider,
       artStyle: artStyleChoice === 'auto' ? undefined : artStyleChoice,
+      vrmVersion,
+      vrmMetadata: vrmMetadataPayload,
       qualityConfig,
     });
   };
 
-  const stagesToShow =
-    liveStages.length > 0 ? liveStages : activeProject?.stages || [];
+  const handleImportSubmit = async () => {
+    if (!selectedGlbFile) {
+      setFormError('Choose a local .glb file (e.g., from AURA or VRoid) before importing.');
+      return;
+    }
+    setFormError(null);
+    await onImportGlb({
+      file: selectedGlbFile,
+      name: importCharName.trim() || undefined,
+      vrmVersion,
+      vrmMetadata: vrmMetadataPayload,
+    });
+  };
+
+  const stagesToShow = liveStages.length > 0 ? liveStages : activeProject?.stages || [];
+  const activeVrmVersion =
+    activeProject?.vrmVersion || activeProject?.validation.vrmVersion || vrmVersion;
 
   return (
-    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[415px_1fr]">
+    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[430px_1fr]">
       {/* Left Creation & Pipeline Panel */}
       <aside className="border-b lg:border-b-0 lg:border-r border-[#262d38] bg-[#12161f] flex flex-col min-h-0 overflow-y-auto p-5 gap-5">
         <div>
           <h1 className="font-display text-lg font-semibold text-[#f0f4f8]">
-            Character Synthesis
+            VRM Character Pipeline
           </h1>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            Describe anatomy, facial style, hair, clothing, and materials to build a sculpted, rigged VRM 1.0 avatar.
+            Import a local AURA/GLB character or synthesize from prompt to export a rigged VRM 0.0 (UE5 / VRM4U) or VRM 1.0 avatar.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Target Export Format Selector (VRM 0.0 Primary vs VRM 1.0 Optional) */}
+        <div className="rounded-lg border border-[#262d38] bg-[#0b0e13] p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold text-slate-200">Target Export Format</span>
+            <span className="text-[11px] text-slate-500">UE5 VRM4U uses VRM 0.0</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              data-testid="vrm-version-00"
+              onClick={() => setVrmVersion('0.0')}
+              className={`py-1.5 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                vrmVersion === '0.0'
+                  ? 'border-sky-500 bg-sky-600/20 text-sky-200'
+                  : 'border-[#262d38] bg-[#12161f] text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              VRM 0.0 (UE5 Primary)
+            </button>
+            <button
+              type="button"
+              data-testid="vrm-version-10"
+              onClick={() => setVrmVersion('1.0')}
+              className={`py-1.5 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                vrmVersion === '1.0'
+                  ? 'border-sky-500 bg-sky-600/20 text-sky-200'
+                  : 'border-[#262d38] bg-[#12161f] text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              VRM 1.0 (Optional)
+            </button>
+          </div>
+        </div>
+
+        {/* Direct Local / AURA GLB Import (Zero Paid API Required) */}
+        <section className="rounded-lg border border-[#262d38] bg-[#0b0e13] p-3.5 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-slate-200">
+              Import Local AURA / Humanoid GLB
+            </h2>
+            <span className="text-[11px] text-emerald-400 font-mono">100% Local</span>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Accepts unrigged or rigged .glb meshes (incl. VRoid J_Bip_* bones), preserves PBR materials & textures, and exports VRM {vrmVersion}.
+          </p>
+          <input
+            ref={glbInputRef}
+            id="local-glb-file-input"
+            type="file"
+            accept=".glb"
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setSelectedGlbFile(file);
+              if (file && !importCharName) {
+                setImportCharName(file.name.replace(/\.(glb|gltf)$/i, ''));
+              }
+            }}
+            className="text-xs text-slate-300 file:mr-2.5 file:py-1 file:px-2.5 file:rounded file:border file:border-[#262d38] file:bg-[#161b22] file:text-xs file:font-medium file:text-slate-200 hover:file:border-sky-500 cursor-pointer"
+          />
+          <div className="flex gap-2">
+            <label htmlFor="import-char-name" className="sr-only">
+              Imported Character Name
+            </label>
+            <input
+              id="import-char-name"
+              type="text"
+              value={importCharName}
+              onChange={(e) => setImportCharName(e.target.value)}
+              placeholder="Avatar title (optional)..."
+              className="flex-1 rounded-md border border-[#262d38] bg-[#12161f] px-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+            />
+            <button
+              type="button"
+              data-testid="import-glb-submit"
+              onClick={handleImportSubmit}
+              disabled={isGenerating || !selectedGlbFile}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-xs font-semibold text-white whitespace-nowrap cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+              Import → VRM {vrmVersion}
+            </button>
+          </div>
+        </section>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 border-t border-[#262d38] pt-4">
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label
                 htmlFor="character-prompt-input"
                 className="text-xs font-medium text-slate-300"
               >
-                Character Description
+                Or Describe Character to Synthesize
               </label>
               <span className="text-[11px] text-slate-500 tabular-nums">
                 {prompt.length} chars
@@ -176,7 +320,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             </div>
             <textarea
               id="character-prompt-input"
-              rows={4}
+              rows={3}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Describe species, skin tone, hair, eyes, armor, cloak, and proportions..."
@@ -285,12 +429,82 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                 className="w-full rounded-md border border-[#262d38] bg-[#0b0e13] px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
               >
                 <option value="sculpted-anatomical-vrm">Sculpted Anatomical VRM</option>
-                <option value="tripo-ai-adapter">Tripo AI Adapter</option>
-                <option value="meshy-ai-adapter">Meshy AI Adapter</option>
-                <option value="local-triposr-instantmesh">Local TripoSR / InstantMesh</option>
                 <option value="blender-bpy-bridge">Blender bpy Refinement</option>
+                <option value="local-triposr-instantmesh">Local TripoSR / InstantMesh</option>
+                <option value="tripo-ai-adapter">Tripo AI Adapter (Optional)</option>
+                <option value="meshy-ai-adapter">Meshy AI Adapter (Optional)</option>
               </select>
             </div>
+          </div>
+
+          {/* Collapsible Avatar Metadata & Rights (Conservative Non-Commercial Defaults) */}
+          <div className="rounded-lg border border-[#262d38] bg-[#0b0e13]">
+            <button
+              type="button"
+              onClick={() => setMetaOpen((v) => !v)}
+              className="w-full px-3 py-2 flex items-center justify-between text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
+            >
+              <span>Avatar Metadata & Rights ({metaCommercial === 'Disallow' ? 'Non-Commercial Default' : 'Commercial Allowed'})</span>
+              {metaOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            {metaOpen && (
+              <div className="px-3 pb-3 pt-1 border-t border-[#1e2530] grid grid-cols-2 gap-2.5 text-xs">
+                <div>
+                  <label htmlFor="meta-author" className="block text-[11px] text-slate-400 mb-1">
+                    Author
+                  </label>
+                  <input
+                    id="meta-author"
+                    type="text"
+                    value={metaAuthor}
+                    onChange={(e) => setMetaAuthor(e.target.value)}
+                    placeholder="Unspecified Author"
+                    className="w-full rounded border border-[#262d38] bg-[#12161f] px-2 py-1 text-xs text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="meta-license" className="block text-[11px] text-slate-400 mb-1">
+                    License
+                  </label>
+                  <input
+                    id="meta-license"
+                    type="text"
+                    value={metaLicenseName}
+                    onChange={(e) => setMetaLicenseName(e.target.value)}
+                    className="w-full rounded border border-[#262d38] bg-[#12161f] px-2 py-1 text-xs text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="meta-commercial" className="block text-[11px] text-slate-400 mb-1">
+                    Commercial Usage
+                  </label>
+                  <select
+                    id="meta-commercial"
+                    value={metaCommercial}
+                    onChange={(e) => setMetaCommercial(e.target.value as VrmAllowance)}
+                    className="w-full rounded border border-[#262d38] bg-[#12161f] px-2 py-1 text-xs text-slate-200"
+                  >
+                    <option value="Disallow">Disallow (Default)</option>
+                    <option value="Allow">Allow</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="meta-allowed-user" className="block text-[11px] text-slate-400 mb-1">
+                    Allowed User
+                  </label>
+                  <select
+                    id="meta-allowed-user"
+                    value={metaAllowedUser}
+                    onChange={(e) => setMetaAllowedUser(e.target.value as VrmAllowedUser)}
+                    className="w-full rounded border border-[#262d38] bg-[#12161f] px-2 py-1 text-xs text-slate-200"
+                  >
+                    <option value="OnlyAuthor">OnlyAuthor</option>
+                    <option value="ExplicitlyLicensedPerson">ExplicitlyLicensedPerson</option>
+                    <option value="Everyone">Everyone</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Independent Quality, Texture & Optimization Settings */}
@@ -300,12 +514,9 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                 <Sliders className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
                 Quality & VRM Optimization
               </span>
-              <span className="text-[11px] text-slate-500">
-                Source preserved separately
-              </span>
+              <span className="text-[11px] text-slate-500">Source preserved separately</span>
             </div>
 
-            {/* Geometry Quality */}
             <div>
               <span className="block text-[11px] font-medium text-slate-400 mb-1">
                 Geometry Detail (Source & Rigged Base)
@@ -335,7 +546,6 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Texture Resolution */}
             <div>
               <span className="block text-[11px] font-medium text-slate-400 mb-1">
                 Texture Bake Target (Independent of Poly Count)
@@ -358,7 +568,6 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* VRM Optimization Mode */}
             <div>
               <span className="block text-[11px] font-medium text-slate-400 mb-1">
                 VRM Export Optimization
@@ -388,7 +597,6 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Custom Optimization Fine Controls */}
             {vrmOptimization === 'custom' && (
               <div className="border-t border-[#1e2530] pt-2.5 flex flex-col gap-2.5 text-[11px]">
                 <div>
@@ -463,7 +671,6 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               </div>
             )}
 
-            {/* Pre-Export Estimates */}
             <div className="border-t border-[#1e2530] pt-2 grid grid-cols-3 gap-2 text-[11px]">
               <div>
                 <div className="text-slate-500">Source → VRM Tris</div>
@@ -505,9 +712,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               className="rounded-md border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 flex items-start gap-2"
             >
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>
-                External provider fallback active: {generationNotice.text}
-              </span>
+              <span>{generationNotice.text}</span>
             </div>
           )}
 
@@ -519,12 +724,12 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                Building & Validating VRM 1.0...
+                Building & Validating VRM {vrmVersion}...
               </>
             ) : (
               <>
                 <Play className="w-4 h-4" aria-hidden="true" />
-                Generate High-Detail Character
+                Generate High-Detail VRM {vrmVersion}
               </>
             )}
           </button>
@@ -534,9 +739,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
         {activeProject && (
           <div className="border-t border-[#262d38] pt-4 flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold text-slate-200">
-                Active Specification
-              </h2>
+              <h2 className="text-xs font-semibold text-slate-200">Active Specification</h2>
               <button
                 type="button"
                 onClick={onOpenInspector}
@@ -552,7 +755,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               <span aria-hidden="true">·</span>
               <span>{activeProject.spec.species}</span>
               <span aria-hidden="true">·</span>
-              <span className="capitalize">{activeProject.spec.artStyle.replace('_', ' ')}</span>
+              <span className="font-mono text-sky-300">VRM {activeVrmVersion}</span>
               <span aria-hidden="true">·</span>
               <span className="tabular-nums">{activeProject.spec.proportions.heightMeters.toFixed(2)}m</span>
             </div>
@@ -590,7 +793,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                 className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded border border-[#262d38] bg-[#161b22] hover:border-sky-500 text-xs font-medium text-slate-200"
               >
                 <Download className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
-                Export VRM
+                Export VRM {activeVrmVersion}
               </a>
               <a
                 href={`${activeProject.sourceGlbUrl}&download=1`}
@@ -602,7 +805,11 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400">Independent VRM Audit</span>
+              <span className="text-slate-400">
+                {activeProject.productionPath === 'blender_live'
+                  ? 'Production: Blender Verified'
+                  : 'Production: TS Fallback (No Host Blender)'}
+              </span>
               <span
                 className={`inline-flex items-center gap-1.5 font-medium ${
                   activeProject.validation.valid ? 'text-emerald-400' : 'text-red-400'
@@ -626,29 +833,33 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
             <ol className="flex flex-col gap-2">
               {stagesToShow.map((st) => {
                 const badgeClass =
-                  st.status === 'completed'
+                  st.status === 'completed' || st.status === 'validated'
                     ? 'text-emerald-400'
                     : st.status === 'fallback' || st.status === 'warning'
                       ? 'text-amber-400'
                       : st.status === 'error'
                         ? 'text-red-400'
-                        : st.status === 'running'
+                        : st.status === 'running' || st.status === 'prepared'
                           ? 'text-sky-400'
                           : 'text-slate-500';
                 const badgeText =
                   st.status === 'skipped'
                     ? 'SKIPPED'
-                    : st.status === 'fallback'
-                      ? `FALLBACK · ${st.durationMs}ms`
-                      : st.status === 'warning'
-                        ? `WARN · ${st.durationMs}ms`
-                        : st.status === 'error'
-                          ? 'FAILED'
-                          : st.status === 'running'
-                            ? 'RUNNING'
-                            : st.status === 'pending'
-                              ? 'PENDING'
-                              : `${st.durationMs}ms`;
+                    : st.status === 'prepared'
+                      ? `PREP · ${st.durationMs}ms`
+                      : st.status === 'validated'
+                        ? `VERIFIED · ${st.durationMs}ms`
+                        : st.status === 'fallback'
+                          ? `FALLBACK · ${st.durationMs}ms`
+                          : st.status === 'warning'
+                            ? `WARN · ${st.durationMs}ms`
+                            : st.status === 'error'
+                              ? 'FAILED'
+                              : st.status === 'running'
+                                ? 'RUNNING'
+                                : st.status === 'pending'
+                                  ? 'PENDING'
+                                  : `${st.durationMs}ms`;
                 return (
                   <li key={st.id} className="text-xs flex items-start justify-between gap-2">
                     <div className="min-w-0">

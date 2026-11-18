@@ -47,7 +47,7 @@ export const ProjectsWorkspace: React.FC<ProjectsWorkspaceProps> = ({
               Projects & Export Center
             </h1>
             <p className="text-sm text-slate-400 mt-1">
-              Manage locally persisted VRM characters, inspect revision history, and download VRM 1.0, GLB, Blender scripts, or specs.
+              Manage locally persisted VRM characters, inspect revision history, and download VRM 0.0 / 1.0, GLB, Blender scripts, or specs.
             </p>
           </div>
 
@@ -132,7 +132,11 @@ export const ProjectsWorkspace: React.FC<ProjectsWorkspaceProps> = ({
                           <span aria-hidden="true">·</span>
                           <span className="inline-flex items-center gap-1 text-emerald-400">
                             <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                            VRM 1.0 Valid
+                            VRM {proj.vrmVersion || proj.validation.vrmVersion} {proj.validation.valid ? 'Valid' : 'Invalid'}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="text-slate-500">
+                            {proj.productionPath === 'blender_live' ? 'Blender Verified' : 'TS Fallback'}
                           </span>
                         </div>
                       </div>
@@ -188,7 +192,7 @@ export const ProjectsWorkspace: React.FC<ProjectsWorkspaceProps> = ({
                   href={`${active.vrmUrl}&download=1`}
                   className="w-full inline-flex items-center justify-between px-3.5 py-2 rounded-md bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition-colors"
                 >
-                  <span>Download VRM 1.0 (.vrm)</span>
+                  <span>Download VRM {active.vrmVersion || active.validation.vrmVersion} (.vrm)</span>
                   <Download className="w-3.5 h-3.5" aria-hidden="true" />
                 </a>
                 <a
@@ -221,6 +225,15 @@ export const ProjectsWorkspace: React.FC<ProjectsWorkspaceProps> = ({
                   <span>Download Character Spec (.json)</span>
                   <Download className="w-3.5 h-3.5" aria-hidden="true" />
                 </a>
+                {active.blenderReportUrl && (
+                  <a
+                    href={`${active.blenderReportUrl}&download=1`}
+                    className="w-full inline-flex items-center justify-between px-3.5 py-2 rounded-md border border-[#262d38] bg-[#0b0e13] hover:border-sky-500 text-xs font-medium text-sky-200 transition-colors"
+                  >
+                    <span>Download Blender Report (.json)</span>
+                    <Download className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                  </a>
+                )}
               </div>
 
               <div className="border-t border-[#262d38] pt-4">

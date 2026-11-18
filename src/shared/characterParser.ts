@@ -9,7 +9,31 @@ import {
   HairStyle,
   OutfitStyle,
   QualityConfig,
+  VrmExportVersion,
+  VrmMetadataConfig,
 } from './types';
+
+export function createDefaultVrmMetadata(
+  title: string,
+  overrides?: Partial<VrmMetadataConfig>
+): VrmMetadataConfig {
+  return {
+    title: (overrides?.title ?? title).trim() || 'Generated Avatar',
+    author: (overrides?.author ?? '').trim(),
+    version: (overrides?.version ?? '1.0').trim() || '1.0',
+    contactInformation: (overrides?.contactInformation ?? '').trim(),
+    reference: (overrides?.reference ?? '').trim(),
+    licenseName: (overrides?.licenseName ?? 'Other').trim() || 'Other',
+    otherLicenseUrl: (overrides?.otherLicenseUrl ?? '').trim(),
+    allowedUserName: overrides?.allowedUserName ?? 'OnlyAuthor',
+    violentUsage: overrides?.violentUsage ?? 'Disallow',
+    sexualUsage: overrides?.sexualUsage ?? 'Disallow',
+    commercialUsage: overrides?.commercialUsage ?? 'Disallow',
+    allowRedistribution: overrides?.allowRedistribution ?? false,
+    modification: overrides?.modification ?? 'prohibited',
+    sourceAttribution: overrides?.sourceAttribution?.trim() || undefined,
+  };
+}
 
 function matchFirstColor(text: string, patterns: Array<[RegExp, string]>): string | null {
   for (const [regex, hex] of patterns) {
@@ -45,6 +69,8 @@ export function parseCharacterPromptFallback(
     interpreterProvider?: string;
     geometryProvider?: string;
     artStyle?: CharacterArtStyle;
+    vrmVersion?: VrmExportVersion;
+    vrmMetadata?: Partial<VrmMetadataConfig>;
     qualityConfig?: Partial<QualityConfig>;
   }
 ): CharacterSpecification {
@@ -326,7 +352,7 @@ export function parseCharacterPromptFallback(
     constraints,
     qualityConfig: qCfg,
     riggingRequirements: {
-      vrmVersion: '1.0',
+      vrmVersion: options?.vrmVersion ?? '0.0',
       includeFingerBones: true,
       includeFaceRig: true,
       includeSpringBones: hasCloak || hairStyle === 'long_flowing' || hairStyle === 'ponytail',
@@ -339,6 +365,7 @@ export function parseCharacterPromptFallback(
               ? 22000
               : 12000,
     },
+    vrmMetadata: createDefaultVrmMetadata(derivedName, options?.vrmMetadata),
     interpreterProvider: options?.interpreterProvider || 'local-semantic-parser',
     geometryProvider: options?.geometryProvider || 'sculpted-anatomical-vrm',
     createdAt: now,
@@ -501,7 +528,15 @@ export function normalizeCharacterSpec(
     riggingRequirements: {
       ...base.riggingRequirements,
       ...(raw.riggingRequirements || {}),
+      vrmVersion:
+        raw.riggingRequirements?.vrmVersion === '1.0'
+          ? '1.0'
+          : '0.0',
     },
+    vrmMetadata: createDefaultVrmMetadata(
+      raw.name?.trim() || base.name,
+      raw.vrmMetadata ?? base.vrmMetadata
+    ),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -616,6 +651,8 @@ export function applyCharacterEdits(
     palette?: Partial<CharacterSpecification['palette']>;
     features?: Partial<CharacterSpecification['features']>;
     qualityConfig?: Partial<QualityConfig>;
+    vrmVersion?: VrmExportVersion;
+    vrmMetadata?: Partial<VrmMetadataConfig>;
   }
 ): CharacterSpecification {
   const merged: CharacterSpecification = {
@@ -647,6 +684,17 @@ export function applyCharacterEdits(
         ...(patch.qualityConfig?.customOptimization || {}),
       },
     },
+    riggingRequirements: {
+      ...spec.riggingRequirements,
+      vrmVersion: patch.vrmVersion ?? spec.riggingRequirements.vrmVersion,
+    },
+    vrmMetadata: createDefaultVrmMetadata(
+      patch.name?.trim() || spec.name,
+      {
+        ...(spec.vrmMetadata || {}),
+        ...(patch.vrmMetadata || {}),
+      }
+    ),
     updatedAt: new Date().toISOString(),
   };
   return normalizeCharacterSpec(merged, spec.sourcePrompt, true);

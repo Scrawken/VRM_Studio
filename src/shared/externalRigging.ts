@@ -44,32 +44,67 @@ interface BoneSegmentDef {
   zone: 'spine' | 'neck_head' | 'arm' | 'hand' | 'leg' | 'foot';
 }
 
-const CANONICAL_BONE_ALIASES: Record<string, string[]> = {
-  hips: ['hips', 'hip', 'pelvis', 'root_hips', 'mixamorighips', 'bip01pelvis', 'cog'],
-  spine: ['spine', 'spine01', 'spine_01', 'spine1', 'abdomen', 'mixamorigspine', 'bip01spine'],
-  chest: ['chest', 'spine02', 'spine_02', 'spine2', 'ribcage', 'thorax', 'mixamorigspine1', 'mixamorigspine2', 'bip01spine1'],
-  upperChest: ['upperchest', 'upper_chest', 'spine03', 'spine_03', 'spine3', 'mixamorigspine2', 'bip01spine2'],
-  neck: ['neck', 'neck01', 'neck_01', 'mixamorigneck', 'bip01neck'],
-  head: ['head', 'headtop', 'mixamorighead', 'bip01head'],
-  leftEye: ['lefteye', 'eye_l', 'eye.l', 'l_eye', 'mixamoriglefteye'],
-  rightEye: ['righteye', 'eye_r', 'eye.r', 'r_eye', 'mixamorigrighteye'],
-  jaw: ['jaw', 'chin', 'mixamorigjaw'],
-  leftShoulder: ['leftshoulder', 'shoulder_l', 'shoulder.l', 'clavicle_l', 'clavicle.l', 'l_clavicle', 'mixamorigleftshoulder', 'bip01lclavicle'],
-  leftUpperArm: ['leftupperarm', 'upperarm_l', 'upper_arm.l', 'upper_arm_l', 'arm_l', 'l_upperarm', 'mixamorigleftarm', 'bip01lupperarm'],
-  leftLowerArm: ['leftlowerarm', 'lowerarm_l', 'forearm.l', 'forearm_l', 'lower_arm.l', 'l_forearm', 'mixamorigleftforearm', 'bip01lforearm'],
-  leftHand: ['lefthand', 'hand_l', 'hand.l', 'wrist_l', 'l_hand', 'mixamoriglefthand', 'bip01lhand'],
-  rightShoulder: ['rightshoulder', 'shoulder_r', 'shoulder.r', 'clavicle_r', 'clavicle.r', 'r_clavicle', 'mixamorigrightshoulder', 'bip01rclavicle'],
-  rightUpperArm: ['rightupperarm', 'upperarm_r', 'upper_arm.r', 'upper_arm_r', 'arm_r', 'r_upperarm', 'mixamorigrightarm', 'bip01rupperarm'],
-  rightLowerArm: ['rightlowerarm', 'lowerarm_r', 'forearm.r', 'forearm_r', 'lower_arm.r', 'r_forearm', 'mixamorigrightforearm', 'bip01rforearm'],
-  rightHand: ['righthand', 'hand_r', 'hand.r', 'wrist_r', 'r_hand', 'mixamorigrighthand', 'bip01rhand'],
-  leftUpperLeg: ['leftupperleg', 'upperleg_l', 'thigh.l', 'thigh_l', 'l_thigh', 'mixamorigleftupleg', 'bip01lthigh'],
-  leftLowerLeg: ['leftlowerleg', 'lowerleg_l', 'shin.l', 'shin_l', 'calf_l', 'l_calf', 'mixamorigleftleg', 'bip01lcalf'],
-  leftFoot: ['leftfoot', 'foot_l', 'foot.l', 'ankle_l', 'l_foot', 'mixamorigleftfoot', 'bip01lfoot'],
-  leftToes: ['lefttoes', 'toe_l', 'toes.l', 'l_toe', 'mixamoriglefttoebase', 'bip01ltoe0'],
-  rightUpperLeg: ['rightupperleg', 'upperleg_r', 'thigh.r', 'thigh_r', 'r_thigh', 'mixamorigrightupleg', 'bip01rthigh'],
-  rightLowerLeg: ['rightlowerleg', 'lowerleg_r', 'shin.r', 'shin_r', 'calf_r', 'r_calf', 'mixamorigrightleg', 'bip01rcalf'],
-  rightFoot: ['rightfoot', 'foot_r', 'foot.r', 'ankle_r', 'r_foot', 'mixamorigrightfoot', 'bip01rfoot'],
-  rightToes: ['righttoes', 'toe_r', 'toes.r', 'r_toe', 'mixamorigrighttoebase', 'bip01rtoe0'],
+import {
+  RigReport,
+} from './types';
+
+export const CANONICAL_BONE_ALIASES: Record<string, string[]> = {
+  hips: ['hips', 'hip', 'pelvis', 'root_hips', 'mixamorighips', 'bip01pelvis', 'cog', 'j_bip_c_hips'],
+  spine: ['spine', 'spine01', 'spine_01', 'spine1', 'abdomen', 'mixamorigspine', 'bip01spine', 'j_bip_c_spine'],
+  chest: ['chest', 'spine02', 'spine_02', 'spine2', 'ribcage', 'thorax', 'mixamorigspine1', 'bip01spine1', 'j_bip_c_chest', 'mixamorigspine2'],
+  upperChest: ['upperchest', 'upper_chest', 'spine03', 'spine_03', 'spine3', 'mixamorigspine2', 'bip01spine2', 'j_bip_c_upperchest'],
+  neck: ['neck', 'neck01', 'neck_01', 'mixamorigneck', 'bip01neck', 'j_bip_c_neck'],
+  head: ['head', 'headtop', 'mixamorighead', 'bip01head', 'j_bip_c_head'],
+  leftEye: ['lefteye', 'eye_l', 'eye.l', 'l_eye', 'mixamoriglefteye', 'j_adj_l_faceeye', 'j_bip_l_eye'],
+  rightEye: ['righteye', 'eye_r', 'eye.r', 'r_eye', 'mixamorigrighteye', 'j_adj_r_faceeye', 'j_bip_r_eye'],
+  jaw: ['jaw', 'chin', 'mixamorigjaw', 'j_bip_c_jaw'],
+  leftShoulder: ['leftshoulder', 'shoulder_l', 'shoulder.l', 'clavicle_l', 'clavicle.l', 'l_clavicle', 'mixamorigleftshoulder', 'bip01lclavicle', 'j_bip_l_shoulder'],
+  leftUpperArm: ['leftupperarm', 'upperarm_l', 'upper_arm.l', 'upper_arm_l', 'arm_l', 'l_upperarm', 'mixamorigleftarm', 'bip01lupperarm', 'j_bip_l_upperarm'],
+  leftLowerArm: ['leftlowerarm', 'lowerarm_l', 'forearm.l', 'forearm_l', 'lower_arm.l', 'l_forearm', 'mixamorigleftforearm', 'bip01lforearm', 'j_bip_l_lowerarm'],
+  leftHand: ['lefthand', 'hand_l', 'hand.l', 'wrist_l', 'l_hand', 'mixamoriglefthand', 'bip01lhand', 'j_bip_l_hand'],
+  rightShoulder: ['rightshoulder', 'shoulder_r', 'shoulder.r', 'clavicle_r', 'clavicle.r', 'r_clavicle', 'mixamorigrightshoulder', 'bip01rclavicle', 'j_bip_r_shoulder'],
+  rightUpperArm: ['rightupperarm', 'upperarm_r', 'upper_arm.r', 'upper_arm_r', 'arm_r', 'r_upperarm', 'mixamorigrightarm', 'bip01rupperarm', 'j_bip_r_upperarm'],
+  rightLowerArm: ['rightlowerarm', 'lowerarm_r', 'forearm.r', 'forearm_r', 'lower_arm.r', 'r_forearm', 'mixamorigrightforearm', 'bip01rforearm', 'j_bip_r_lowerarm'],
+  rightHand: ['righthand', 'hand_r', 'hand.r', 'wrist_r', 'r_hand', 'mixamorigrighthand', 'bip01rhand', 'j_bip_r_hand'],
+  leftUpperLeg: ['leftupperleg', 'upperleg_l', 'thigh.l', 'thigh_l', 'l_thigh', 'mixamorigleftupleg', 'bip01lthigh', 'j_bip_l_upperleg'],
+  leftLowerLeg: ['leftlowerleg', 'lowerleg_l', 'shin.l', 'shin_l', 'calf_l', 'l_calf', 'mixamorigleftleg', 'bip01lcalf', 'j_bip_l_lowerleg'],
+  leftFoot: ['leftfoot', 'foot_l', 'foot.l', 'ankle_l', 'l_foot', 'mixamorigleftfoot', 'bip01lfoot', 'j_bip_l_foot'],
+  leftToes: ['lefttoes', 'toe_l', 'toes.l', 'l_toe', 'mixamoriglefttoebase', 'bip01ltoe0', 'j_bip_l_toebase', 'j_bip_l_toe'],
+  rightUpperLeg: ['rightupperleg', 'upperleg_r', 'thigh.r', 'thigh_r', 'r_thigh', 'mixamorigrightupleg', 'bip01rthigh', 'j_bip_r_upperleg'],
+  rightLowerLeg: ['rightlowerleg', 'lowerleg_r', 'shin.r', 'shin_r', 'calf_r', 'r_calf', 'mixamorigrightleg', 'bip01rcalf', 'j_bip_r_lowerleg'],
+  rightFoot: ['rightfoot', 'foot_r', 'foot.r', 'ankle_r', 'r_foot', 'mixamorigrightfoot', 'bip01rfoot', 'j_bip_r_foot'],
+  rightToes: ['righttoes', 'toe_r', 'toes.r', 'r_toe', 'mixamorigrighttoebase', 'bip01rtoe0', 'j_bip_r_toebase', 'j_bip_r_toe'],
+  // Fingers (VRM standard + VRoid J_Bip_* + Mixamo)
+  leftThumbMetacarpal: ['leftthumbmetacarpal', 'j_bip_l_thumb1', 'mixamorigleftthumb1'],
+  leftThumbProximal: ['leftthumbproximal', 'j_bip_l_thumb2', 'mixamorigleftthumb2'],
+  leftThumbDistal: ['leftthumbdistal', 'j_bip_l_thumb3', 'mixamorigleftthumb3'],
+  leftIndexProximal: ['leftindexproximal', 'j_bip_l_index1', 'mixamorigleftindex1'],
+  leftIndexIntermediate: ['leftindexintermediate', 'j_bip_l_index2', 'mixamorigleftindex2'],
+  leftIndexDistal: ['leftindexdistal', 'j_bip_l_index3', 'mixamorigleftindex3'],
+  leftMiddleProximal: ['leftmiddleproximal', 'j_bip_l_middle1', 'mixamorigleftmiddle1'],
+  leftMiddleIntermediate: ['leftmiddleintermediate', 'j_bip_l_middle2', 'mixamorigleftmiddle2'],
+  leftMiddleDistal: ['leftmiddledistal', 'j_bip_l_middle3', 'mixamorigleftmiddle3'],
+  leftRingProximal: ['leftringproximal', 'j_bip_l_ring1', 'mixamorigleftring1'],
+  leftRingIntermediate: ['leftringintermediate', 'j_bip_l_ring2', 'mixamorigleftring2'],
+  leftRingDistal: ['leftringdistal', 'j_bip_l_ring3', 'mixamorigleftring3'],
+  leftLittleProximal: ['leftlittleproximal', 'j_bip_l_little1', 'mixamorigleftpinky1'],
+  leftLittleIntermediate: ['leftlittleintermediate', 'j_bip_l_little2', 'mixamorigleftpinky2'],
+  leftLittleDistal: ['leftlittledistal', 'j_bip_l_little3', 'mixamorigleftpinky3'],
+  rightThumbMetacarpal: ['rightthumbmetacarpal', 'j_bip_r_thumb1', 'mixamorigrightthumb1'],
+  rightThumbProximal: ['rightthumbproximal', 'j_bip_r_thumb2', 'mixamorigrightthumb2'],
+  rightThumbDistal: ['rightthumbdistal', 'j_bip_r_thumb3', 'mixamorigrightthumb3'],
+  rightIndexProximal: ['rightindexproximal', 'j_bip_r_index1', 'mixamorigrightindex1'],
+  rightIndexIntermediate: ['rightindexintermediate', 'j_bip_r_index2', 'mixamorigrightindex2'],
+  rightIndexDistal: ['rightindexdistal', 'j_bip_r_index3', 'mixamorigrightindex3'],
+  rightMiddleProximal: ['rightmiddleproximal', 'j_bip_r_middle1', 'mixamorigrightmiddle1'],
+  rightMiddleIntermediate: ['rightmiddleintermediate', 'j_bip_r_middle2', 'mixamorigrightmiddle2'],
+  rightMiddleDistal: ['rightmiddledistal', 'j_bip_r_middle3', 'mixamorigrightmiddle3'],
+  rightRingProximal: ['rightringproximal', 'j_bip_r_ring1', 'mixamorigrightring1'],
+  rightRingIntermediate: ['rightringintermediate', 'j_bip_r_ring2', 'mixamorigrightring2'],
+  rightRingDistal: ['rightringdistal', 'j_bip_r_ring3', 'mixamorigrightring3'],
+  rightLittleProximal: ['rightlittleproximal', 'j_bip_r_little1', 'mixamorigrightpinky1'],
+  rightLittleIntermediate: ['rightlittleintermediate', 'j_bip_r_little2', 'mixamorigrightpinky2'],
+  rightLittleDistal: ['rightlittledistal', 'j_bip_r_little3', 'mixamorigrightpinky3'],
 };
 
 function normalizeBoneToken(name: string): string {
@@ -78,38 +113,72 @@ function normalizeBoneToken(name: string): string {
 
 export function mapExistingSkinToVrmHumanoid(
   skin: ImportedSkinData,
-  existingVrmHumanoid?: Record<string, string>
+  existingVrmHumanoid?: Record<string, string>,
+  sourceVrmVersion?: '0.0' | '1.0'
 ): {
   humanBoneToJointIndex: Record<string, number>;
   missingRequired: string[];
   allRequiredPresent: boolean;
+  mappingSource: RigReport['mappingSource'];
+  secondaryJointIndices: number[];
 } {
   const humanBoneToJointIndex: Record<string, number> = {};
   const usedJoints = new Set<number>();
+  let usedExplicitVrm = false;
 
-  // 1. Honor explicit VRMC_vrm mapping if already encoded in source GLB
-  if (existingVrmHumanoid) {
-    for (const [vrmBone, nodeName] of Object.entries(existingVrmHumanoid)) {
+  // 1. Honor explicit VRM 0.0 / VRMC_vrm 1.0 mapping if already encoded in source GLB
+  if (existingVrmHumanoid && Object.keys(existingVrmHumanoid).length > 0) {
+    const v0ToCanonical: Record<string, string> = {
+      leftThumbProximal: 'leftThumbMetacarpal',
+      leftThumbIntermediate: 'leftThumbProximal',
+      rightThumbProximal: 'rightThumbMetacarpal',
+      rightThumbIntermediate: 'rightThumbProximal',
+    };
+    const isV0Thumbs =
+      sourceVrmVersion === '0.0' ||
+      'leftThumbIntermediate' in existingVrmHumanoid ||
+      'rightThumbIntermediate' in existingVrmHumanoid;
+    for (const [rawVrmBone, nodeName] of Object.entries(existingVrmHumanoid)) {
+      const vrmBone = isV0Thumbs ? (v0ToCanonical[rawVrmBone] ?? rawVrmBone) : rawVrmBone;
       const idx = skin.joints.findIndex((j) => j.name === nodeName);
       if (idx >= 0 && !usedJoints.has(idx)) {
         humanBoneToJointIndex[vrmBone] = idx;
         usedJoints.add(idx);
+        usedExplicitVrm = true;
       }
     }
   }
 
-  // 2. Match canonical / Mixamo / Rigify / UE names for any unmapped bones
+  // 2. Match canonical / VRoid (J_Bip_*) / Mixamo / Rigify / UE names for any unmapped bones
   const normalizedJointNames = skin.joints.map((j) => normalizeBoneToken(j.name));
+  const strippedJointNames = normalizedJointNames.map((n) => n.replace(/[._]/g, ''));
+
   for (const [vrmBone, aliases] of Object.entries(CANONICAL_BONE_ALIASES)) {
     if (humanBoneToJointIndex[vrmBone] !== undefined) continue;
     let foundIdx = -1;
-    // Exact normalized match first
-    for (let j = 0; j < normalizedJointNames.length; j++) {
-      if (usedJoints.has(j)) continue;
-      const stripped = normalizedJointNames[j].replace(/[._]/g, '');
-      if (aliases.some((a) => a.replace(/[._]/g, '') === stripped)) {
-        foundIdx = j;
-        break;
+    // Exact normalized token match in alias priority order (preserves _ vs no-_ and primary vs fallback aliases)
+    for (const alias of aliases) {
+      for (let j = 0; j < normalizedJointNames.length; j++) {
+        if (usedJoints.has(j)) continue;
+        if (alias === normalizedJointNames[j]) {
+          foundIdx = j;
+          break;
+        }
+      }
+      if (foundIdx >= 0) break;
+    }
+    // Fallback stripped match without separators in alias priority order
+    if (foundIdx < 0) {
+      for (const alias of aliases) {
+        const strippedAlias = alias.replace(/[._]/g, '');
+        for (let j = 0; j < strippedJointNames.length; j++) {
+          if (usedJoints.has(j)) continue;
+          if (strippedAlias === strippedJointNames[j]) {
+            foundIdx = j;
+            break;
+          }
+        }
+        if (foundIdx >= 0) break;
       }
     }
     if (foundIdx >= 0) {
@@ -122,10 +191,26 @@ export function mapExistingSkinToVrmHumanoid(
     (req) => humanBoneToJointIndex[req] === undefined
   );
 
+  // Preserve valid non-humanoid secondary/hair/skirt/cloak bones (e.g., J_Sec_*, hair*, cloak*)
+  const secondaryJointIndices: number[] = [];
+  skin.joints.forEach((_, idx) => {
+    if (!usedJoints.has(idx)) {
+      secondaryJointIndices.push(idx);
+    }
+  });
+
+  const mappingSource: RigReport['mappingSource'] = usedExplicitVrm
+    ? sourceVrmVersion === '0.0'
+      ? 'vrm0'
+      : 'vrm1'
+    : 'name_heuristic';
+
   return {
     humanBoneToJointIndex,
     missingRequired,
     allRequiredPresent: missingRequired.length === 0,
+    mappingSource,
+    secondaryJointIndices,
   };
 }
 

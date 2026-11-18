@@ -7,9 +7,12 @@ import {
   ImportedSamplerData,
   ImportedSkinData,
   ImportedSkinJointData,
+  ImportedSpringGroup,
   ImportedTextureData,
   ImportedTextureInfo,
   ParsedGlbAsset,
+  VrmExportVersion,
+  VrmMetadataConfig,
 } from '../src/shared/types';
 
 export type {
@@ -26,6 +29,19 @@ export type {
   ParsedGlbAsset,
 };
 
+interface GltfAccessorSparse {
+  count: number;
+  indices: {
+    bufferView: number;
+    byteOffset?: number;
+    componentType: number;
+  };
+  values: {
+    bufferView: number;
+    byteOffset?: number;
+  };
+}
+
 interface GltfAccessorMeta {
   bufferView?: number;
   byteOffset?: number;
@@ -33,6 +49,7 @@ interface GltfAccessorMeta {
   normalized?: boolean;
   count: number;
   type: 'SCALAR' | 'VEC2' | 'VEC3' | 'VEC4' | 'MAT4';
+  sparse?: GltfAccessorSparse;
 }
 
 interface GltfBufferViewMeta {
@@ -122,33 +139,75 @@ function readAccessorArray(
   accessorIdx: number
 ): Float32Array {
   const acc = accessors[accessorIdx];
-  if (!acc || acc.bufferView === undefined) {
-    return new Float32Array(0);
-  }
-  const bv = bufferViews[acc.bufferView];
-  if (!bv) return new Float32Array(0);
+  if (!acc) return new Float32Array(0);
 
   const elems = typeElementCount(acc.type);
   const compBytes = componentSize(acc.componentType);
   if (!compBytes) return new Float32Array(0);
 
-  const stride = bv.byteStride && bv.byteStride > 0 ? bv.byteStride : elems * compBytes;
-  const baseOffset = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
   const out = new Float32Array(acc.count * elems);
   const view = new DataView(binBytes.buffer, binBytes.byteOffset, binBytes.byteLength);
 
-  for (let i = 0; i < acc.count; i++) {
-    const elemStart = baseOffset + i * stride;
-    if (elemStart + elems * compBytes > binBytes.byteLength) break;
-    for (let k = 0; k < elems; k++) {
-      out[i * elems + k] = readScalar(
-        view,
-        elemStart + k * compBytes,
-        acc.componentType,
-        Boolean(acc.normalized)
-      );
+  if (acc.bufferView !== undefined) {
+    const bv = bufferViews[acc.bufferView];
+    if (!bv) return new Float32Array(0);
+    const stride = bv.byteStride && bv.byteStride > 0 ? bv.byteStride : elems * compBytes;
+    const baseOffset = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+
+    for (let i = 0; i < acc.count; i++) {
+      const elemStart = baseOffset + i * stride;
+      if (elemStart + elems * compBytes > binBytes.byteLength) break;
+      for (let k = 0; k < elems; k++) {
+        out[i * elems + k] = readScalar(
+          view,
+          elemStart + k * compBytes,
+          acc.componentType,
+          Boolean(acc.normalized)
+        );
+      }
+    }
+  } else if (!acc.sparse) {
+    // Per glTF 2.0 spec, bufferView omitted without sparse means zero-initialized
+    return out;
+  }
+
+  // Apply glTF 2.0 sparse accessor overrides when present
+  if (acc.sparse && acc.sparse.count > 0) {
+    const idxMeta = acc.sparse.indices;
+    const valMeta = acc.sparse.values;
+    const idxBv = bufferViews[idxMeta.bufferView];
+    const valBv = bufferViews[valMeta.bufferView];
+    const idxCompBytes = componentSize(idxMeta.componentType);
+    if (idxBv && valBv && idxCompBytes > 0) {
+      const idxBase = (idxBv.byteOffset ?? 0) + (idxMeta.byteOffset ?? 0);
+      const valBase = (valBv.byteOffset ?? 0) + (valMeta.byteOffset ?? 0);
+      const idxStride = idxBv.byteStride && idxBv.byteStride >= idxCompBytes ? idxBv.byteStride : idxCompBytes;
+      const valStride =
+        valBv.byteStride && valBv.byteStride >= elems * compBytes
+          ? valBv.byteStride
+          : elems * compBytes;
+
+      for (let s = 0; s < acc.sparse.count; s++) {
+        const iOff = idxBase + s * idxStride;
+        const vOff = valBase + s * valStride;
+        if (iOff + idxCompBytes > binBytes.byteLength || vOff + elems * compBytes > binBytes.byteLength) {
+          break;
+        }
+        const targetVertexIdx = Math.floor(readScalar(view, iOff, idxMeta.componentType, false));
+        if (targetVertexIdx >= 0 && targetVertexIdx < acc.count) {
+          for (let k = 0; k < elems; k++) {
+            out[targetVertexIdx * elems + k] = readScalar(
+              view,
+              vOff + k * compBytes,
+              acc.componentType,
+              Boolean(acc.normalized)
+            );
+          }
+        }
+      }
     }
   }
+
   return out;
 }
 
@@ -419,7 +478,45 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
     bufferViews?: GltfBufferViewMeta[];
     extensions?: {
       VRMC_vrm?: {
+        specVersion?: string;
+        meta?: {
+          name?: string;
+          version?: string;
+          authors?: string[];
+          copyrightInformation?: string;
+          contactInformation?: string;
+          references?: string[];
+        };
         humanoid?: { humanBones?: Record<string, { node?: number }> };
+      };
+      VRM?: {
+        specVersion?: string;
+        meta?: {
+          title?: string;
+          author?: string;
+          version?: string;
+          contactInformation?: string;
+          reference?: string;
+        };
+        humanoid?: {
+          humanBones?: Array<{ bone?: string; node?: number }>;
+        };
+        secondaryAnimation?: {
+          boneGroups?: Array<{
+            comment?: string;
+            stiffiness?: number;
+            gravityPower?: number;
+            gravityDir?: { x?: number; y?: number; z?: number };
+            dragForce?: number;
+            hitRadius?: number;
+            center?: number;
+            bones?: number[];
+            colliderGroups?: number[];
+          }>;
+          colliderGroups?: Array<{
+            node?: number;
+          }>;
+        };
       };
     };
   } | null = null;
@@ -619,15 +716,90 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
     };
   });
 
-  // Extract VRMC_vrm humanoid bone names if source GLB already contains them
+  // Extract VRM 0.0 (`extensions.VRM`) or VRM 1.0 (`extensions.VRMC_vrm`) humanoid mapping, attribution & spring chains
   let existingVrmHumanoid: Record<string, string> | undefined;
-  const vrmBonesRaw = gltfJson.extensions?.VRMC_vrm?.humanoid?.humanBones;
-  if (vrmBonesRaw && typeof vrmBonesRaw === 'object') {
-    existingVrmHumanoid = {};
-    for (const [vrmBone, ref] of Object.entries(vrmBonesRaw)) {
-      if (ref && typeof ref.node === 'number' && gltfNodes[ref.node]) {
-        existingVrmHumanoid[vrmBone] = gltfNodes[ref.node].name || `node_${ref.node}`;
+  let sourceVrmVersion: VrmExportVersion | undefined;
+  let sourceVrmMeta: Partial<VrmMetadataConfig> | undefined;
+  let existingVrmSprings: ImportedSpringGroup[] | undefined;
+
+  const vrm0Ext = gltfJson.extensions?.VRM;
+  const vrm1Ext = gltfJson.extensions?.VRMC_vrm;
+
+  if (vrm0Ext && typeof vrm0Ext === 'object') {
+    sourceVrmVersion = '0.0';
+    if (Array.isArray(vrm0Ext.humanoid?.humanBones)) {
+      existingVrmHumanoid = {};
+      for (const hb of vrm0Ext.humanoid!.humanBones) {
+        if (hb && typeof hb.bone === 'string' && typeof hb.node === 'number' && gltfNodes[hb.node]) {
+          existingVrmHumanoid[hb.bone] = gltfNodes[hb.node].name || `node_${hb.node}`;
+        }
       }
+    }
+    if (vrm0Ext.meta) {
+      sourceVrmMeta = {
+        title: vrm0Ext.meta.title,
+        author: vrm0Ext.meta.author,
+        version: vrm0Ext.meta.version,
+        contactInformation: vrm0Ext.meta.contactInformation,
+        reference: vrm0Ext.meta.reference,
+        sourceAttribution: [vrm0Ext.meta.author, vrm0Ext.meta.reference].filter(Boolean).join(' · ') || undefined,
+      };
+    }
+    if (Array.isArray(vrm0Ext.secondaryAnimation?.boneGroups)) {
+      const cgGroups = vrm0Ext.secondaryAnimation?.colliderGroups || [];
+      existingVrmSprings = vrm0Ext.secondaryAnimation!.boneGroups
+        .map((bg) => {
+          const boneNames = (bg.bones || [])
+            .map((nodeIdx) => (gltfNodes[nodeIdx] ? gltfNodes[nodeIdx].name || `node_${nodeIdx}` : null))
+            .filter((n): n is string => Boolean(n));
+          const colliderGroupNodeNames = (bg.colliderGroups || [])
+            .map((cgIdx) => {
+              const cgNodeIdx = cgGroups[cgIdx]?.node;
+              return cgNodeIdx !== undefined && gltfNodes[cgNodeIdx]
+                ? gltfNodes[cgNodeIdx].name || `node_${cgNodeIdx}`
+                : null;
+            })
+            .filter((n): n is string => Boolean(n));
+          return {
+            comment: bg.comment,
+            stiffiness: typeof bg.stiffiness === 'number' ? bg.stiffiness : 0.65,
+            gravityPower: typeof bg.gravityPower === 'number' ? bg.gravityPower : 0.25,
+            gravityDir: [
+              bg.gravityDir?.x ?? 0,
+              bg.gravityDir?.y ?? -1,
+              bg.gravityDir?.z ?? 0,
+            ] as [number, number, number],
+            dragForce: typeof bg.dragForce === 'number' ? bg.dragForce : 0.4,
+            hitRadius: typeof bg.hitRadius === 'number' ? bg.hitRadius : 0.02,
+            centerNodeName:
+              typeof bg.center === 'number' && bg.center >= 0 && gltfNodes[bg.center]
+                ? gltfNodes[bg.center].name || `node_${bg.center}`
+                : undefined,
+            boneNames,
+            colliderGroupNodeNames,
+          };
+        })
+        .filter((s) => s.boneNames.length > 0);
+    }
+  } else if (vrm1Ext && typeof vrm1Ext === 'object') {
+    sourceVrmVersion = '1.0';
+    const vrmBonesRaw = vrm1Ext.humanoid?.humanBones;
+    if (vrmBonesRaw && typeof vrmBonesRaw === 'object') {
+      existingVrmHumanoid = {};
+      for (const [vrmBone, ref] of Object.entries(vrmBonesRaw)) {
+        if (ref && typeof ref.node === 'number' && gltfNodes[ref.node]) {
+          existingVrmHumanoid[vrmBone] = gltfNodes[ref.node].name || `node_${ref.node}`;
+        }
+      }
+    }
+    if (vrm1Ext.meta) {
+      sourceVrmMeta = {
+        title: vrm1Ext.meta.name,
+        author: Array.isArray(vrm1Ext.meta.authors) ? vrm1Ext.meta.authors.join(', ') : undefined,
+        version: vrm1Ext.meta.version,
+        contactInformation: vrm1Ext.meta.contactInformation,
+        reference: Array.isArray(vrm1Ext.meta.references) ? vrm1Ext.meta.references[0] : undefined,
+      };
     }
   }
 
@@ -659,6 +831,8 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
   let hasExistingSkin = false;
   let hasMorphTargets = false;
   let hasVertexColors = false;
+  let hasMultiInfluenceSkin = false;
+  const unsupportedFeatures = new Set<string>();
   let minX = Infinity;
   let minY = Infinity;
   let minZ = Infinity;
@@ -719,6 +893,11 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
           }
           hasVertexColors = true;
         }
+      }
+
+      if (prim.attributes?.JOINTS_1 !== undefined || prim.attributes?.WEIGHTS_1 !== undefined) {
+        hasMultiInfluenceSkin = true;
+        unsupportedFeatures.add('JOINTS_1/WEIGHTS_1 (8-bone skinning influences truncated to top 4)');
       }
 
       const hasJointsAttr =
@@ -877,7 +1056,22 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
           if (target.NORMAL !== undefined) {
             const rawTN = readAccessorArray(binChunk!, accessors, bufferViews, target.NORMAL);
             if (rawTN.length >= vertCount * 3) {
-              tNormals = rawTN.subarray(0, vertCount * 3);
+              if (applyWorldTransform) {
+                tNormals = new Float32Array(vertCount * 3);
+                for (let i = 0; i < vertCount; i++) {
+                  const [nx, ny, nz] = transformVectorMat4(
+                    worldMat,
+                    rawTN[i * 3],
+                    rawTN[i * 3 + 1],
+                    rawTN[i * 3 + 2]
+                  );
+                  tNormals[i * 3] = nx;
+                  tNormals[i * 3 + 1] = ny;
+                  tNormals[i * 3 + 2] = nz;
+                }
+              } else {
+                tNormals = rawTN.subarray(0, vertCount * 3);
+              }
             }
           }
           morphTargets.push({
@@ -942,7 +1136,12 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
     hasMorphTargets,
     hasVertexColors,
     hasNodeTransforms,
+    hasMultiInfluenceSkin,
+    unsupportedFeatures: unsupportedFeatures.size > 0 ? Array.from(unsupportedFeatures) : undefined,
+    sourceVrmVersion,
+    sourceVrmMeta,
     existingVrmHumanoid,
+    existingVrmSprings,
     boundsMin: [minX, minY, minZ],
     boundsMax: [maxX, maxY, maxZ],
     meshes: importedMeshes,

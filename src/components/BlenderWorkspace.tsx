@@ -33,6 +33,7 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
   const [configError, setConfigError] = useState<string | null>(null);
   const [loadingProbe, setLoadingProbe] = useState(true);
   const [runningTest, setRunningTest] = useState(false);
+  const [testVrmVersion, setTestVrmVersion] = useState<'0.0' | '1.0'>('0.0');
   const [testResult, setTestResult] = useState<{
     executed: boolean;
     mode: string;
@@ -118,7 +119,10 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
       const res = await fetch('/api/blender/run-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: activeProject?.id }),
+        body: JSON.stringify({
+          projectId: activeProject?.id,
+          vrmVersion: testVrmVersion,
+        }),
       });
       const data = await res.json();
       setTestResult(data);
@@ -237,19 +241,33 @@ export const BlenderWorkspace: React.FC<BlenderWorkspaceProps> = ({ activeProjec
               </p>
             )}
 
-            <div className="border-t border-[#262d38] pt-3 flex items-center justify-between gap-3">
+            <div className="border-t border-[#262d38] pt-3 flex flex-wrap items-center justify-between gap-3">
               <span className="text-xs text-slate-400">
                 Humanoid GLB Import, Rigging, Deformation & VRM Export Check
               </span>
-              <button
-                type="button"
-                onClick={handleRunTest}
-                disabled={runningTest}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-sky-600 hover:bg-sky-500 disabled:bg-slate-800 text-xs font-semibold text-white whitespace-nowrap cursor-pointer"
-              >
-                <Play className="w-3.5 h-3.5" aria-hidden="true" />
-                {runningTest ? 'Running Test...' : 'Run Verification Test'}
-              </button>
+              <div className="flex items-center gap-2">
+                <label htmlFor="blender-test-vrm-ver" className="sr-only">
+                  Verification Target VRM Version
+                </label>
+                <select
+                  id="blender-test-vrm-ver"
+                  value={testVrmVersion}
+                  onChange={(e) => setTestVrmVersion(e.target.value as '0.0' | '1.0')}
+                  className="rounded-md border border-[#262d38] bg-[#0b0e13] px-2 py-1.5 text-xs text-slate-200"
+                >
+                  <option value="0.0">VRM 0.0 (Primary)</option>
+                  <option value="1.0">VRM 1.0 (Optional)</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleRunTest}
+                  disabled={runningTest}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-sky-600 hover:bg-sky-500 disabled:bg-slate-800 text-xs font-semibold text-white whitespace-nowrap cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5" aria-hidden="true" />
+                  {runningTest ? 'Running Test...' : 'Run Verification Test'}
+                </button>
+              </div>
             </div>
 
             {testResult && (

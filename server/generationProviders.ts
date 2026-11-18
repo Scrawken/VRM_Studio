@@ -498,15 +498,22 @@ export async function resolveGeometryProviderExecution(
 
   if (provider === 'blender-bpy-bridge') {
     const blender = detectBlenderInstallation();
+    const eligible = blender.installed && blender.vrmAddonDetected;
     return {
       requestedProvider: provider,
-      executedProvider: blender.installed ? 'blender-bpy-bridge' : 'sculpted-anatomical-vrm',
-      usedFallback: !blender.installed,
-      externalGenerationSucceeded: blender.installed,
-      fallbackReason: blender.installed ? undefined : 'Blender executable not detected on host.',
-      detail: blender.installed
-        ? `Blender ${blender.version} detected; generated source_high.glb + anatomical bpy refinement pipeline.`
-        : 'Blender executable not detected on host; fell back to High-Detail Sculpted Anatomical VRM Engine + generated bpy script.',
+      executedProvider: eligible ? 'blender-bpy-bridge' : 'sculpted-anatomical-vrm',
+      usedFallback: !eligible,
+      externalGenerationSucceeded: false,
+      fallbackReason: eligible
+        ? undefined
+        : blender.installed
+          ? `${blender.version} detected without VRM_Addon_for_Blender; falling back to TypeScript VRM synthesis.`
+          : 'Blender executable not detected on host; using TypeScript VRM synthesis + generated bpy script.',
+      detail: eligible
+        ? `${blender.version} + VRM Add-on detected; base geometry prepared for live headless Blender execution.`
+        : blender.installed
+          ? `${blender.version} detected without VRM Add-on; using TypeScript VRM synthesis + generated bpy script.`
+          : 'Blender executable not detected on host; using TypeScript VRM synthesis + generated bpy script.',
     };
   }
 

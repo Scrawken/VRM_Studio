@@ -6,6 +6,7 @@ import path from 'node:path';
 import express, { NextFunction, Request, Response } from 'express';
 import {
   applyCharacterEdits,
+  createDefaultVrmMetadata,
   normalizeCharacterSpec,
   parseCharacterPromptFallback,
   validateCharacterSpecification,
@@ -17,18 +18,23 @@ import {
   DEFAULT_QUALITY_CONFIG,
   GenerationMode,
   QualityConfig,
+  VrmAllowance,
+  VrmAllowedUser,
+  VrmExportVersion,
+  VrmMetadataConfig,
 } from './src/shared/types';
 import { estimateCharacterMetrics } from './src/shared/vrmBuilder';
 import { validateVrmBinary } from './src/shared/vrmValidator';
 import { interpretCharacterDescription } from './server/geminiInterpreter';
 import { resolveGeometryProviderExecution } from './server/generationProviders';
+import { parseAndValidateGlbAsset } from './server/glbImporter';
 import {
   duplicateProject,
+  executeCharacterPipeline,
   getProject,
   getProjectFilePath,
   getProjectsRoot,
   listProjects,
-  saveProjectArtifacts,
   seedInitialProjectsIfEmpty,
 } from './server/projectStore';
 import {
@@ -69,6 +75,21 @@ function resolveBackendDir(): string {
   );
 }
 
+function parseVrmVersionParam(raw: unknown): VrmExportVersion | undefined {
+  if (raw === '0.0' || raw === '1.0') return raw;
+  return undefined;
+}
+
+function parseAllowanceParam(raw: unknown, fallback: VrmAllowance): VrmAllowance {
+  return raw === 'Allow' || raw === 'Disallow' ? raw : fallback;
+}
+
+function parseAllowedUserParam(raw: unknown, fallback: VrmAllowedUser): VrmAllowedUser {
+  return raw === 'OnlyAuthor' || raw === 'ExplicitlyLicensedPerson' || raw === 'Everyone'
+    ? raw
+    : fallback;
+}
+
 function handleRouteError(res: Response, err: unknown) {
   if (err instanceof SecurityValidationError) {
     return res.status(err.statusCode).json({ error: err.message });
@@ -91,8 +112,6 @@ async function startServer() {
     if (req.path.startsWith('/api')) {
       res.setHeader('Cache-Control', 'no-store');
       const origin = req.headers.origin;
-      // Only enforce loopback Origin when a desktop client or browser sends an Origin header,
-      // unless explicitly overridden for hosted reverse proxies via VRM_FORGE_ALLOW_ANY_ORIGIN=1
       if (
         origin &&
         process.env.VRM_FORGE_ALLOW_ANY_ORIGIN !== '1' &&
@@ -146,6 +165,7 @@ async function startServer() {
     const scriptsDir = resolveBlenderScriptsDir();
     const testScriptPath = resolveSafePathWithinRoot(scriptsDir, 'test_milestone2_blender.py');
     const backendDir = resolveBackendDir();
+    const targetVrmVersion = parseVrmVersionParam(req.body?.vrmVersion) ?? '0.0';
 
     const requestedProjectId =
       typeof req.body?.projectId === 'string' && req.body.projectId.trim()
@@ -154,14 +174,18 @@ async function startServer() {
 
     let glbPath: string | null = null;
     try {
-      glbPath = getProjectFilePath(requestedProjectId, 'source_high.glb');
+      glbPath =
+        getProjectFilePath(requestedProjectId, 'external_source.glb') ||
+        getProjectFilePath(requestedProjectId, 'source_high.glb');
     } catch {
       glbPath = null;
     }
     if (!glbPath) {
       const firstProj = listProjects()[0];
       if (firstProj) {
-        glbPath = getProjectFilePath(firstProj.id, 'source_high.glb');
+        glbPath =
+          getProjectFilePath(firstProj.id, 'external_source.glb') ||
+          getProjectFilePath(firstProj.id, 'source_high.glb');
       }
     }
 
@@ -188,6 +212,8 @@ async function startServer() {
             outDir,
             '--glb-path',
             glbPath,
+            '--vrm-version',
+            targetVrmVersion,
           ],
           { timeout: 60000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
         );
@@ -197,6 +223,7 @@ async function startServer() {
         return res.json({
           executed: Boolean(report?.status === 'ok'),
           mode: 'blender_live',
+          vrmVersion: targetVrmVersion,
           blenderVersion: blender.version,
           riggingSuccess: Boolean(report?.rigging_success),
           materialPreserved: Boolean(report?.material_preserved),
@@ -217,6 +244,7 @@ async function startServer() {
         return res.status(report ? 200 : 500).json({
           executed: false,
           mode: 'blender_live',
+          vrmVersion: targetVrmVersion,
           blenderVersion: blender.version,
           riggingSuccess: Boolean(report?.rigging_success),
           materialPreserved: Boolean(report?.material_preserved),
@@ -244,6 +272,7 @@ async function startServer() {
       return res.json({
         executed: false,
         mode: 'blender_not_installed',
+        vrmVersion: targetVrmVersion,
         blenderInstalled: false,
         note: 'Blender executable is not installed on this host, so live bpy humanoid import/deformation/VRM export did NOT run. Executed Python binary validator unit checks only.',
         stdout: pyTestOut,
@@ -253,6 +282,7 @@ async function startServer() {
       return res.json({
         executed: false,
         mode: 'blender_not_installed',
+        vrmVersion: targetVrmVersion,
         blenderInstalled: false,
         note: `Blender executable is not installed on this host (${e.message}).`,
         stdout: (e.stdout || '') + '\n' + (e.stderr || ''),
@@ -281,6 +311,101 @@ async function startServer() {
     }
   });
 
+  // Local / AURA GLB Direct Import Pipeline (No paid external APIs required)
+  app.post(
+    '/api/characters/import-glb',
+    express.raw({ type: '*/*', limit: '50mb' }),
+    async (req, res) => {
+      try {
+        const buf = req.body as Buffer;
+        if (!buf || !Buffer.isBuffer(buf) || buf.byteLength < 20) {
+          return res.status(400).json({ error: 'Expected binary GLB file payload.' });
+        }
+        const glbBytes = new Uint8Array(buf);
+        const parsedMesh = parseAndValidateGlbAsset(glbBytes);
+        if (!parsedMesh.valid) {
+          return res.status(422).json({
+            error: `Invalid or empty GLB asset: ${parsedMesh.error || 'Unknown GLB parse error'}`,
+          });
+        }
+
+        const q = req.query;
+        const rawName =
+          typeof q.name === 'string' && q.name.trim()
+            ? q.name.trim().slice(0, 80)
+            : parsedMesh.sourceVrmMeta?.title || 'Imported AURA Character';
+        const vrmVersion = parseVrmVersionParam(q.vrmVersion) ?? '0.0';
+        const heightMeters = Number(q.heightMeters);
+        const validHeight =
+          Number.isFinite(heightMeters) && heightMeters >= 0.8 && heightMeters <= 2.6
+            ? heightMeters
+            : undefined;
+
+        const vrmMetadata: VrmMetadataConfig = createDefaultVrmMetadata(rawName, {
+          title: rawName,
+          author: typeof q.author === 'string' ? q.author.trim() : '',
+          licenseName: typeof q.licenseName === 'string' && q.licenseName.trim() ? q.licenseName.trim() : 'Other',
+          commercialUsage: parseAllowanceParam(q.commercialUsage, 'Disallow'),
+          allowedUserName: parseAllowedUserParam(q.allowedUserName, 'OnlyAuthor'),
+          violentUsage: parseAllowanceParam(q.violentUsage, 'Disallow'),
+          sexualUsage: parseAllowanceParam(q.sexualUsage, 'Disallow'),
+          sourceAttribution: 'Imported via VRM Forge Studio Local GLB Pipeline',
+        });
+
+        const promptText = `Imported local GLB character: ${rawName}`;
+        const spec = parseCharacterPromptFallback(promptText, {
+          name: rawName,
+          geometryProvider: 'local-glb-import',
+          interpreterProvider: 'local-glb-import',
+          vrmVersion,
+          vrmMetadata,
+        });
+        if (validHeight) {
+          spec.proportions.heightMeters = validHeight;
+        }
+        spec.riggingRequirements.targetPolygonBudget = Math.max(12000, parsedMesh.triangleCount);
+
+        const { record, blenderOutcome } = await executeCharacterPipeline(
+          spec,
+          'local',
+          {
+            interpretMs: 1,
+            interpretUsedFallback: false,
+            interpreterNote: `Imported local GLB "${rawName}" (${parsedMesh.meshCount} meshes, ${parsedMesh.triangleCount.toLocaleString()} tris, ${parsedMesh.materialCount} mats)`,
+            designValidationMs: 1,
+            geometryResolveMs: 1,
+            geometryUsedFallback: false,
+            externalGenerationSucceeded: true,
+            adapterDetail: `Local AURA/GLB import (${parsedMesh.hasExistingSkin ? 'rigged' : 'unrigged'} source)`,
+          },
+          `Imported local GLB -> VRM ${vrmVersion} (${parsedMesh.triangleCount.toLocaleString()} tris)`,
+          { glbBuffer: glbBytes, parsedMesh }
+        );
+
+        return res.json({
+          project: record,
+          productionPath: record.productionPath,
+          blenderExecuted: Boolean(blenderOutcome?.succeeded),
+          rigReport: record.rigReport,
+          parsedMeshSummary: {
+            meshCount: parsedMesh.meshCount,
+            primitiveCount: parsedMesh.primitiveCount,
+            triangleCount: parsedMesh.triangleCount,
+            materialCount: parsedMesh.materialCount,
+            textureCount: parsedMesh.textureCount,
+            imageCount: parsedMesh.imageCount,
+            hasExistingSkin: parsedMesh.hasExistingSkin,
+            hasMorphTargets: parsedMesh.hasMorphTargets,
+            sourceVrmVersion: parsedMesh.sourceVrmVersion,
+            unsupportedFeatures: parsedMesh.unsupportedFeatures ?? [],
+          },
+        });
+      } catch (err) {
+        return handleRouteError(res, err);
+      }
+    }
+  );
+
   app.post('/api/characters/generate', async (req, res) => {
     try {
       const prompt = String(req.body?.prompt ?? '').trim();
@@ -304,6 +429,8 @@ async function startServer() {
           ? req.body.artStyle
           : undefined;
       const qualityConfig = req.body?.qualityConfig as Partial<QualityConfig> | undefined;
+      const targetVrmVersion = parseVrmVersionParam(req.body?.vrmVersion) ?? '0.0';
+      const rawMeta = req.body?.vrmMetadata as Partial<VrmMetadataConfig> | undefined;
 
       const tInterp0 = performance.now();
       const interpreted = await interpretCharacterDescription(prompt, {
@@ -315,7 +442,15 @@ async function startServer() {
       });
       const interpretMs = Math.max(1, Math.round(performance.now() - tInterp0));
 
-      // Priority 3: Pre-geometry fidelity gate before calling 3D provider / synthesis
+      interpreted.spec.riggingRequirements.vrmVersion = targetVrmVersion;
+      if (rawMeta || !interpreted.spec.vrmMetadata) {
+        interpreted.spec.vrmMetadata = createDefaultVrmMetadata(
+          interpreted.spec.name,
+          rawMeta
+        );
+      }
+
+      // Pre-geometry fidelity gate before calling 3D provider / synthesis
       const tGate0 = performance.now();
       const specValidation = validateCharacterSpecification(interpreted.spec);
       const designValidationMs = Math.max(1, Math.round(performance.now() - tGate0));
@@ -344,7 +479,7 @@ async function startServer() {
             }
           : undefined;
 
-      const project = saveProjectArtifacts(
+      const { record, blenderOutcome } = await executeCharacterPipeline(
         interpreted.spec,
         mode,
         {
@@ -357,15 +492,20 @@ async function startServer() {
           externalGenerationSucceeded: adapterExec.externalGenerationSucceeded,
           adapterDetail: adapterExec.detail,
         },
-        `Generated in ${mode} mode via ${adapterExec.executedProvider} (${interpreted.spec.qualityConfig.geometryQuality} / ${interpreted.spec.qualityConfig.textureResolution})`,
+        `Generated in ${mode} mode via ${adapterExec.executedProvider} (VRM ${targetVrmVersion}, ${interpreted.spec.qualityConfig.geometryQuality} / ${interpreted.spec.qualityConfig.textureResolution})`,
         externalGeom
       );
 
       res.json({
-        project,
-        usedFallback: interpreted.usedFallback || adapterExec.usedFallback,
+        project: record,
+        productionPath: record.productionPath,
+        blenderExecuted: Boolean(blenderOutcome?.succeeded),
+        usedFallback:
+          interpreted.usedFallback ||
+          adapterExec.usedFallback ||
+          record.productionPath === 'typescript_fallback',
         externalGenerationSucceeded: adapterExec.externalGenerationSucceeded,
-        fallbackReason: adapterExec.fallbackReason,
+        fallbackReason: adapterExec.fallbackReason || blenderOutcome?.reason,
         requestedGeometryProvider: adapterExec.requestedProvider,
         executedGeometryProvider: adapterExec.executedProvider,
         note: `${interpreted.note} ${adapterExec.detail}`,
@@ -375,7 +515,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/projects/:id/customize', (req, res) => {
+  app.post('/api/projects/:id/customize', async (req, res) => {
     try {
       const existing = getProject(req.params.id);
       if (!existing) {
@@ -391,7 +531,19 @@ async function startServer() {
           violations: specValidation.violations,
         });
       }
-      const project = saveProjectArtifacts(
+
+      // If this project originated from an imported external GLB, preserve its mesh when rebuilding metadata/version
+      let externalGeom: { glbBuffer: Uint8Array; parsedMesh: ReturnType<typeof parseAndValidateGlbAsset> } | undefined;
+      const extPath = getProjectFilePath(existing.id, 'external_source.glb');
+      if (extPath) {
+        const buf = new Uint8Array(fs.readFileSync(extPath));
+        const parsed = parseAndValidateGlbAsset(buf);
+        if (parsed.valid) {
+          externalGeom = { glbBuffer: buf, parsedMesh: parsed };
+        }
+      }
+
+      const { record } = await executeCharacterPipeline(
         updatedSpec,
         existing.mode,
         {
@@ -401,18 +553,21 @@ async function startServer() {
           designValidationMs: 1,
           geometryResolveMs: 0,
           geometryUsedFallback: false,
-          externalGenerationSucceeded: false,
-          adapterDetail: `Sculpted Anatomical VRM Engine (${updatedSpec.qualityConfig.geometryQuality})`,
+          externalGenerationSucceeded: Boolean(externalGeom),
+          adapterDetail: externalGeom
+            ? `Preserved external GLB geometry (VRM ${updatedSpec.riggingRequirements.vrmVersion})`
+            : `Sculpted Anatomical VRM Engine (${updatedSpec.qualityConfig.geometryQuality})`,
         },
-        `Customized traits & quality (v${updatedSpec.version})`
+        `Customized traits & VRM ${updatedSpec.riggingRequirements.vrmVersion} settings (v${updatedSpec.version})`,
+        externalGeom
       );
-      res.json({ project });
+      res.json({ project: record });
     } catch (err) {
       handleRouteError(res, err);
     }
   });
 
-  app.post('/api/projects/:id/spec', (req, res) => {
+  app.post('/api/projects/:id/spec', async (req, res) => {
     try {
       const existing = getProject(req.params.id);
       if (!existing) return res.status(404).json({ error: 'Project not found' });
@@ -430,7 +585,7 @@ async function startServer() {
           violations: specValidation.violations,
         });
       }
-      const project = saveProjectArtifacts(
+      const { record } = await executeCharacterPipeline(
         normalized,
         existing.mode,
         {
@@ -445,7 +600,7 @@ async function startServer() {
         },
         `Updated character spec JSON (v${normalized.version})`
       );
-      res.json({ project });
+      res.json({ project: record });
     } catch (err) {
       handleRouteError(res, err);
     }
@@ -459,7 +614,8 @@ async function startServer() {
       if (!buf || !Buffer.isBuffer(buf)) {
         return res.status(400).json({ error: 'Expected binary VRM/GLB payload.' });
       }
-      const report = validateVrmBinary(new Uint8Array(buf));
+      const expectedVersion = parseVrmVersionParam(req.query.expectedVersion);
+      const report = validateVrmBinary(new Uint8Array(buf), expectedVersion);
       res.json({ report });
     }
   );

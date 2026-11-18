@@ -105,6 +105,7 @@ export const VrmViewport: React.FC<VrmViewportProps> = ({
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadedVrmVersion, setLoadedVrmVersion] = useState<'0.0' | '1.0' | null>(null);
 
   // Refs synced to Three.js loop without tearing down renderer
   const viewModeRef = useRef(viewMode);
@@ -334,7 +335,10 @@ export const VrmViewport: React.FC<VrmViewportProps> = ({
       const weights = exprWeightsRef.current;
       const manager = currentVrm.expressionManager;
       for (const expr of manager.expressions) {
-        const val = weights[expr.expressionName] ?? 0;
+        const val =
+          weights[expr.expressionName] ??
+          weights[expr.expressionName.toLowerCase()] ??
+          0;
         manager.setValue(expr.expressionName, val);
       }
     };
@@ -350,6 +354,10 @@ export const VrmViewport: React.FC<VrmViewportProps> = ({
 
       resetPose(vrm);
 
+      // @pixiv/three-vrm normalized bone local X/Z axes match the unrotated VRM coordinate frame
+      // (-Z forward for VRM 0.0 before VRMUtils.rotateVRM0, +Z forward for VRM 1.0)
+      const vrm0Flip = vrm.meta?.metaVersion === '0' ? -1 : 1;
+
       if (mode === 'idle') {
         const breath = Math.sin(elapsed * 2.1);
         const chest = humanoid.getNormalizedBoneNode('chest');
@@ -360,14 +368,14 @@ export const VrmViewport: React.FC<VrmViewportProps> = ({
         const rFore = humanoid.getNormalizedBoneNode('rightLowerArm');
 
         // Natural A-pose relaxation in idle
-        if (lArm) lArm.rotation.z = -1.18 + breath * 0.025;
-        if (rArm) rArm.rotation.z = 1.18 - breath * 0.025;
+        if (lArm) lArm.rotation.z = (-1.18 + breath * 0.025) * vrm0Flip;
+        if (rArm) rArm.rotation.z = (1.18 - breath * 0.025) * vrm0Flip;
         if (lFore) lFore.rotation.y = 0.14;
         if (rFore) rFore.rotation.y = -0.14;
-        if (chest) chest.rotation.x = breath * 0.022;
+        if (chest) chest.rotation.x = breath * 0.022 * vrm0Flip;
         if (head) {
           head.rotation.y = Math.sin(elapsed * 0.7) * 0.09;
-          head.rotation.x = Math.sin(elapsed * 1.1) * 0.03;
+          head.rotation.x = Math.sin(elapsed * 1.1) * 0.03 * vrm0Flip;
         }
         // Periodic subtle blink unless user is overriding blink
         if ((exprWeightsRef.current['blink'] ?? 0) === 0 && vrm.expressionManager) {
@@ -391,34 +399,34 @@ export const VrmViewport: React.FC<VrmViewportProps> = ({
 
         if (hips) hips.rotation.y = s * 0.08;
         if (spine) spine.rotation.y = -s * 0.06;
-        if (lUL) lUL.rotation.x = s * 0.48;
-        if (rUL) rUL.rotation.x = -s * 0.48;
-        if (lLL) lLL.rotation.x = Math.max(0, -c * 0.55);
-        if (rLL) rLL.rotation.x = Math.max(0, c * 0.55);
+        if (lUL) lUL.rotation.x = s * 0.48 * vrm0Flip;
+        if (rUL) rUL.rotation.x = -s * 0.48 * vrm0Flip;
+        if (lLL) lLL.rotation.x = Math.max(0, -c * 0.55) * vrm0Flip;
+        if (rLL) rLL.rotation.x = Math.max(0, c * 0.55) * vrm0Flip;
         if (lUA) {
-          lUA.rotation.z = -1.25;
-          lUA.rotation.x = -s * 0.42;
+          lUA.rotation.z = -1.25 * vrm0Flip;
+          lUA.rotation.x = -s * 0.42 * vrm0Flip;
         }
         if (rUA) {
-          rUA.rotation.z = 1.25;
-          rUA.rotation.x = s * 0.42;
+          rUA.rotation.z = 1.25 * vrm0Flip;
+          rUA.rotation.x = s * 0.42 * vrm0Flip;
         }
-        if (lLA) lLA.rotation.x = -0.35;
-        if (rLA) rLA.rotation.x = -0.35;
+        if (lLA) lLA.rotation.x = -0.35 * vrm0Flip;
+        if (rLA) rLA.rotation.x = -0.35 * vrm0Flip;
       } else if (mode === 'wave') {
         const lArm = humanoid.getNormalizedBoneNode('leftUpperArm');
         const rArm = humanoid.getNormalizedBoneNode('rightUpperArm');
         const rFore = humanoid.getNormalizedBoneNode('rightLowerArm');
         const head = humanoid.getNormalizedBoneNode('head');
-        if (lArm) lArm.rotation.z = -1.2;
+        if (lArm) lArm.rotation.z = -1.2 * vrm0Flip;
         if (rArm) {
-          rArm.rotation.z = -0.55;
-          rArm.rotation.x = -0.25;
+          rArm.rotation.z = -0.55 * vrm0Flip;
+          rArm.rotation.x = -0.25 * vrm0Flip;
         }
         if (rFore) {
-          rFore.rotation.z = -0.85 + Math.sin(elapsed * 6.0) * 0.35;
+          rFore.rotation.z = (-0.85 + Math.sin(elapsed * 6.0) * 0.35) * vrm0Flip;
         }
-        if (head) head.rotation.z = -0.08;
+        if (head) head.rotation.z = -0.08 * vrm0Flip;
       }
 
       // Highlight selected bone subtly if inspecting skeleton
@@ -557,6 +565,12 @@ export const VrmViewport: React.FC<VrmViewportProps> = ({
           originalMaterials.clear();
           weightMaterials.clear();
 
+          const detectedVer = vrm.meta?.metaVersion === '0' ? '0.0' : '1.0';
+          if (vrm.meta?.metaVersion === '0') {
+            VRMUtils.rotateVRM0(vrm);
+          }
+          setLoadedVrmVersion(detectedVer);
+
           currentVrm = vrm;
           vrm.scene.traverse((obj) => {
             obj.frustumCulled = false;
@@ -566,6 +580,9 @@ export const VrmViewport: React.FC<VrmViewportProps> = ({
             }
           });
           scene.add(vrm.scene);
+          vrm.scene.updateMatrixWorld(true);
+          vrm.springBoneManager?.setInitState();
+          vrm.springBoneManager?.reset();
 
           skeletonHelper = new THREE.SkeletonHelper(vrm.scene);
           skeletonHelper.visible = viewModeRef.current === 'skeleton';
@@ -692,10 +709,10 @@ export const VrmViewport: React.FC<VrmViewportProps> = ({
         <span aria-hidden="true" className="text-slate-600">·</span>
         <span className="text-slate-400">
           {loadStatus === 'loading'
-            ? 'Loading VRM 1.0...'
+            ? 'Loading VRM...'
             : loadStatus === 'error'
               ? 'Load Error'
-              : 'VRM 1.0 Live'}
+              : `VRM ${loadedVrmVersion ?? '0.0'} Live`}
         </span>
       </div>
 

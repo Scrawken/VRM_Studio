@@ -213,7 +213,7 @@ export function detectBlenderInstallation(): BlenderDetectionResult {
     platform,
     searchedPaths,
     statusMessage:
-      'Blender executable not found on this host. Script generation & built-in VRM 1.0 synthesis remain active; configure a trusted Blender 3.6–4.3 installation or choose blender.exe via the desktop picker.',
+      'Blender executable not found on this host. Generated bpy scripts & TypeScript VRM 0.0/1.0 synthesis remain active as fallback; configure a trusted Blender 3.6–4.3 installation or choose blender.exe via the desktop picker.',
   };
 }
 
@@ -360,7 +360,7 @@ export function listProviderStatuses(blender: BlenderDetectionResult): ProviderS
       configured: true,
       available: true,
       capabilityState: 'verified_live',
-      verificationNote: 'Built-in sculpted anatomical mesh & VRM 1.0 synthesis verified.',
+      verificationNote: 'Built-in sculpted anatomical mesh & VRM 0.0 / 1.0 synthesis verified.',
       costModel: 'Free / Built-in Engine',
       description: 'Synthesizes sculpted cranio-facial topology, recessed eye sockets, Catmull-Rom curved hair ribbons, contoured armor/clothing, PBR normal maps, 65 VRM bones, and 17 morph targets.',
     },
@@ -374,7 +374,7 @@ export function listProviderStatuses(blender: BlenderDetectionResult): ProviderS
       capabilityState: tripoState.capabilityState,
       verificationNote: tripoState.verificationNote,
       costModel: 'Commercial Credit API (TRIPO_API_KEY)',
-      description: 'Submits real text-to-3D tasks, polls completion, downloads GLB, and binds into a VRM 1.0 humanoid rig.',
+      description: 'Submits real text-to-3D tasks, polls completion, downloads GLB, and binds into a VRM 0.0/1.0 humanoid rig.',
     },
     {
       id: 'meshy-ai-adapter',
@@ -386,7 +386,7 @@ export function listProviderStatuses(blender: BlenderDetectionResult): ProviderS
       capabilityState: meshyState.capabilityState,
       verificationNote: meshyState.verificationNote,
       costModel: 'Commercial Credit API (MESHY_API_KEY)',
-      description: 'Submits real Meshy preview tasks, polls completion, downloads GLB, and binds into a VRM 1.0 humanoid rig.',
+      description: 'Submits real Meshy preview tasks, polls completion, downloads GLB, and binds into a VRM 0.0/1.0 humanoid rig.',
     },
     {
       id: 'local-triposr-instantmesh',
@@ -406,11 +406,16 @@ export function listProviderStatuses(blender: BlenderDetectionResult): ProviderS
       category: 'local_runtime',
       modeSupport: ['local', 'hybrid', 'cloud'],
       configured: blender.installed,
-      available: blender.installed,
-      capabilityState: blender.installed ? 'verified_live' : 'unconfigured',
+      available: blender.installed && blender.vrmAddonDetected,
+      capabilityState:
+        blender.installed && blender.vrmAddonDetected
+          ? 'ready'
+          : blender.installed
+            ? 'unverified_key'
+            : 'unconfigured',
       verificationNote: blender.statusMessage,
       costModel: 'Free / GPL Local Blender',
-      description: 'Imports humanoid source GLB, validates bone mapping & depsgraph deformation, and runs VRM Add-on export.',
+      description: 'Imports humanoid source GLB, validates bone mapping & depsgraph deformation, and runs VRM Add-on export (VRM 0.0 primary / 1.0 optional).',
     },
   ];
 }

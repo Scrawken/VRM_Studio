@@ -34,8 +34,8 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs7 = require("fs");
-    var path6 = require("path");
+    var fs8 = require("fs");
+    var path7 = require("path");
     var os3 = require("os");
     var crypto2 = require("crypto");
     var TIPS = [
@@ -166,7 +166,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs7.existsSync(filepath)) {
+            if (fs8.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -174,15 +174,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path6.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path7.resolve(process.cwd(), ".env.vault");
       }
-      if (fs7.existsSync(possibleVaultPath)) {
+      if (fs8.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path6.join(os3.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path7.join(os3.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -199,7 +199,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path6.resolve(process.cwd(), ".env");
+      const dotenvPath = path7.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -227,13 +227,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path7 of optionPaths) {
+      for (const path8 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs7.readFileSync(path7, { encoding }));
+          const parsed = DotenvModule.parse(fs8.readFileSync(path8, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e2) {
           if (debug) {
-            _debug(`failed to load ${path7} ${e2.message}`);
+            _debug(`failed to load ${path8} ${e2.message}`);
           }
           lastError = e2;
         }
@@ -246,7 +246,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path6.relative(process.cwd(), filePath);
+            const relative = path7.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e2) {
             if (debug) {
@@ -1656,8 +1656,8 @@ var require_node = __commonJS({
           }
           break;
         case "FILE":
-          var fs7 = require("fs");
-          stream2 = new fs7.SyncWriteStream(fd2, { autoClose: false });
+          var fs8 = require("fs");
+          stream2 = new fs8.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -14459,11 +14459,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path6) {
-      if (!path6 || typeof path6 !== "string") {
+    function lookup(path7) {
+      if (!path7 || typeof path7 !== "string") {
         return false;
       }
-      var extension3 = extname("x." + path6).toLowerCase().substr(1);
+      var extension3 = extname("x." + path7).toLowerCase().substr(1);
       if (!extension3) {
         return false;
       }
@@ -18248,7 +18248,7 @@ var require_path_to_regexp = __commonJS({
   "node_modules/path-to-regexp/index.js"(exports2, module2) {
     module2.exports = pathToRegexp;
     var MATCHING_GROUP_REGEXP = /\\.|\((?:\?<(.*?)>)?(?!\?)/g;
-    function pathToRegexp(path6, keys, options) {
+    function pathToRegexp(path7, keys, options) {
       options = options || {};
       keys = keys || [];
       var strict = options.strict;
@@ -18262,8 +18262,8 @@ var require_path_to_regexp = __commonJS({
       var pos = 0;
       var backtrack = "";
       var m2;
-      if (path6 instanceof RegExp) {
-        while (m2 = MATCHING_GROUP_REGEXP.exec(path6.source)) {
+      if (path7 instanceof RegExp) {
+        while (m2 = MATCHING_GROUP_REGEXP.exec(path7.source)) {
           if (m2[0][0] === "\\") continue;
           keys.push({
             name: m2[1] || name++,
@@ -18271,18 +18271,18 @@ var require_path_to_regexp = __commonJS({
             offset: m2.index
           });
         }
-        return path6;
+        return path7;
       }
-      if (Array.isArray(path6)) {
-        path6 = path6.map(function(value) {
+      if (Array.isArray(path7)) {
+        path7 = path7.map(function(value) {
           return pathToRegexp(value, keys, options).source;
         });
-        return new RegExp(path6.join("|"), flags);
+        return new RegExp(path7.join("|"), flags);
       }
-      if (typeof path6 !== "string") {
+      if (typeof path7 !== "string") {
         throw new TypeError("path must be a string, array of strings, or regular expression");
       }
-      path6 = path6.replace(
+      path7 = path7.replace(
         /\\.|(\/)?(\.)?:(\w+)(\(.*?\))?(\*)?(\?)?|[.*]|\/\(/g,
         function(match2, slash, format, key, capture, star, optional, offset) {
           if (match2[0] === "\\") {
@@ -18299,7 +18299,7 @@ var require_path_to_regexp = __commonJS({
           if (slash || format) {
             backtrack = "";
           } else {
-            backtrack += path6.slice(pos, offset);
+            backtrack += path7.slice(pos, offset);
           }
           pos = offset + match2.length;
           if (match2 === "*") {
@@ -18329,7 +18329,7 @@ var require_path_to_regexp = __commonJS({
           return result;
         }
       );
-      while (m2 = MATCHING_GROUP_REGEXP.exec(path6)) {
+      while (m2 = MATCHING_GROUP_REGEXP.exec(path7)) {
         if (m2[0][0] === "\\") continue;
         if (keysOffset + i2 === keys.length || keys[keysOffset + i2].offset > m2.index) {
           keys.splice(keysOffset + i2, 0, {
@@ -18341,13 +18341,13 @@ var require_path_to_regexp = __commonJS({
         }
         i2++;
       }
-      path6 += strict ? "" : path6[path6.length - 1] === "/" ? "?" : "/?";
+      path7 += strict ? "" : path7[path7.length - 1] === "/" ? "?" : "/?";
       if (end) {
-        path6 += "$";
-      } else if (path6[path6.length - 1] !== "/") {
-        path6 += lookahead ? "(?=/|$)" : "(?:/|$)";
+        path7 += "$";
+      } else if (path7[path7.length - 1] !== "/") {
+        path7 += lookahead ? "(?=/|$)" : "(?:/|$)";
       }
-      return new RegExp("^" + path6, flags);
+      return new RegExp("^" + path7, flags);
     }
   }
 });
@@ -18360,19 +18360,19 @@ var require_layer = __commonJS({
     var debug = require_src()("express:router:layer");
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     module2.exports = Layer;
-    function Layer(path6, options, fn) {
+    function Layer(path7, options, fn) {
       if (!(this instanceof Layer)) {
-        return new Layer(path6, options, fn);
+        return new Layer(path7, options, fn);
       }
-      debug("new %o", path6);
+      debug("new %o", path7);
       var opts = options || {};
       this.handle = fn;
       this.name = fn.name || "<anonymous>";
       this.params = void 0;
       this.path = void 0;
-      this.regexp = pathRegexp(path6, this.keys = [], opts);
-      this.regexp.fast_star = path6 === "*";
-      this.regexp.fast_slash = path6 === "/" && opts.end === false;
+      this.regexp = pathRegexp(path7, this.keys = [], opts);
+      this.regexp.fast_star = path7 === "*";
+      this.regexp.fast_slash = path7 === "/" && opts.end === false;
     }
     Layer.prototype.handle_error = function handle_error(error, req, res, next) {
       var fn = this.handle;
@@ -18396,20 +18396,20 @@ var require_layer = __commonJS({
         next(err);
       }
     };
-    Layer.prototype.match = function match2(path6) {
+    Layer.prototype.match = function match2(path7) {
       var match3;
-      if (path6 != null) {
+      if (path7 != null) {
         if (this.regexp.fast_slash) {
           this.params = {};
           this.path = "";
           return true;
         }
         if (this.regexp.fast_star) {
-          this.params = { "0": decode_param(path6) };
-          this.path = path6;
+          this.params = { "0": decode_param(path7) };
+          this.path = path7;
           return true;
         }
-        match3 = this.regexp.exec(path6);
+        match3 = this.regexp.exec(path7);
       }
       if (!match3) {
         this.params = void 0;
@@ -18502,10 +18502,10 @@ var require_route = __commonJS({
     var slice = Array.prototype.slice;
     var toString = Object.prototype.toString;
     module2.exports = Route;
-    function Route(path6) {
-      this.path = path6;
+    function Route(path7) {
+      this.path = path7;
       this.stack = [];
-      debug("new %o", path6);
+      debug("new %o", path7);
       this.methods = {};
     }
     Route.prototype._handles_method = function _handles_method(method) {
@@ -18717,8 +18717,8 @@ var require_router = __commonJS({
         if (++sync > 100) {
           return setImmediate(next, err);
         }
-        var path6 = getPathname(req);
-        if (path6 == null) {
+        var path7 = getPathname(req);
+        if (path7 == null) {
           return done(layerError);
         }
         var layer;
@@ -18726,7 +18726,7 @@ var require_router = __commonJS({
         var route;
         while (match2 !== true && idx < stack.length) {
           layer = stack[idx++];
-          match2 = matchLayer(layer, path6);
+          match2 = matchLayer(layer, path7);
           route = layer.route;
           if (typeof match2 !== "boolean") {
             layerError = layerError || match2;
@@ -18764,18 +18764,18 @@ var require_router = __commonJS({
           } else if (route) {
             layer.handle_request(req, res, next);
           } else {
-            trim_prefix(layer, layerError, layerPath, path6);
+            trim_prefix(layer, layerError, layerPath, path7);
           }
           sync = 0;
         });
       }
-      function trim_prefix(layer, layerError, layerPath, path6) {
+      function trim_prefix(layer, layerError, layerPath, path7) {
         if (layerPath.length !== 0) {
-          if (layerPath !== path6.slice(0, layerPath.length)) {
+          if (layerPath !== path7.slice(0, layerPath.length)) {
             next(layerError);
             return;
           }
-          var c = path6[layerPath.length];
+          var c = path7[layerPath.length];
           if (c && c !== "/" && c !== ".") return next(layerError);
           debug("trim prefix (%s) from url %s", layerPath, req.url);
           removed = layerPath;
@@ -18853,7 +18853,7 @@ var require_router = __commonJS({
     };
     proto.use = function use(fn) {
       var offset = 0;
-      var path6 = "/";
+      var path7 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -18861,7 +18861,7 @@ var require_router = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path6 = fn;
+          path7 = fn;
         }
       }
       var callbacks = flatten(slice.call(arguments, offset));
@@ -18873,8 +18873,8 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("Router.use() requires a middleware function but got a " + gettype(fn));
         }
-        debug("use %o %s", path6, fn.name || "<anonymous>");
-        var layer = new Layer(path6, {
+        debug("use %o %s", path7, fn.name || "<anonymous>");
+        var layer = new Layer(path7, {
           sensitive: this.caseSensitive,
           strict: false,
           end: false
@@ -18884,9 +18884,9 @@ var require_router = __commonJS({
       }
       return this;
     };
-    proto.route = function route(path6) {
-      var route2 = new Route(path6);
-      var layer = new Layer(path6, {
+    proto.route = function route(path7) {
+      var route2 = new Route(path7);
+      var layer = new Layer(path7, {
         sensitive: this.caseSensitive,
         strict: this.strict,
         end: true
@@ -18896,8 +18896,8 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      proto[method] = function(path6) {
-        var route = this.route(path6);
+      proto[method] = function(path7) {
+        var route = this.route(path7);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
@@ -18933,9 +18933,9 @@ var require_router = __commonJS({
       }
       return toString.call(obj).replace(objectRegExp, "$1");
     }
-    function matchLayer(layer, path6) {
+    function matchLayer(layer, path7) {
       try {
-        return layer.match(path6);
+        return layer.match(path7);
       } catch (err) {
         return err;
       }
@@ -19053,13 +19053,13 @@ var require_view = __commonJS({
   "node_modules/express/lib/view.js"(exports2, module2) {
     "use strict";
     var debug = require_src()("express:view");
-    var path6 = require("path");
-    var fs7 = require("fs");
-    var dirname = path6.dirname;
-    var basename3 = path6.basename;
-    var extname = path6.extname;
-    var join = path6.join;
-    var resolve = path6.resolve;
+    var path7 = require("path");
+    var fs8 = require("fs");
+    var dirname = path7.dirname;
+    var basename3 = path7.basename;
+    var extname = path7.extname;
+    var join = path7.join;
+    var resolve = path7.resolve;
     module2.exports = View;
     function View(name, options) {
       var opts = options || {};
@@ -19088,17 +19088,17 @@ var require_view = __commonJS({
       this.path = this.lookup(fileName);
     }
     View.prototype.lookup = function lookup(name) {
-      var path7;
+      var path8;
       var roots = [].concat(this.root);
       debug('lookup "%s"', name);
-      for (var i2 = 0; i2 < roots.length && !path7; i2++) {
+      for (var i2 = 0; i2 < roots.length && !path8; i2++) {
         var root = roots[i2];
         var loc = resolve(root, name);
         var dir = dirname(loc);
         var file = basename3(loc);
-        path7 = this.resolve(dir, file);
+        path8 = this.resolve(dir, file);
       }
-      return path7;
+      return path8;
     };
     View.prototype.render = function render(options, callback) {
       debug('render "%s"', this.path);
@@ -19106,21 +19106,21 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve2(dir, file) {
       var ext = this.ext;
-      var path7 = join(dir, file);
-      var stat3 = tryStat(path7);
+      var path8 = join(dir, file);
+      var stat3 = tryStat(path8);
       if (stat3 && stat3.isFile()) {
-        return path7;
+        return path8;
       }
-      path7 = join(dir, basename3(file, ext), "index" + ext);
-      stat3 = tryStat(path7);
+      path8 = join(dir, basename3(file, ext), "index" + ext);
+      stat3 = tryStat(path8);
       if (stat3 && stat3.isFile()) {
-        return path7;
+        return path8;
       }
     };
-    function tryStat(path7) {
-      debug('stat "%s"', path7);
+    function tryStat(path8) {
+      debug('stat "%s"', path8);
       try {
-        return fs7.statSync(path7);
+        return fs8.statSync(path8);
       } catch (e2) {
         return void 0;
       }
@@ -19474,8 +19474,8 @@ var require_types = __commonJS({
 // node_modules/mime/mime.js
 var require_mime = __commonJS({
   "node_modules/mime/mime.js"(exports2, module2) {
-    var path6 = require("path");
-    var fs7 = require("fs");
+    var path7 = require("path");
+    var fs8 = require("fs");
     function Mime() {
       this.types = /* @__PURE__ */ Object.create(null);
       this.extensions = /* @__PURE__ */ Object.create(null);
@@ -19496,7 +19496,7 @@ var require_mime = __commonJS({
     };
     Mime.prototype.load = function(file) {
       this._loading = file;
-      var map = {}, content = fs7.readFileSync(file, "ascii"), lines = content.split(/[\r\n]+/);
+      var map = {}, content = fs8.readFileSync(file, "ascii"), lines = content.split(/[\r\n]+/);
       lines.forEach(function(line) {
         var fields = line.replace(/\s*#.*|^\s*|\s*$/g, "").split(/\s+/);
         map[fields.shift()] = fields;
@@ -19504,8 +19504,8 @@ var require_mime = __commonJS({
       this.define(map);
       this._loading = null;
     };
-    Mime.prototype.lookup = function(path7, fallback) {
-      var ext = path7.replace(/^.*[\.\/\\]/, "").toLowerCase();
+    Mime.prototype.lookup = function(path8, fallback) {
+      var ext = path8.replace(/^.*[\.\/\\]/, "").toLowerCase();
       return this.types[ext] || fallback || this.default_type;
     };
     Mime.prototype.extension = function(mimeType) {
@@ -19734,33 +19734,33 @@ var require_send = __commonJS({
     var escapeHtml = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs7 = require("fs");
+    var fs8 = require("fs");
     var mime = require_mime();
     var ms = require_ms2();
     var onFinished = require_on_finished();
     var parseRange = require_range_parser();
-    var path6 = require("path");
+    var path7 = require("path");
     var statuses = require_statuses();
     var Stream4 = require("stream");
     var util = require("util");
-    var extname = path6.extname;
-    var join = path6.join;
-    var normalize = path6.normalize;
-    var resolve = path6.resolve;
-    var sep = path6.sep;
+    var extname = path7.extname;
+    var join = path7.join;
+    var normalize = path7.normalize;
+    var resolve = path7.resolve;
+    var sep = path7.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
     module2.exports = send;
     module2.exports.mime = mime;
-    function send(req, path7, options) {
-      return new SendStream(req, path7, options);
+    function send(req, path8, options) {
+      return new SendStream(req, path8, options);
     }
-    function SendStream(req, path7, options) {
+    function SendStream(req, path8, options) {
       Stream4.call(this);
       var opts = options || {};
       this.options = opts;
-      this.path = path7;
+      this.path = path8;
       this.req = req;
       this._acceptRanges = opts.acceptRanges !== void 0 ? Boolean(opts.acceptRanges) : true;
       this._cacheControl = opts.cacheControl !== void 0 ? Boolean(opts.cacheControl) : true;
@@ -19806,8 +19806,8 @@ var require_send = __commonJS({
       this._index = index2;
       return this;
     }, "send.index: pass index as option");
-    SendStream.prototype.root = function root(path7) {
-      this._root = resolve(String(path7));
+    SendStream.prototype.root = function root(path8) {
+      this._root = resolve(String(path8));
       debug("root %s", this._root);
       return this;
     };
@@ -19920,10 +19920,10 @@ var require_send = __commonJS({
       var lastModified = this.res.getHeader("Last-Modified");
       return parseHttpDate(lastModified) <= parseHttpDate(ifRange);
     };
-    SendStream.prototype.redirect = function redirect(path7) {
+    SendStream.prototype.redirect = function redirect(path8) {
       var res = this.res;
       if (hasListeners(this, "directory")) {
-        this.emit("directory", res, path7);
+        this.emit("directory", res, path8);
         return;
       }
       if (this.hasTrailingSlash()) {
@@ -19943,42 +19943,42 @@ var require_send = __commonJS({
     SendStream.prototype.pipe = function pipe(res) {
       var root = this._root;
       this.res = res;
-      var path7 = decode(this.path);
-      if (path7 === -1) {
+      var path8 = decode(this.path);
+      if (path8 === -1) {
         this.error(400);
         return res;
       }
-      if (~path7.indexOf("\0")) {
+      if (~path8.indexOf("\0")) {
         this.error(400);
         return res;
       }
       var parts;
       if (root !== null) {
-        if (path7) {
-          path7 = normalize("." + sep + path7);
+        if (path8) {
+          path8 = normalize("." + sep + path8);
         }
-        if (UP_PATH_REGEXP.test(path7)) {
-          debug('malicious path "%s"', path7);
+        if (UP_PATH_REGEXP.test(path8)) {
+          debug('malicious path "%s"', path8);
           this.error(403);
           return res;
         }
-        parts = path7.split(sep);
-        path7 = normalize(join(root, path7));
+        parts = path8.split(sep);
+        path8 = normalize(join(root, path8));
       } else {
-        if (UP_PATH_REGEXP.test(path7)) {
-          debug('malicious path "%s"', path7);
+        if (UP_PATH_REGEXP.test(path8)) {
+          debug('malicious path "%s"', path8);
           this.error(403);
           return res;
         }
-        parts = normalize(path7).split(sep);
-        path7 = resolve(path7);
+        parts = normalize(path8).split(sep);
+        path8 = resolve(path8);
       }
       if (containsDotFile(parts)) {
         var access = this._dotfiles;
         if (access === void 0) {
           access = parts[parts.length - 1][0] === "." ? this._hidden ? "allow" : "ignore" : "allow";
         }
-        debug('%s dotfile "%s"', access, path7);
+        debug('%s dotfile "%s"', access, path8);
         switch (access) {
           case "allow":
             break;
@@ -19992,13 +19992,13 @@ var require_send = __commonJS({
         }
       }
       if (this._index.length && this.hasTrailingSlash()) {
-        this.sendIndex(path7);
+        this.sendIndex(path8);
         return res;
       }
-      this.sendFile(path7);
+      this.sendFile(path8);
       return res;
     };
-    SendStream.prototype.send = function send2(path7, stat3) {
+    SendStream.prototype.send = function send2(path8, stat3) {
       var len = stat3.size;
       var options = this.options;
       var opts = {};
@@ -20010,9 +20010,9 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path7);
-      this.setHeader(path7, stat3);
-      this.type(path7);
+      debug('pipe "%s"', path8);
+      this.setHeader(path8, stat3);
+      this.type(path8);
       if (this.isConditionalGET()) {
         if (this.isPreconditionFailure()) {
           this.error(412);
@@ -20061,28 +20061,28 @@ var require_send = __commonJS({
         res.end();
         return;
       }
-      this.stream(path7, opts);
+      this.stream(path8, opts);
     };
-    SendStream.prototype.sendFile = function sendFile(path7) {
+    SendStream.prototype.sendFile = function sendFile(path8) {
       var i2 = 0;
       var self2 = this;
-      debug('stat "%s"', path7);
-      fs7.stat(path7, function onstat(err, stat3) {
-        if (err && err.code === "ENOENT" && !extname(path7) && path7[path7.length - 1] !== sep) {
+      debug('stat "%s"', path8);
+      fs8.stat(path8, function onstat(err, stat3) {
+        if (err && err.code === "ENOENT" && !extname(path8) && path8[path8.length - 1] !== sep) {
           return next(err);
         }
         if (err) return self2.onStatError(err);
-        if (stat3.isDirectory()) return self2.redirect(path7);
-        self2.emit("file", path7, stat3);
-        self2.send(path7, stat3);
+        if (stat3.isDirectory()) return self2.redirect(path8);
+        self2.emit("file", path8, stat3);
+        self2.send(path8, stat3);
       });
       function next(err) {
         if (self2._extensions.length <= i2) {
           return err ? self2.onStatError(err) : self2.error(404);
         }
-        var p = path7 + "." + self2._extensions[i2++];
+        var p = path8 + "." + self2._extensions[i2++];
         debug('stat "%s"', p);
-        fs7.stat(p, function(err2, stat3) {
+        fs8.stat(p, function(err2, stat3) {
           if (err2) return next(err2);
           if (stat3.isDirectory()) return next();
           self2.emit("file", p, stat3);
@@ -20090,7 +20090,7 @@ var require_send = __commonJS({
         });
       }
     };
-    SendStream.prototype.sendIndex = function sendIndex(path7) {
+    SendStream.prototype.sendIndex = function sendIndex(path8) {
       var i2 = -1;
       var self2 = this;
       function next(err) {
@@ -20098,9 +20098,9 @@ var require_send = __commonJS({
           if (err) return self2.onStatError(err);
           return self2.error(404);
         }
-        var p = join(path7, self2._index[i2]);
+        var p = join(path8, self2._index[i2]);
         debug('stat "%s"', p);
-        fs7.stat(p, function(err2, stat3) {
+        fs8.stat(p, function(err2, stat3) {
           if (err2) return next(err2);
           if (stat3.isDirectory()) return next();
           self2.emit("file", p, stat3);
@@ -20109,10 +20109,10 @@ var require_send = __commonJS({
       }
       next();
     };
-    SendStream.prototype.stream = function stream(path7, options) {
+    SendStream.prototype.stream = function stream(path8, options) {
       var self2 = this;
       var res = this.res;
-      var stream2 = fs7.createReadStream(path7, options);
+      var stream2 = fs8.createReadStream(path8, options);
       this.emit("stream", stream2);
       stream2.pipe(res);
       function cleanup() {
@@ -20127,10 +20127,10 @@ var require_send = __commonJS({
         self2.emit("end");
       });
     };
-    SendStream.prototype.type = function type(path7) {
+    SendStream.prototype.type = function type(path8) {
       var res = this.res;
       if (res.getHeader("Content-Type")) return;
-      var type2 = mime.lookup(path7);
+      var type2 = mime.lookup(path8);
       if (!type2) {
         debug("no content-type");
         return;
@@ -20139,9 +20139,9 @@ var require_send = __commonJS({
       debug("content-type %s", type2);
       res.setHeader("Content-Type", type2 + (charset ? "; charset=" + charset : ""));
     };
-    SendStream.prototype.setHeader = function setHeader(path7, stat3) {
+    SendStream.prototype.setHeader = function setHeader(path8, stat3) {
       var res = this.res;
-      this.emit("headers", res, path7, stat3);
+      this.emit("headers", res, path8, stat3);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
         debug("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
@@ -20200,9 +20200,9 @@ var require_send = __commonJS({
       }
       return err instanceof Error ? createError(status, err, { expose: false }) : createError(status, err);
     }
-    function decode(path7) {
+    function decode(path8) {
       try {
-        return decodeURIComponent(path7);
+        return decodeURIComponent(path8);
       } catch (err) {
         return -1;
       }
@@ -21127,10 +21127,10 @@ var require_utils2 = __commonJS({
     var querystring = require("querystring");
     exports2.etag = createETagGenerator({ weak: false });
     exports2.wetag = createETagGenerator({ weak: true });
-    exports2.isAbsolute = function(path6) {
-      if ("/" === path6[0]) return true;
-      if (":" === path6[1] && ("\\" === path6[2] || "/" === path6[2])) return true;
-      if ("\\\\" === path6.substring(0, 2)) return true;
+    exports2.isAbsolute = function(path7) {
+      if ("/" === path7[0]) return true;
+      if (":" === path7[1] && ("\\" === path7[2] || "/" === path7[2])) return true;
+      if ("\\\\" === path7.substring(0, 2)) return true;
     };
     exports2.flatten = deprecate3.function(
       flatten,
@@ -21342,7 +21342,7 @@ var require_application = __commonJS({
     };
     app.use = function use(fn) {
       var offset = 0;
-      var path6 = "/";
+      var path7 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -21350,7 +21350,7 @@ var require_application = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path6 = fn;
+          path7 = fn;
         }
       }
       var fns = flatten(slice.call(arguments, offset));
@@ -21361,12 +21361,12 @@ var require_application = __commonJS({
       var router = this._router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router.use(path6, fn2);
+          return router.use(path7, fn2);
         }
-        debug(".use app under %s", path6);
-        fn2.mountpath = path6;
+        debug(".use app under %s", path7);
+        fn2.mountpath = path7;
         fn2.parent = this;
-        router.use(path6, function mounted_app(req, res, next) {
+        router.use(path7, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             setPrototypeOf(req, orig.request);
@@ -21378,9 +21378,9 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app.route = function route(path6) {
+    app.route = function route(path7) {
       this.lazyrouter();
-      return this._router.route(path6);
+      return this._router.route(path7);
     };
     app.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
@@ -21431,7 +21431,7 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app.path = function path6() {
+    app.path = function path7() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
     app.enabled = function enabled(setting) {
@@ -21447,19 +21447,19 @@ var require_application = __commonJS({
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app[method] = function(path6) {
+      app[method] = function(path7) {
         if (method === "get" && arguments.length === 1) {
-          return this.set(path6);
+          return this.set(path7);
         }
         this.lazyrouter();
-        var route = this._router.route(path6);
+        var route = this._router.route(path7);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
     });
-    app.all = function all(path6) {
+    app.all = function all(path7) {
       this.lazyrouter();
-      var route = this._router.route(path6);
+      var route = this._router.route(path7);
       var args = slice.call(arguments, 1);
       for (var i2 = 0; i2 < methods.length; i2++) {
         route[methods[i2]].apply(route, args);
@@ -22218,7 +22218,7 @@ var require_request = __commonJS({
       var subdomains2 = !isIP2(hostname) ? hostname.split(".").reverse() : [hostname];
       return subdomains2.slice(offset);
     });
-    defineGetter(req, "path", function path6() {
+    defineGetter(req, "path", function path7() {
       return parse(this).pathname;
     });
     defineGetter(req, "hostname", function hostname() {
@@ -22540,7 +22540,7 @@ var require_response = __commonJS({
     var http3 = require("http");
     var isAbsolute = require_utils2().isAbsolute;
     var onFinished = require_on_finished();
-    var path6 = require("path");
+    var path7 = require("path");
     var statuses = require_statuses();
     var merge = require_utils_merge();
     var sign = require_cookie_signature().sign;
@@ -22549,9 +22549,9 @@ var require_response = __commonJS({
     var setCharset = require_utils2().setCharset;
     var cookie = require_cookie();
     var send = require_send();
-    var extname = path6.extname;
+    var extname = path7.extname;
     var mime = send.mime;
-    var resolve = path6.resolve;
+    var resolve = path7.resolve;
     var vary = require_vary();
     var res = Object.create(http3.ServerResponse.prototype);
     module2.exports = res;
@@ -22728,26 +22728,26 @@ var require_response = __commonJS({
       this.type("txt");
       return this.send(body);
     };
-    res.sendFile = function sendFile(path7, options, callback) {
+    res.sendFile = function sendFile(path8, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
       var next = req.next;
       var opts = options || {};
-      if (!path7) {
+      if (!path8) {
         throw new TypeError("path argument is required to res.sendFile");
       }
-      if (typeof path7 !== "string") {
+      if (typeof path8 !== "string") {
         throw new TypeError("path must be a string to res.sendFile");
       }
       if (typeof options === "function") {
         done = options;
         opts = {};
       }
-      if (!opts.root && !isAbsolute(path7)) {
+      if (!opts.root && !isAbsolute(path8)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
-      var pathname = encodeURI(path7);
+      var pathname = encodeURI(path8);
       var file = send(req, pathname, opts);
       sendfile(res2, file, opts, function(err) {
         if (done) return done(err);
@@ -22757,7 +22757,7 @@ var require_response = __commonJS({
         }
       });
     };
-    res.sendfile = function(path7, options, callback) {
+    res.sendfile = function(path8, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
@@ -22767,7 +22767,7 @@ var require_response = __commonJS({
         done = options;
         opts = {};
       }
-      var file = send(req, path7, opts);
+      var file = send(req, path8, opts);
       sendfile(res2, file, opts, function(err) {
         if (done) return done(err);
         if (err && err.code === "EISDIR") return next();
@@ -22780,7 +22780,7 @@ var require_response = __commonJS({
       res.sendfile,
       "res.sendfile: Use res.sendFile instead"
     );
-    res.download = function download(path7, filename, options, callback) {
+    res.download = function download(path8, filename, options, callback) {
       var done = callback;
       var name = filename;
       var opts = options || null;
@@ -22797,7 +22797,7 @@ var require_response = __commonJS({
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name || path7)
+        "Content-Disposition": contentDisposition(name || path8)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -22810,7 +22810,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve(path7) : path7;
+      var fullPath = !opts.root ? resolve(path8) : path8;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -23111,11 +23111,11 @@ var require_serve_static = __commonJS({
         }
         var forwardError = !fallthrough;
         var originalUrl = parseUrl.original(req);
-        var path6 = parseUrl(req).pathname;
-        if (path6 === "/" && originalUrl.pathname.substr(-1) !== "/") {
-          path6 = "";
+        var path7 = parseUrl(req).pathname;
+        if (path7 === "/" && originalUrl.pathname.substr(-1) !== "/") {
+          path7 = "";
         }
-        var stream = send(req, path6, opts);
+        var stream = send(req, path7, opts);
         stream.on("directory", onDirectory);
         if (setHeaders) {
           stream.on("headers", setHeaders);
@@ -30052,22 +30052,22 @@ var init_from = __esm({
     init_file();
     init_fetch_blob();
     ({ stat } = import_node_fs.promises);
-    blobFromSync = (path6, type) => fromBlob((0, import_node_fs.statSync)(path6), path6, type);
-    blobFrom = (path6, type) => stat(path6).then((stat3) => fromBlob(stat3, path6, type));
-    fileFrom = (path6, type) => stat(path6).then((stat3) => fromFile(stat3, path6, type));
-    fileFromSync = (path6, type) => fromFile((0, import_node_fs.statSync)(path6), path6, type);
-    fromBlob = (stat3, path6, type = "") => new fetch_blob_default([new BlobDataItem({
-      path: path6,
+    blobFromSync = (path7, type) => fromBlob((0, import_node_fs.statSync)(path7), path7, type);
+    blobFrom = (path7, type) => stat(path7).then((stat3) => fromBlob(stat3, path7, type));
+    fileFrom = (path7, type) => stat(path7).then((stat3) => fromFile(stat3, path7, type));
+    fileFromSync = (path7, type) => fromFile((0, import_node_fs.statSync)(path7), path7, type);
+    fromBlob = (stat3, path7, type = "") => new fetch_blob_default([new BlobDataItem({
+      path: path7,
       size: stat3.size,
       lastModified: stat3.mtimeMs,
       start: 0
     })], { type });
-    fromFile = (stat3, path6, type = "") => new file_default([new BlobDataItem({
-      path: path6,
+    fromFile = (stat3, path7, type = "") => new file_default([new BlobDataItem({
+      path: path7,
       size: stat3.size,
       lastModified: stat3.mtimeMs,
       start: 0
-    })], (0, import_node_path.basename)(path6), { type, lastModified: stat3.mtimeMs });
+    })], (0, import_node_path.basename)(path7), { type, lastModified: stat3.mtimeMs });
     BlobDataItem = class _BlobDataItem {
       #path;
       #start;
@@ -35188,9 +35188,9 @@ var require_util2 = __commonJS({
     exports2.removeUndefinedValuesInObject = removeUndefinedValuesInObject;
     exports2.isValidFile = isValidFile;
     exports2.getWellKnownCertificateConfigFileLocation = getWellKnownCertificateConfigFileLocation;
-    var fs7 = require("fs");
+    var fs8 = require("fs");
     var os3 = require("os");
-    var path6 = require("path");
+    var path7 = require("path");
     var WELL_KNOWN_CERTIFICATE_CONFIG_FILE = "certificate_config.json";
     var CLOUDSDK_CONFIG_DIRECTORY = "gcloud";
     function snakeToCamel(str) {
@@ -35276,15 +35276,15 @@ var require_util2 = __commonJS({
     }
     async function isValidFile(filePath) {
       try {
-        const stats = await fs7.promises.lstat(filePath);
+        const stats = await fs8.promises.lstat(filePath);
         return stats.isFile();
       } catch (e2) {
         return false;
       }
     }
     function getWellKnownCertificateConfigFileLocation() {
-      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path6.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path6.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
-      return path6.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
+      const configDir = process.env.CLOUDSDK_CONFIG || (_isWindows() ? path7.join(process.env.APPDATA || "", CLOUDSDK_CONFIG_DIRECTORY) : path7.join(process.env.HOME || "", ".config", CLOUDSDK_CONFIG_DIRECTORY));
+      return path7.join(configDir, WELL_KNOWN_CERTIFICATE_CONFIG_FILE);
     }
     function _isWindows() {
       return os3.platform().startsWith("win");
@@ -37230,11 +37230,11 @@ var require_getCredentials = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getCredentials = getCredentials;
-    var path6 = require("path");
-    var fs7 = require("fs");
+    var path7 = require("path");
+    var fs8 = require("fs");
     var util_1 = require("util");
     var errorWithCode_1 = require_errorWithCode();
-    var readFile = fs7.readFile ? (0, util_1.promisify)(fs7.readFile) : async () => {
+    var readFile = fs8.readFile ? (0, util_1.promisify)(fs8.readFile) : async () => {
       throw new errorWithCode_1.ErrorWithCode("use key rather than keyFile.", "MISSING_CREDENTIALS");
     };
     var ExtensionFiles;
@@ -37302,7 +37302,7 @@ var require_getCredentials = __commonJS({
        * @returns An instance of a class that implements ICredentialsProvider.
        */
       static create(keyFilePath) {
-        const keyFileExtension = path6.extname(keyFilePath);
+        const keyFileExtension = path7.extname(keyFilePath);
         switch (keyFileExtension) {
           case ExtensionFiles.JSON:
             return new JsonCredentialsProvider(keyFilePath);
@@ -38911,12 +38911,12 @@ var require_filesubjecttokensupplier = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileSubjectTokenSupplier = void 0;
     var util_1 = require("util");
-    var fs7 = require("fs");
-    var readFile = (0, util_1.promisify)(fs7.readFile ?? (() => {
+    var fs8 = require("fs");
+    var readFile = (0, util_1.promisify)(fs8.readFile ?? (() => {
     }));
-    var realpath = (0, util_1.promisify)(fs7.realpath ?? (() => {
+    var realpath = (0, util_1.promisify)(fs8.realpath ?? (() => {
     }));
-    var lstat = (0, util_1.promisify)(fs7.lstat ?? (() => {
+    var lstat = (0, util_1.promisify)(fs8.lstat ?? (() => {
     }));
     var FileSubjectTokenSupplier = class {
       filePath;
@@ -39034,7 +39034,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CertificateSubjectTokenSupplier = exports2.InvalidConfigurationError = exports2.CertificateSourceUnavailableError = exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = void 0;
     var util_1 = require_util2();
-    var fs7 = require("fs");
+    var fs8 = require("fs");
     var crypto_1 = require("crypto");
     var https2 = require("https");
     exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = "GOOGLE_API_CERTIFICATE_CONFIG";
@@ -39128,7 +39128,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
         const configPath = this.certificateConfigPath;
         let fileContents;
         try {
-          fileContents = await fs7.promises.readFile(configPath, "utf8");
+          fileContents = await fs8.promises.readFile(configPath, "utf8");
         } catch (err) {
           throw new CertificateSourceUnavailableError(`Failed to read certificate config file at: ${configPath}`);
         }
@@ -39153,14 +39153,14 @@ var require_certificatesubjecttokensupplier = __commonJS({
       async #getKeyAndCert(certPath, keyPath) {
         let cert, key;
         try {
-          cert = await fs7.promises.readFile(certPath);
+          cert = await fs8.promises.readFile(certPath);
           new crypto_1.X509Certificate(cert);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           throw new CertificateSourceUnavailableError(`Failed to read certificate file at ${certPath}: ${message}`);
         }
         try {
-          key = await fs7.promises.readFile(keyPath);
+          key = await fs8.promises.readFile(keyPath);
           (0, crypto_1.createPrivateKey)(key);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -39179,7 +39179,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
           return JSON.stringify([leafCert.raw.toString("base64")]);
         }
         try {
-          const chainPems = await fs7.promises.readFile(this.trustChainPath, "utf8");
+          const chainPems = await fs8.promises.readFile(this.trustChainPath, "utf8");
           const pemBlocks = chainPems.match(/-----BEGIN CERTIFICATE-----[^-]+-----END CERTIFICATE-----/g) ?? [];
           const chainCerts = pemBlocks.map((pem, index) => {
             try {
@@ -39881,7 +39881,7 @@ var require_pluggable_auth_handler = __commonJS({
     exports2.PluggableAuthHandler = exports2.ExecutableError = void 0;
     var executable_response_1 = require_executable_response();
     var childProcess = require("child_process");
-    var fs7 = require("fs");
+    var fs8 = require("fs");
     var ExecutableError = class extends Error {
       /**
        * The exit code returned by the executable.
@@ -39966,14 +39966,14 @@ var require_pluggable_auth_handler = __commonJS({
         }
         let filePath;
         try {
-          filePath = await fs7.promises.realpath(this.outputFile);
+          filePath = await fs8.promises.realpath(this.outputFile);
         } catch {
           return void 0;
         }
-        if (!(await fs7.promises.lstat(filePath)).isFile()) {
+        if (!(await fs8.promises.lstat(filePath)).isFile()) {
           return void 0;
         }
-        const responseString = await fs7.promises.readFile(filePath, {
+        const responseString = await fs8.promises.readFile(filePath, {
           encoding: "utf8"
         });
         if (responseString === "") {
@@ -40384,7 +40384,7 @@ var require_gdchclient = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GdchClient = exports2.GDCH_SERVICE_ACCOUNT_TYPE = void 0;
     var crypto2 = require("crypto");
-    var fs7 = require("fs");
+    var fs8 = require("fs");
     var https2 = require("https");
     var oauth2client_1 = require_oauth2client();
     var DEFAULT_LIFETIME_IN_SECONDS = 3600;
@@ -40607,7 +40607,7 @@ var require_gdchclient = __commonJS({
         const currentPath = this.caCertPath;
         this.caAgentPromise = (async () => {
           try {
-            const ca = await fs7.promises.readFile(currentPath);
+            const ca = await fs8.promises.readFile(currentPath);
             return new https2.Agent({ ca });
           } catch (err) {
             if (this.cachedCaCertPath === currentPath) {
@@ -40667,11 +40667,11 @@ var require_googleauth = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleAuth = exports2.GoogleAuthExceptionMessages = void 0;
     var child_process_1 = require("child_process");
-    var fs7 = require("fs");
+    var fs8 = require("fs");
     var gaxios_1 = require_src3();
     var gcpMetadata = require_src5();
     var os3 = require("os");
-    var path6 = require("path");
+    var path7 = require("path");
     var crypto_1 = require_crypto3();
     var computeclient_1 = require_computeclient();
     var idtokenclient_1 = require_idtokenclient();
@@ -40956,20 +40956,20 @@ var require_googleauth = __commonJS({
         if (!configDir) {
           if (this._isWindows()) {
             if (process.env["APPDATA"]) {
-              configDir = path6.join(process.env["APPDATA"], "gcloud");
+              configDir = path7.join(process.env["APPDATA"], "gcloud");
             }
           } else {
             const home = process.env["HOME"];
             if (home) {
-              configDir = path6.join(home, ".config", "gcloud");
+              configDir = path7.join(home, ".config", "gcloud");
             }
           }
         }
         if (!configDir) {
           return null;
         }
-        const location = path6.join(configDir, "application_default_credentials.json");
-        if (!fs7.existsSync(location)) {
+        const location = path7.join(configDir, "application_default_credentials.json");
+        if (!fs8.existsSync(location)) {
           return null;
         }
         const client = await this._getApplicationCredentialsFromFilePath(location, options);
@@ -40986,8 +40986,8 @@ var require_googleauth = __commonJS({
           throw new Error("The file path is invalid.");
         }
         try {
-          filePath = fs7.realpathSync(filePath);
-          if (!fs7.lstatSync(filePath).isFile()) {
+          filePath = fs8.realpathSync(filePath);
+          if (!fs8.lstatSync(filePath).isFile()) {
             throw new Error();
           }
         } catch (err) {
@@ -40996,7 +40996,7 @@ var require_googleauth = __commonJS({
           }
           throw err;
         }
-        const readStream = fs7.createReadStream(filePath);
+        const readStream = fs8.createReadStream(filePath);
         return this.fromStream(readStream, options);
       }
       /**
@@ -41323,8 +41323,8 @@ var require_googleauth = __commonJS({
         if (this.jsonContent) {
           return this._cacheClientFromJSON(this.jsonContent, this.clientOptions);
         } else if (this.keyFilename) {
-          const filePath = path6.resolve(this.keyFilename);
-          const stream = fs7.createReadStream(filePath);
+          const filePath = path7.resolve(this.keyFilename);
+          const stream = fs8.createReadStream(filePath);
           return await this.fromStreamAsync(stream, this.clientOptions);
         } else if (this.apiKey) {
           const client = await this.fromAPIKey(this.apiKey, this.clientOptions);
@@ -45609,9 +45609,9 @@ var require_websocket_server = __commonJS({
 })();
 
 // server.ts
-var import_node_child_process2 = require("node:child_process");
-var import_node_fs5 = __toESM(require("node:fs"), 1);
-var import_node_path5 = __toESM(require("node:path"), 1);
+var import_node_child_process3 = require("node:child_process");
+var import_node_fs6 = __toESM(require("node:fs"), 1);
+var import_node_path6 = __toESM(require("node:path"), 1);
 var import_express = __toESM(require_express2(), 1);
 
 // src/shared/types.ts
@@ -45670,6 +45670,24 @@ var VRM_EXPRESSION_PRESETS = [
 ];
 
 // src/shared/characterParser.ts
+function createDefaultVrmMetadata(title, overrides) {
+  return {
+    title: (overrides?.title ?? title).trim() || "Generated Avatar",
+    author: (overrides?.author ?? "").trim(),
+    version: (overrides?.version ?? "1.0").trim() || "1.0",
+    contactInformation: (overrides?.contactInformation ?? "").trim(),
+    reference: (overrides?.reference ?? "").trim(),
+    licenseName: (overrides?.licenseName ?? "Other").trim() || "Other",
+    otherLicenseUrl: (overrides?.otherLicenseUrl ?? "").trim(),
+    allowedUserName: overrides?.allowedUserName ?? "OnlyAuthor",
+    violentUsage: overrides?.violentUsage ?? "Disallow",
+    sexualUsage: overrides?.sexualUsage ?? "Disallow",
+    commercialUsage: overrides?.commercialUsage ?? "Disallow",
+    allowRedistribution: overrides?.allowRedistribution ?? false,
+    modification: overrides?.modification ?? "prohibited",
+    sourceAttribution: overrides?.sourceAttribution?.trim() || void 0
+  };
+}
 function matchFirstColor(text, patterns) {
   for (const [regex, hex] of patterns) {
     if (regex.test(text)) {
@@ -45893,12 +45911,13 @@ function parseCharacterPromptFallback(prompt, options) {
     constraints,
     qualityConfig: qCfg,
     riggingRequirements: {
-      vrmVersion: "1.0",
+      vrmVersion: options?.vrmVersion ?? "0.0",
       includeFingerBones: true,
       includeFaceRig: true,
       includeSpringBones: hasCloak || hairStyle === "long_flowing" || hairStyle === "ponytail",
       targetPolygonBudget: qCfg.geometryQuality === "ultra" ? 65e3 : qCfg.geometryQuality === "high" ? 38e3 : qCfg.geometryQuality === "standard" ? 22e3 : 12e3
     },
+    vrmMetadata: createDefaultVrmMetadata(derivedName, options?.vrmMetadata),
     interpreterProvider: options?.interpreterProvider || "local-semantic-parser",
     geometryProvider: options?.geometryProvider || "sculpted-anatomical-vrm",
     createdAt: now,
@@ -46040,8 +46059,13 @@ function normalizeCharacterSpec(raw, sourcePrompt, allowExplicitOverride = false
     qualityConfig,
     riggingRequirements: {
       ...base.riggingRequirements,
-      ...raw.riggingRequirements || {}
+      ...raw.riggingRequirements || {},
+      vrmVersion: raw.riggingRequirements?.vrmVersion === "1.0" ? "1.0" : "0.0"
     },
+    vrmMetadata: createDefaultVrmMetadata(
+      raw.name?.trim() || base.name,
+      raw.vrmMetadata ?? base.vrmMetadata
+    ),
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
 }
@@ -46151,6 +46175,17 @@ function applyCharacterEdits(spec, patch) {
         ...patch.qualityConfig?.customOptimization || {}
       }
     },
+    riggingRequirements: {
+      ...spec.riggingRequirements,
+      vrmVersion: patch.vrmVersion ?? spec.riggingRequirements.vrmVersion
+    },
+    vrmMetadata: createDefaultVrmMetadata(
+      patch.name?.trim() || spec.name,
+      {
+        ...spec.vrmMetadata || {},
+        ...patch.vrmMetadata || {}
+      }
+    ),
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
   return normalizeCharacterSpec(merged, spec.sourcePrompt, true);
@@ -48649,57 +48684,114 @@ function buildHighDetailCharacterGeometry(spec, bones, budgetOverride) {
 
 // src/shared/externalRigging.ts
 var CANONICAL_BONE_ALIASES = {
-  hips: ["hips", "hip", "pelvis", "root_hips", "mixamorighips", "bip01pelvis", "cog"],
-  spine: ["spine", "spine01", "spine_01", "spine1", "abdomen", "mixamorigspine", "bip01spine"],
-  chest: ["chest", "spine02", "spine_02", "spine2", "ribcage", "thorax", "mixamorigspine1", "mixamorigspine2", "bip01spine1"],
-  upperChest: ["upperchest", "upper_chest", "spine03", "spine_03", "spine3", "mixamorigspine2", "bip01spine2"],
-  neck: ["neck", "neck01", "neck_01", "mixamorigneck", "bip01neck"],
-  head: ["head", "headtop", "mixamorighead", "bip01head"],
-  leftEye: ["lefteye", "eye_l", "eye.l", "l_eye", "mixamoriglefteye"],
-  rightEye: ["righteye", "eye_r", "eye.r", "r_eye", "mixamorigrighteye"],
-  jaw: ["jaw", "chin", "mixamorigjaw"],
-  leftShoulder: ["leftshoulder", "shoulder_l", "shoulder.l", "clavicle_l", "clavicle.l", "l_clavicle", "mixamorigleftshoulder", "bip01lclavicle"],
-  leftUpperArm: ["leftupperarm", "upperarm_l", "upper_arm.l", "upper_arm_l", "arm_l", "l_upperarm", "mixamorigleftarm", "bip01lupperarm"],
-  leftLowerArm: ["leftlowerarm", "lowerarm_l", "forearm.l", "forearm_l", "lower_arm.l", "l_forearm", "mixamorigleftforearm", "bip01lforearm"],
-  leftHand: ["lefthand", "hand_l", "hand.l", "wrist_l", "l_hand", "mixamoriglefthand", "bip01lhand"],
-  rightShoulder: ["rightshoulder", "shoulder_r", "shoulder.r", "clavicle_r", "clavicle.r", "r_clavicle", "mixamorigrightshoulder", "bip01rclavicle"],
-  rightUpperArm: ["rightupperarm", "upperarm_r", "upper_arm.r", "upper_arm_r", "arm_r", "r_upperarm", "mixamorigrightarm", "bip01rupperarm"],
-  rightLowerArm: ["rightlowerarm", "lowerarm_r", "forearm.r", "forearm_r", "lower_arm.r", "r_forearm", "mixamorigrightforearm", "bip01rforearm"],
-  rightHand: ["righthand", "hand_r", "hand.r", "wrist_r", "r_hand", "mixamorigrighthand", "bip01rhand"],
-  leftUpperLeg: ["leftupperleg", "upperleg_l", "thigh.l", "thigh_l", "l_thigh", "mixamorigleftupleg", "bip01lthigh"],
-  leftLowerLeg: ["leftlowerleg", "lowerleg_l", "shin.l", "shin_l", "calf_l", "l_calf", "mixamorigleftleg", "bip01lcalf"],
-  leftFoot: ["leftfoot", "foot_l", "foot.l", "ankle_l", "l_foot", "mixamorigleftfoot", "bip01lfoot"],
-  leftToes: ["lefttoes", "toe_l", "toes.l", "l_toe", "mixamoriglefttoebase", "bip01ltoe0"],
-  rightUpperLeg: ["rightupperleg", "upperleg_r", "thigh.r", "thigh_r", "r_thigh", "mixamorigrightupleg", "bip01rthigh"],
-  rightLowerLeg: ["rightlowerleg", "lowerleg_r", "shin.r", "shin_r", "calf_r", "r_calf", "mixamorigrightleg", "bip01rcalf"],
-  rightFoot: ["rightfoot", "foot_r", "foot.r", "ankle_r", "r_foot", "mixamorigrightfoot", "bip01rfoot"],
-  rightToes: ["righttoes", "toe_r", "toes.r", "r_toe", "mixamorigrighttoebase", "bip01rtoe0"]
+  hips: ["hips", "hip", "pelvis", "root_hips", "mixamorighips", "bip01pelvis", "cog", "j_bip_c_hips"],
+  spine: ["spine", "spine01", "spine_01", "spine1", "abdomen", "mixamorigspine", "bip01spine", "j_bip_c_spine"],
+  chest: ["chest", "spine02", "spine_02", "spine2", "ribcage", "thorax", "mixamorigspine1", "bip01spine1", "j_bip_c_chest", "mixamorigspine2"],
+  upperChest: ["upperchest", "upper_chest", "spine03", "spine_03", "spine3", "mixamorigspine2", "bip01spine2", "j_bip_c_upperchest"],
+  neck: ["neck", "neck01", "neck_01", "mixamorigneck", "bip01neck", "j_bip_c_neck"],
+  head: ["head", "headtop", "mixamorighead", "bip01head", "j_bip_c_head"],
+  leftEye: ["lefteye", "eye_l", "eye.l", "l_eye", "mixamoriglefteye", "j_adj_l_faceeye", "j_bip_l_eye"],
+  rightEye: ["righteye", "eye_r", "eye.r", "r_eye", "mixamorigrighteye", "j_adj_r_faceeye", "j_bip_r_eye"],
+  jaw: ["jaw", "chin", "mixamorigjaw", "j_bip_c_jaw"],
+  leftShoulder: ["leftshoulder", "shoulder_l", "shoulder.l", "clavicle_l", "clavicle.l", "l_clavicle", "mixamorigleftshoulder", "bip01lclavicle", "j_bip_l_shoulder"],
+  leftUpperArm: ["leftupperarm", "upperarm_l", "upper_arm.l", "upper_arm_l", "arm_l", "l_upperarm", "mixamorigleftarm", "bip01lupperarm", "j_bip_l_upperarm"],
+  leftLowerArm: ["leftlowerarm", "lowerarm_l", "forearm.l", "forearm_l", "lower_arm.l", "l_forearm", "mixamorigleftforearm", "bip01lforearm", "j_bip_l_lowerarm"],
+  leftHand: ["lefthand", "hand_l", "hand.l", "wrist_l", "l_hand", "mixamoriglefthand", "bip01lhand", "j_bip_l_hand"],
+  rightShoulder: ["rightshoulder", "shoulder_r", "shoulder.r", "clavicle_r", "clavicle.r", "r_clavicle", "mixamorigrightshoulder", "bip01rclavicle", "j_bip_r_shoulder"],
+  rightUpperArm: ["rightupperarm", "upperarm_r", "upper_arm.r", "upper_arm_r", "arm_r", "r_upperarm", "mixamorigrightarm", "bip01rupperarm", "j_bip_r_upperarm"],
+  rightLowerArm: ["rightlowerarm", "lowerarm_r", "forearm.r", "forearm_r", "lower_arm.r", "r_forearm", "mixamorigrightforearm", "bip01rforearm", "j_bip_r_lowerarm"],
+  rightHand: ["righthand", "hand_r", "hand.r", "wrist_r", "r_hand", "mixamorigrighthand", "bip01rhand", "j_bip_r_hand"],
+  leftUpperLeg: ["leftupperleg", "upperleg_l", "thigh.l", "thigh_l", "l_thigh", "mixamorigleftupleg", "bip01lthigh", "j_bip_l_upperleg"],
+  leftLowerLeg: ["leftlowerleg", "lowerleg_l", "shin.l", "shin_l", "calf_l", "l_calf", "mixamorigleftleg", "bip01lcalf", "j_bip_l_lowerleg"],
+  leftFoot: ["leftfoot", "foot_l", "foot.l", "ankle_l", "l_foot", "mixamorigleftfoot", "bip01lfoot", "j_bip_l_foot"],
+  leftToes: ["lefttoes", "toe_l", "toes.l", "l_toe", "mixamoriglefttoebase", "bip01ltoe0", "j_bip_l_toebase", "j_bip_l_toe"],
+  rightUpperLeg: ["rightupperleg", "upperleg_r", "thigh.r", "thigh_r", "r_thigh", "mixamorigrightupleg", "bip01rthigh", "j_bip_r_upperleg"],
+  rightLowerLeg: ["rightlowerleg", "lowerleg_r", "shin.r", "shin_r", "calf_r", "r_calf", "mixamorigrightleg", "bip01rcalf", "j_bip_r_lowerleg"],
+  rightFoot: ["rightfoot", "foot_r", "foot.r", "ankle_r", "r_foot", "mixamorigrightfoot", "bip01rfoot", "j_bip_r_foot"],
+  rightToes: ["righttoes", "toe_r", "toes.r", "r_toe", "mixamorigrighttoebase", "bip01rtoe0", "j_bip_r_toebase", "j_bip_r_toe"],
+  // Fingers (VRM standard + VRoid J_Bip_* + Mixamo)
+  leftThumbMetacarpal: ["leftthumbmetacarpal", "j_bip_l_thumb1", "mixamorigleftthumb1"],
+  leftThumbProximal: ["leftthumbproximal", "j_bip_l_thumb2", "mixamorigleftthumb2"],
+  leftThumbDistal: ["leftthumbdistal", "j_bip_l_thumb3", "mixamorigleftthumb3"],
+  leftIndexProximal: ["leftindexproximal", "j_bip_l_index1", "mixamorigleftindex1"],
+  leftIndexIntermediate: ["leftindexintermediate", "j_bip_l_index2", "mixamorigleftindex2"],
+  leftIndexDistal: ["leftindexdistal", "j_bip_l_index3", "mixamorigleftindex3"],
+  leftMiddleProximal: ["leftmiddleproximal", "j_bip_l_middle1", "mixamorigleftmiddle1"],
+  leftMiddleIntermediate: ["leftmiddleintermediate", "j_bip_l_middle2", "mixamorigleftmiddle2"],
+  leftMiddleDistal: ["leftmiddledistal", "j_bip_l_middle3", "mixamorigleftmiddle3"],
+  leftRingProximal: ["leftringproximal", "j_bip_l_ring1", "mixamorigleftring1"],
+  leftRingIntermediate: ["leftringintermediate", "j_bip_l_ring2", "mixamorigleftring2"],
+  leftRingDistal: ["leftringdistal", "j_bip_l_ring3", "mixamorigleftring3"],
+  leftLittleProximal: ["leftlittleproximal", "j_bip_l_little1", "mixamorigleftpinky1"],
+  leftLittleIntermediate: ["leftlittleintermediate", "j_bip_l_little2", "mixamorigleftpinky2"],
+  leftLittleDistal: ["leftlittledistal", "j_bip_l_little3", "mixamorigleftpinky3"],
+  rightThumbMetacarpal: ["rightthumbmetacarpal", "j_bip_r_thumb1", "mixamorigrightthumb1"],
+  rightThumbProximal: ["rightthumbproximal", "j_bip_r_thumb2", "mixamorigrightthumb2"],
+  rightThumbDistal: ["rightthumbdistal", "j_bip_r_thumb3", "mixamorigrightthumb3"],
+  rightIndexProximal: ["rightindexproximal", "j_bip_r_index1", "mixamorigrightindex1"],
+  rightIndexIntermediate: ["rightindexintermediate", "j_bip_r_index2", "mixamorigrightindex2"],
+  rightIndexDistal: ["rightindexdistal", "j_bip_r_index3", "mixamorigrightindex3"],
+  rightMiddleProximal: ["rightmiddleproximal", "j_bip_r_middle1", "mixamorigrightmiddle1"],
+  rightMiddleIntermediate: ["rightmiddleintermediate", "j_bip_r_middle2", "mixamorigrightmiddle2"],
+  rightMiddleDistal: ["rightmiddledistal", "j_bip_r_middle3", "mixamorigrightmiddle3"],
+  rightRingProximal: ["rightringproximal", "j_bip_r_ring1", "mixamorigrightring1"],
+  rightRingIntermediate: ["rightringintermediate", "j_bip_r_ring2", "mixamorigrightring2"],
+  rightRingDistal: ["rightringdistal", "j_bip_r_ring3", "mixamorigrightring3"],
+  rightLittleProximal: ["rightlittleproximal", "j_bip_r_little1", "mixamorigrightpinky1"],
+  rightLittleIntermediate: ["rightlittleintermediate", "j_bip_r_little2", "mixamorigrightpinky2"],
+  rightLittleDistal: ["rightlittledistal", "j_bip_r_little3", "mixamorigrightpinky3"]
 };
 function normalizeBoneToken(name) {
   return name.toLowerCase().replace(/[^a-z0-9._]/g, "").replace(/mixamorig:/g, "mixamorig");
 }
-function mapExistingSkinToVrmHumanoid(skin, existingVrmHumanoid) {
+function mapExistingSkinToVrmHumanoid(skin, existingVrmHumanoid, sourceVrmVersion) {
   const humanBoneToJointIndex = {};
   const usedJoints = /* @__PURE__ */ new Set();
-  if (existingVrmHumanoid) {
-    for (const [vrmBone, nodeName] of Object.entries(existingVrmHumanoid)) {
+  let usedExplicitVrm = false;
+  if (existingVrmHumanoid && Object.keys(existingVrmHumanoid).length > 0) {
+    const v0ToCanonical = {
+      leftThumbProximal: "leftThumbMetacarpal",
+      leftThumbIntermediate: "leftThumbProximal",
+      rightThumbProximal: "rightThumbMetacarpal",
+      rightThumbIntermediate: "rightThumbProximal"
+    };
+    const isV0Thumbs = sourceVrmVersion === "0.0" || "leftThumbIntermediate" in existingVrmHumanoid || "rightThumbIntermediate" in existingVrmHumanoid;
+    for (const [rawVrmBone, nodeName] of Object.entries(existingVrmHumanoid)) {
+      const vrmBone = isV0Thumbs ? v0ToCanonical[rawVrmBone] ?? rawVrmBone : rawVrmBone;
       const idx = skin.joints.findIndex((j) => j.name === nodeName);
       if (idx >= 0 && !usedJoints.has(idx)) {
         humanBoneToJointIndex[vrmBone] = idx;
         usedJoints.add(idx);
+        usedExplicitVrm = true;
       }
     }
   }
   const normalizedJointNames = skin.joints.map((j) => normalizeBoneToken(j.name));
+  const strippedJointNames = normalizedJointNames.map((n) => n.replace(/[._]/g, ""));
   for (const [vrmBone, aliases] of Object.entries(CANONICAL_BONE_ALIASES)) {
     if (humanBoneToJointIndex[vrmBone] !== void 0) continue;
     let foundIdx = -1;
-    for (let j = 0; j < normalizedJointNames.length; j++) {
-      if (usedJoints.has(j)) continue;
-      const stripped = normalizedJointNames[j].replace(/[._]/g, "");
-      if (aliases.some((a) => a.replace(/[._]/g, "") === stripped)) {
-        foundIdx = j;
-        break;
+    for (const alias of aliases) {
+      for (let j = 0; j < normalizedJointNames.length; j++) {
+        if (usedJoints.has(j)) continue;
+        if (alias === normalizedJointNames[j]) {
+          foundIdx = j;
+          break;
+        }
+      }
+      if (foundIdx >= 0) break;
+    }
+    if (foundIdx < 0) {
+      for (const alias of aliases) {
+        const strippedAlias = alias.replace(/[._]/g, "");
+        for (let j = 0; j < strippedJointNames.length; j++) {
+          if (usedJoints.has(j)) continue;
+          if (strippedAlias === strippedJointNames[j]) {
+            foundIdx = j;
+            break;
+          }
+        }
+        if (foundIdx >= 0) break;
       }
     }
     if (foundIdx >= 0) {
@@ -48710,10 +48802,19 @@ function mapExistingSkinToVrmHumanoid(skin, existingVrmHumanoid) {
   const missingRequired = VRM_REQUIRED_HUMANOID_BONES.filter(
     (req) => humanBoneToJointIndex[req] === void 0
   );
+  const secondaryJointIndices = [];
+  skin.joints.forEach((_, idx) => {
+    if (!usedJoints.has(idx)) {
+      secondaryJointIndices.push(idx);
+    }
+  });
+  const mappingSource = usedExplicitVrm ? sourceVrmVersion === "0.0" ? "vrm0" : "vrm1" : "name_heuristic";
   return {
     humanBoneToJointIndex,
     missingRequired,
-    allRequiredPresent: missingRequired.length === 0
+    allRequiredPresent: missingRequired.length === 0,
+    mappingSource,
+    secondaryJointIndices
   };
 }
 function fitArmatureToExternalGeometry(spec, asset, baseHumanoidBones) {
@@ -49779,6 +49880,187 @@ function generateProceduralTexturePng(kind, primaryHex, secondaryHex, size = 256
 }
 
 // src/shared/vrmBuilder.ts
+var VRM1_TO_VRM0_PRESET = {
+  neutral: "neutral",
+  happy: "joy",
+  angry: "angry",
+  sad: "sorrow",
+  relaxed: "fun",
+  blink: "blink",
+  blinkLeft: "blink_l",
+  blinkRight: "blink_r",
+  lookUp: "lookup",
+  lookDown: "lookdown",
+  lookLeft: "lookleft",
+  lookRight: "lookright",
+  aa: "a",
+  ih: "i",
+  ou: "u",
+  ee: "e",
+  oh: "o"
+};
+var VRM0_DISPLAY_NAMES = {
+  neutral: "Neutral",
+  joy: "Joy",
+  angry: "Angry",
+  sorrow: "Sorrow",
+  fun: "Fun",
+  blink: "Blink",
+  blink_l: "Blink_L",
+  blink_r: "Blink_R",
+  lookup: "LookUp",
+  lookdown: "LookDown",
+  lookleft: "LookLeft",
+  lookright: "LookRight",
+  a: "A",
+  i: "I",
+  u: "U",
+  e: "E",
+  o: "O"
+};
+function resolveEffectiveVrmMetadata(spec, sourceMeta) {
+  const base = createDefaultVrmMetadata(spec.name, spec.vrmMetadata);
+  const srcAttr = sourceMeta?.sourceAttribution || base.sourceAttribution;
+  return {
+    ...base,
+    title: base.title || sourceMeta?.title || spec.name,
+    author: base.author || "",
+    commercialUsage: base.commercialUsage || "Disallow",
+    allowedUserName: base.allowedUserName || "OnlyAuthor",
+    violentUsage: base.violentUsage || "Disallow",
+    sexualUsage: base.sexualUsage || "Disallow",
+    sourceAttribution: srcAttr
+  };
+}
+function buildVrm0MetaBlock(meta) {
+  return {
+    title: meta.title,
+    version: meta.version,
+    author: meta.author || "Unspecified Author",
+    contactInformation: meta.contactInformation,
+    reference: meta.reference || meta.sourceAttribution || "",
+    allowedUserName: meta.allowedUserName,
+    violentUssageName: meta.violentUsage,
+    sexualUssageName: meta.sexualUsage,
+    commercialUssageName: meta.commercialUsage,
+    otherPermissionUrl: "",
+    licenseName: meta.licenseName || "Other",
+    otherLicenseUrl: meta.otherLicenseUrl || ""
+  };
+}
+function buildVrm1MetaBlock(meta) {
+  return {
+    name: meta.title,
+    version: meta.version,
+    authors: [meta.author || "Unspecified Author"],
+    copyrightInformation: meta.sourceAttribution || "Created with VRM Forge Studio",
+    contactInformation: meta.contactInformation,
+    references: meta.reference ? [meta.reference] : [],
+    licenseUrl: meta.otherLicenseUrl || "https://vrm.dev/licenses/1.0/",
+    avatarPermission: meta.allowedUserName === "Everyone" ? "everyone" : meta.allowedUserName === "ExplicitlyLicensedPerson" ? "onlySeparatelyLicensedPerson" : "onlyAuthor",
+    allowExcessivelyViolentUsage: meta.violentUsage === "Allow",
+    allowExcessivelySexualUsage: meta.sexualUsage === "Allow",
+    commercialUsage: meta.commercialUsage === "Allow" ? "corporation" : "personalNonProfit",
+    allowPoliticalOrReligiousUsage: false,
+    allowAntisocialOrHateUsage: false,
+    creditNotation: "required",
+    allowRedistribution: meta.allowRedistribution,
+    modification: meta.modification
+  };
+}
+function buildVrm0Extension(options) {
+  const nodeToMesh = /* @__PURE__ */ new Map();
+  for (const mn of options.meshNodes) {
+    nodeToMesh.set(mn.nodeIndex, mn.meshIndex);
+  }
+  const VRM1_TO_VRM0_BONE_NAME = {
+    leftThumbMetacarpal: "leftThumbProximal",
+    leftThumbProximal: "leftThumbIntermediate",
+    rightThumbMetacarpal: "rightThumbProximal",
+    rightThumbProximal: "rightThumbIntermediate"
+  };
+  const seenVrm0Bones = /* @__PURE__ */ new Set();
+  const humanBonesArr = [];
+  for (const [bone, ref] of Object.entries(options.humanBones)) {
+    const vrm0Bone = VRM1_TO_VRM0_BONE_NAME[bone] ?? bone;
+    if (seenVrm0Bones.has(vrm0Bone)) continue;
+    seenVrm0Bones.add(vrm0Bone);
+    humanBonesArr.push({
+      bone: vrm0Bone,
+      node: ref.node,
+      useDefaultValues: true
+    });
+  }
+  const blendShapeGroups = [
+    {
+      name: "Neutral",
+      presetName: "neutral",
+      binds: [],
+      isBinary: false,
+      materialValues: []
+    }
+  ];
+  for (const [vrm1Name, binds] of Object.entries(options.expressionPresetBinds)) {
+    if (vrm1Name === "neutral" || !binds || binds.length === 0) continue;
+    const preset0 = VRM1_TO_VRM0_PRESET[vrm1Name];
+    if (!preset0) continue;
+    const vrm0Binds = [];
+    for (const b of binds) {
+      const meshIdx = nodeToMesh.get(b.node);
+      if (meshIdx !== void 0) {
+        vrm0Binds.push({
+          mesh: meshIdx,
+          index: b.index,
+          weight: Math.round(Math.max(0, Math.min(1, b.weight)) * 100)
+        });
+      }
+    }
+    if (vrm0Binds.length > 0) {
+      blendShapeGroups.push({
+        name: VRM0_DISPLAY_NAMES[preset0] || preset0,
+        presetName: preset0,
+        binds: vrm0Binds,
+        isBinary: preset0 === "blink" || preset0 === "blink_l" || preset0 === "blink_r",
+        materialValues: []
+      });
+    }
+  }
+  const headNode = options.humanBones.head?.node ?? 1;
+  return {
+    exporterVersion: "VRMForgeStudio-2.0",
+    specVersion: "0.0",
+    meta: buildVrm0MetaBlock(options.meta),
+    humanoid: {
+      humanBones: humanBonesArr,
+      armStretch: 0.05,
+      legStretch: 0.05,
+      upperArmTwist: 0.5,
+      lowerArmTwist: 0.5,
+      upperLegTwist: 0.5,
+      lowerLegTwist: 0.5,
+      feetSpacing: 0,
+      hasTranslationDoF: false
+    },
+    firstPerson: {
+      firstPersonBone: headNode,
+      firstPersonBoneOffset: { x: 0, y: 0.06 * options.headScale, z: 0 },
+      meshAnnotations: [],
+      lookAtTypeName: "Bone",
+      lookAtHorizontalInner: { curve: [0, 0, 0, 1, 1, 1, 1, 0], xRange: 90, yRange: 10 },
+      lookAtHorizontalOuter: { curve: [0, 0, 0, 1, 1, 1, 1, 0], xRange: 90, yRange: 10 },
+      lookAtVerticalDown: { curve: [0, 0, 0, 1, 1, 1, 1, 0], xRange: 90, yRange: 10 },
+      lookAtVerticalUp: { curve: [0, 0, 0, 1, 1, 1, 1, 0], xRange: 90, yRange: 10 }
+    },
+    blendShapeMaster: {
+      blendShapeGroups
+    },
+    secondaryAnimation: {
+      boneGroups: options.boneGroups,
+      colliderGroups: options.colliderGroups
+    },
+    materialProperties: []
+  };
+}
 function buildHumanoidSkeleton(spec) {
   const hScale = spec.proportions.heightMeters / 1.7;
   const sW = spec.proportions.shoulderWidthScale;
@@ -50023,29 +50305,7 @@ function packGlbBinary(gltfJson, binBytes) {
   out.set(binBytes, binHeaderOffset + 8);
   return out;
 }
-function assembleGltfPackage(spec, bones, primitives, texPx, includeNormalMaps) {
-  const chunks = [];
-  let byteOffset = 0;
-  const bufferViews = [];
-  const accessors = [];
-  const pushBufferSlice = (bytes, target) => {
-    const pad = (4 - byteOffset % 4) % 4;
-    if (pad > 0) {
-      chunks.push(new Uint8Array(pad));
-      byteOffset += pad;
-    }
-    const bvIdx = bufferViews.length;
-    const bv = {
-      buffer: 0,
-      byteOffset,
-      byteLength: bytes.length
-    };
-    if (target) bv.target = target;
-    bufferViews.push(bv);
-    chunks.push(bytes);
-    byteOffset += bytes.length;
-    return bvIdx;
-  };
+function assembleGltfPackage(spec, bones, primitives, texPx, includeNormalMaps, mode = "both") {
   const normalPx = Math.max(128, Math.min(256, texPx));
   const textureDefs = [
     { name: "skin_albedo", bytes: generateProceduralTexturePng("skin", spec.palette.skinColor, spec.palette.skinColor, texPx) },
@@ -50070,124 +50330,9 @@ function assembleGltfPackage(spec, bones, primitives, texPx, includeNormalMaps) 
       { name: "cloak_normal", bytes: generateProceduralTexturePng("cloak_normal", "#8080ff", "#8080ff", normalPx) }
     );
   }
-  const images = [];
-  const textures = [];
-  for (const td of textureDefs) {
-    const bvIdx = pushBufferSlice(td.bytes);
-    const imgIdx = images.length;
-    images.push({ name: td.name, mimeType: "image/png", bufferView: bvIdx });
-    textures.push({ sampler: 0, source: imgIdx });
-  }
-  const ibmArray = new Float32Array(bones.length * 16);
-  for (let i2 = 0; i2 < bones.length; i2++) {
-    const wp = bones[i2].worldPos;
-    const base = i2 * 16;
-    ibmArray[base + 0] = 1;
-    ibmArray[base + 5] = 1;
-    ibmArray[base + 10] = 1;
-    ibmArray[base + 12] = -wp[0];
-    ibmArray[base + 13] = -wp[1];
-    ibmArray[base + 14] = -wp[2];
-    ibmArray[base + 15] = 1;
-  }
-  const ibmBv = pushBufferSlice(new Uint8Array(ibmArray.buffer));
-  const ibmAccessorIdx = accessors.length;
-  accessors.push({ bufferView: ibmBv, componentType: 5126, count: bones.length, type: "MAT4" });
-  let totalVertices = 0;
-  let totalTriangles = 0;
-  const gltfMeshes = [];
-  let skinMeshNodeIdx = -1;
-  let eyeMeshNodeIdx = -1;
-  for (let pIdx = 0; pIdx < primitives.length; pIdx++) {
-    const prim = primitives[pIdx];
-    const vertCount = prim.positions.length / 3;
-    totalVertices += vertCount;
-    totalTriangles += prim.indices.length / 3;
-    const posArr = new Float32Array(prim.positions);
-    const min = [Infinity, Infinity, Infinity];
-    const max = [-Infinity, -Infinity, -Infinity];
-    for (let i2 = 0; i2 < posArr.length; i2 += 3) {
-      min[0] = Math.min(min[0], posArr[i2]);
-      min[1] = Math.min(min[1], posArr[i2 + 1]);
-      min[2] = Math.min(min[2], posArr[i2 + 2]);
-      max[0] = Math.max(max[0], posArr[i2]);
-      max[1] = Math.max(max[1], posArr[i2 + 1]);
-      max[2] = Math.max(max[2], posArr[i2 + 2]);
-    }
-    const posBv = pushBufferSlice(new Uint8Array(posArr.buffer), 34962);
-    const posAcc = accessors.length;
-    accessors.push({ bufferView: posBv, componentType: 5126, count: vertCount, type: "VEC3", min, max });
-    const normBv = pushBufferSlice(new Uint8Array(new Float32Array(prim.normals).buffer), 34962);
-    const normAcc = accessors.length;
-    accessors.push({ bufferView: normBv, componentType: 5126, count: vertCount, type: "VEC3" });
-    const uvBv = pushBufferSlice(new Uint8Array(new Float32Array(prim.uvs).buffer), 34962);
-    const uvAcc = accessors.length;
-    accessors.push({ bufferView: uvBv, componentType: 5126, count: vertCount, type: "VEC2" });
-    const jointsBv = pushBufferSlice(new Uint8Array(prim.joints), 34962);
-    const jointsAcc = accessors.length;
-    accessors.push({ bufferView: jointsBv, componentType: 5121, count: vertCount, type: "VEC4" });
-    const weightsBv = pushBufferSlice(new Uint8Array(new Float32Array(prim.weights).buffer), 34962);
-    const weightsAcc = accessors.length;
-    accessors.push({ bufferView: weightsBv, componentType: 5126, count: vertCount, type: "VEC4" });
-    const indexArr = new Uint32Array(prim.indices);
-    const indexBv = pushBufferSlice(new Uint8Array(indexArr.buffer), 34963);
-    const indexAcc = accessors.length;
-    accessors.push({ bufferView: indexBv, componentType: 5125, count: indexArr.length, type: "SCALAR" });
-    const primAttributes = {
-      POSITION: posAcc,
-      NORMAL: normAcc,
-      TEXCOORD_0: uvAcc,
-      JOINTS_0: jointsAcc,
-      WEIGHTS_0: weightsAcc
-    };
-    if (prim.colors && prim.colors.length === vertCount * 4) {
-      const colBv = pushBufferSlice(new Uint8Array(new Float32Array(prim.colors).buffer), 34962);
-      const colAcc = accessors.length;
-      accessors.push({ bufferView: colBv, componentType: 5126, count: vertCount, type: "VEC4" });
-      primAttributes.COLOR_0 = colAcc;
-    }
-    const primEntry = {
-      attributes: primAttributes,
-      indices: indexAcc,
-      material: prim.materialIndex
-    };
-    if (prim.hasMorphTargets) {
-      const morphs = computeMorphTargetsForPrimitive(prim);
-      const targetsArray = [];
-      for (const m2 of morphs) {
-        const mMin = [Infinity, Infinity, Infinity];
-        const mMax = [-Infinity, -Infinity, -Infinity];
-        for (let i2 = 0; i2 < m2.deltas.length; i2 += 3) {
-          mMin[0] = Math.min(mMin[0], m2.deltas[i2]);
-          mMin[1] = Math.min(mMin[1], m2.deltas[i2 + 1]);
-          mMin[2] = Math.min(mMin[2], m2.deltas[i2 + 2]);
-          mMax[0] = Math.max(mMax[0], m2.deltas[i2]);
-          mMax[1] = Math.max(mMax[1], m2.deltas[i2 + 1]);
-          mMax[2] = Math.max(mMax[2], m2.deltas[i2 + 2]);
-        }
-        const mBv = pushBufferSlice(new Uint8Array(m2.deltas.buffer), 34962);
-        const mAcc = accessors.length;
-        accessors.push({
-          bufferView: mBv,
-          componentType: 5126,
-          count: vertCount,
-          type: "VEC3",
-          min: mMin,
-          max: mMax
-        });
-        targetsArray.push({ POSITION: mAcc });
-      }
-      primEntry.targets = targetsArray;
-    }
-    const meshObj = {
-      name: prim.name,
-      primitives: [primEntry]
-    };
-    if (prim.hasMorphTargets) {
-      meshObj.extras = { targetNames: MORPH_EXPRESSION_NAMES };
-    }
-    gltfMeshes.push(meshObj);
-  }
+  const precomputedMorphs = primitives.map(
+    (prim) => prim.hasMorphTargets ? computeMorphTargetsForPrimitive(prim) : []
+  );
   const isAnime = spec.artStyle === "stylized_anime";
   const isRealistic = spec.artStyle === "realistic_human";
   const normalScale = isAnime ? 0.35 : isRealistic ? 0.85 : 0.65;
@@ -50268,67 +50413,8 @@ function assembleGltfPackage(spec, bones, primitives, texPx, includeNormalMaps) 
       ...includeNormalMaps ? { normalTexture: { index: normalStartIdx + 2, scale: normalScale * 0.8 } } : {}
     }
   ];
-  const nodes = [];
-  const boneChildrenMap = /* @__PURE__ */ new Map();
-  bones.forEach((b, i2) => {
-    if (b.parent >= 0) {
-      const list = boneChildrenMap.get(b.parent) ?? [];
-      list.push(i2 + 1);
-      boneChildrenMap.set(b.parent, list);
-    }
-  });
-  const firstMeshNodeIdx = 1 + bones.length;
-  const meshNodeIndices = primitives.map((_, idx) => firstMeshNodeIdx + idx);
-  nodes.push({
-    name: `${spec.name.replace(/\s+/g, "_")}_Root`,
-    children: [1, ...meshNodeIndices]
-  });
-  for (let i2 = 0; i2 < bones.length; i2++) {
-    const b = bones[i2];
-    const nodeObj = {
-      name: b.name,
-      translation: b.localPos
-    };
-    const ch = boneChildrenMap.get(i2);
-    if (ch && ch.length > 0) {
-      nodeObj.children = ch;
-    }
-    nodes.push(nodeObj);
-  }
-  for (let mIdx = 0; mIdx < primitives.length; mIdx++) {
-    const prim = primitives[mIdx];
-    const nodeIdx = nodes.length;
-    if (prim.materialIndex === 0) skinMeshNodeIdx = nodeIdx;
-    if (prim.materialIndex === 1) eyeMeshNodeIdx = nodeIdx;
-    nodes.push({
-      name: prim.name,
-      mesh: mIdx,
-      skin: 0
-    });
-  }
-  const jointNodeIndices = bones.map((_, i2) => i2 + 1);
-  const humanBones = {};
-  bones.forEach((b, i2) => {
-    if (b.vrmName) {
-      humanBones[b.vrmName] = { node: i2 + 1 };
-    }
-  });
-  const expressionPresetMap = {
-    neutral: { isBinary: false, morphTargetBinds: [] }
-  };
-  MORPH_EXPRESSION_NAMES.forEach((exprName, mIdx) => {
-    const binds = [];
-    if (skinMeshNodeIdx >= 0) {
-      binds.push({ node: skinMeshNodeIdx, index: mIdx, weight: 1 });
-    }
-    if (eyeMeshNodeIdx >= 0 && (exprName === "lookUp" || exprName === "lookDown" || exprName === "lookLeft" || exprName === "lookRight")) {
-      binds.push({ node: eyeMeshNodeIdx, index: mIdx, weight: 1 });
-    }
-    expressionPresetMap[exprName] = {
-      isBinary: exprName === "blink" || exprName === "blinkLeft" || exprName === "blinkRight",
-      morphTargetBinds: binds
-    };
-  });
+  const targetVrmVersion = spec.riggingRequirements.vrmVersion === "1.0" ? "1.0" : "0.0";
+  const effectiveMeta = resolveEffectiveVrmMetadata(spec);
   const springBoneJointNames = [
     "hairBackRoot",
     "hairBackMid",
@@ -50343,6 +50429,44 @@ function assembleGltfPackage(spec, bones, primitives, texPx, includeNormalMaps) 
   ];
   const boneNodeByName = /* @__PURE__ */ new Map();
   bones.forEach((b, i2) => boneNodeByName.set(b.name, i2 + 1));
+  const humanBones = {};
+  bones.forEach((b, i2) => {
+    if (b.vrmName) {
+      humanBones[b.vrmName] = { node: i2 + 1 };
+    }
+  });
+  for (const req of VRM_REQUIRED_HUMANOID_BONES) {
+    if (!humanBones[req]) {
+      throw new Error(`Internal builder error: missing required VRM bone ${req}`);
+    }
+  }
+  const firstMeshNodeIdx = 1 + bones.length;
+  let skinMeshNodeIdx = -1;
+  let eyeMeshNodeIdx = -1;
+  for (let mIdx = 0; mIdx < primitives.length; mIdx++) {
+    const prim = primitives[mIdx];
+    const nodeIdx = firstMeshNodeIdx + mIdx;
+    if (prim.materialIndex === 0) skinMeshNodeIdx = nodeIdx;
+    if (prim.materialIndex === 1) eyeMeshNodeIdx = nodeIdx;
+  }
+  const expressionPresetMap = {
+    neutral: { isBinary: false, morphTargetBinds: [] }
+  };
+  const expressionPresetBinds = {};
+  MORPH_EXPRESSION_NAMES.forEach((exprName, mIdx) => {
+    const binds = [];
+    if (skinMeshNodeIdx >= 0) {
+      binds.push({ node: skinMeshNodeIdx, index: mIdx, weight: 1 });
+    }
+    if (eyeMeshNodeIdx >= 0 && (exprName === "lookUp" || exprName === "lookDown" || exprName === "lookLeft" || exprName === "lookRight")) {
+      binds.push({ node: eyeMeshNodeIdx, index: mIdx, weight: 1 });
+    }
+    expressionPresetBinds[exprName] = binds;
+    expressionPresetMap[exprName] = {
+      isBinary: exprName === "blink" || exprName === "blinkLeft" || exprName === "blinkRight",
+      morphTargetBinds: binds
+    };
+  });
   const springJointDefs = springBoneJointNames.map((n) => ({
     node: boneNodeByName.get(n) ?? 1,
     hitRadius: 0.03,
@@ -50357,69 +50481,345 @@ function assembleGltfPackage(spec, bones, primitives, texPx, includeNormalMaps) 
     { name: "HairRightSpring", joints: springJointDefs.slice(5, 7) },
     ...spec.features.hasCloak ? [{ name: "CloakSpring", joints: springJointDefs.slice(7, 10) }] : []
   ];
-  const binBytes = new Uint8Array(byteOffset);
-  let writePtr = 0;
-  for (const ch of chunks) {
-    binBytes.set(ch, writePtr);
-    writePtr += ch.length;
-  }
-  const baseGltf = {
-    asset: {
-      version: "2.0",
-      generator: "VRM Forge Studio High-Detail Anatomical Sculptor (glTF 2.0 + VRMC_vrm 1.0)"
+  const vrm0ColliderGroups = [
+    {
+      node: humanBones.head?.node ?? 1,
+      colliders: [{ offset: { x: 0, y: 0.06 * spec.proportions.headScale, z: 0 }, radius: 0.085 }]
     },
-    scene: 0,
-    scenes: [{ name: "Scene", nodes: [0] }],
-    nodes,
-    meshes: gltfMeshes,
-    skins: [
+    {
+      node: humanBones.upperChest?.node ?? humanBones.chest?.node ?? 1,
+      colliders: [{ offset: { x: 0, y: 0.03, z: 0 }, radius: 0.1 }]
+    }
+  ];
+  const vrm0BoneGroups = [
+    {
+      comment: "HairBackSpring",
+      stiffiness: 0.65,
+      gravityPower: 0.25,
+      gravityDir: { x: 0, y: -1, z: 0 },
+      dragForce: 0.4,
+      center: -1,
+      hitRadius: 0.025,
+      bones: [boneNodeByName.get("hairBackRoot")].filter(Boolean),
+      colliderGroups: [0, 1]
+    },
+    {
+      comment: "HairLeftSpring",
+      stiffiness: 0.65,
+      gravityPower: 0.25,
+      gravityDir: { x: 0, y: -1, z: 0 },
+      dragForce: 0.4,
+      center: -1,
+      hitRadius: 0.02,
+      bones: [boneNodeByName.get("hairLeftRoot")].filter(Boolean),
+      colliderGroups: [0]
+    },
+    {
+      comment: "HairRightSpring",
+      stiffiness: 0.65,
+      gravityPower: 0.25,
+      gravityDir: { x: 0, y: -1, z: 0 },
+      dragForce: 0.4,
+      center: -1,
+      hitRadius: 0.02,
+      bones: [boneNodeByName.get("hairRightRoot")].filter(Boolean),
+      colliderGroups: [0]
+    },
+    ...spec.features.hasCloak ? [
       {
-        name: "HumanoidArmature",
-        inverseBindMatrices: ibmAccessorIdx,
-        skeleton: 1,
-        joints: jointNodeIndices
+        comment: "CloakSpring",
+        stiffiness: 0.45,
+        gravityPower: 0.35,
+        gravityDir: { x: 0, y: -1, z: 0 },
+        dragForce: 0.45,
+        center: -1,
+        hitRadius: 0.03,
+        bones: [boneNodeByName.get("cloakTop")].filter(Boolean),
+        colliderGroups: [1]
       }
-    ],
-    materials,
-    textures,
-    images,
-    samplers: [
-      {
-        magFilter: 9729,
-        minFilter: 9987,
-        wrapS: 10497,
-        wrapT: 10497
+    ] : []
+  ];
+  const negZeroClean = (v) => v === 0 ? 0 : -v;
+  const packScene = (rotateY180) => {
+    const chunks = [];
+    let byteOffset = 0;
+    const bufferViews = [];
+    const accessors = [];
+    const pushBufferSlice = (bytes, target) => {
+      const pad = (4 - byteOffset % 4) % 4;
+      if (pad > 0) {
+        chunks.push(new Uint8Array(pad));
+        byteOffset += pad;
       }
-    ],
-    accessors,
-    bufferViews,
-    buffers: [{ byteLength: binBytes.length }]
+      const bvIdx = bufferViews.length;
+      const bv = {
+        buffer: 0,
+        byteOffset,
+        byteLength: bytes.length
+      };
+      if (target) bv.target = target;
+      bufferViews.push(bv);
+      chunks.push(bytes);
+      byteOffset += bytes.length;
+      return bvIdx;
+    };
+    const images = [];
+    const textures = [];
+    for (const td of textureDefs) {
+      const bvIdx = pushBufferSlice(td.bytes);
+      const imgIdx = images.length;
+      images.push({ name: td.name, mimeType: "image/png", bufferView: bvIdx });
+      textures.push({ sampler: 0, source: imgIdx });
+    }
+    const ibmArray = new Float32Array(bones.length * 16);
+    for (let i2 = 0; i2 < bones.length; i2++) {
+      const wp = bones[i2].worldPos;
+      const wx = rotateY180 ? negZeroClean(wp[0]) : wp[0];
+      const wy = wp[1];
+      const wz = rotateY180 ? negZeroClean(wp[2]) : wp[2];
+      const base = i2 * 16;
+      ibmArray[base + 0] = 1;
+      ibmArray[base + 5] = 1;
+      ibmArray[base + 10] = 1;
+      ibmArray[base + 12] = -wx;
+      ibmArray[base + 13] = -wy;
+      ibmArray[base + 14] = -wz;
+      ibmArray[base + 15] = 1;
+    }
+    const ibmBv = pushBufferSlice(new Uint8Array(ibmArray.buffer));
+    const ibmAccessorIdx = accessors.length;
+    accessors.push({ bufferView: ibmBv, componentType: 5126, count: bones.length, type: "MAT4" });
+    let totalVertices = 0;
+    let totalTriangles = 0;
+    const gltfMeshes = [];
+    for (let pIdx = 0; pIdx < primitives.length; pIdx++) {
+      const prim = primitives[pIdx];
+      const vertCount = prim.positions.length / 3;
+      totalVertices += vertCount;
+      totalTriangles += prim.indices.length / 3;
+      const posArr = new Float32Array(prim.positions);
+      if (rotateY180) {
+        for (let i2 = 0; i2 < posArr.length; i2 += 3) {
+          posArr[i2] = negZeroClean(posArr[i2]);
+          posArr[i2 + 2] = negZeroClean(posArr[i2 + 2]);
+        }
+      }
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+      for (let i2 = 0; i2 < posArr.length; i2 += 3) {
+        min[0] = Math.min(min[0], posArr[i2]);
+        min[1] = Math.min(min[1], posArr[i2 + 1]);
+        min[2] = Math.min(min[2], posArr[i2 + 2]);
+        max[0] = Math.max(max[0], posArr[i2]);
+        max[1] = Math.max(max[1], posArr[i2 + 1]);
+        max[2] = Math.max(max[2], posArr[i2 + 2]);
+      }
+      const posBv = pushBufferSlice(new Uint8Array(posArr.buffer), 34962);
+      const posAcc = accessors.length;
+      accessors.push({ bufferView: posBv, componentType: 5126, count: vertCount, type: "VEC3", min, max });
+      const normArr = new Float32Array(prim.normals);
+      if (rotateY180) {
+        for (let i2 = 0; i2 < normArr.length; i2 += 3) {
+          normArr[i2] = negZeroClean(normArr[i2]);
+          normArr[i2 + 2] = negZeroClean(normArr[i2 + 2]);
+        }
+      }
+      const normBv = pushBufferSlice(new Uint8Array(normArr.buffer), 34962);
+      const normAcc = accessors.length;
+      accessors.push({ bufferView: normBv, componentType: 5126, count: vertCount, type: "VEC3" });
+      const uvBv = pushBufferSlice(new Uint8Array(new Float32Array(prim.uvs).buffer), 34962);
+      const uvAcc = accessors.length;
+      accessors.push({ bufferView: uvBv, componentType: 5126, count: vertCount, type: "VEC2" });
+      const jointsBv = pushBufferSlice(new Uint8Array(prim.joints), 34962);
+      const jointsAcc = accessors.length;
+      accessors.push({ bufferView: jointsBv, componentType: 5121, count: vertCount, type: "VEC4" });
+      const weightsBv = pushBufferSlice(new Uint8Array(new Float32Array(prim.weights).buffer), 34962);
+      const weightsAcc = accessors.length;
+      accessors.push({ bufferView: weightsBv, componentType: 5126, count: vertCount, type: "VEC4" });
+      const indexArr = new Uint32Array(prim.indices);
+      const indexBv = pushBufferSlice(new Uint8Array(indexArr.buffer), 34963);
+      const indexAcc = accessors.length;
+      accessors.push({ bufferView: indexBv, componentType: 5125, count: indexArr.length, type: "SCALAR" });
+      const primAttributes = {
+        POSITION: posAcc,
+        NORMAL: normAcc,
+        TEXCOORD_0: uvAcc,
+        JOINTS_0: jointsAcc,
+        WEIGHTS_0: weightsAcc
+      };
+      if (prim.colors && prim.colors.length === vertCount * 4) {
+        const colBv = pushBufferSlice(new Uint8Array(new Float32Array(prim.colors).buffer), 34962);
+        const colAcc = accessors.length;
+        accessors.push({ bufferView: colBv, componentType: 5126, count: vertCount, type: "VEC4" });
+        primAttributes.COLOR_0 = colAcc;
+      }
+      const primEntry = {
+        attributes: primAttributes,
+        indices: indexAcc,
+        material: prim.materialIndex
+      };
+      const morphs = precomputedMorphs[pIdx];
+      if (prim.hasMorphTargets && morphs.length > 0) {
+        const targetsArray = [];
+        for (const m2 of morphs) {
+          const deltas = rotateY180 ? new Float32Array(m2.deltas) : m2.deltas;
+          if (rotateY180) {
+            for (let i2 = 0; i2 < deltas.length; i2 += 3) {
+              deltas[i2] = negZeroClean(deltas[i2]);
+              deltas[i2 + 2] = negZeroClean(deltas[i2 + 2]);
+            }
+          }
+          const mMin = [Infinity, Infinity, Infinity];
+          const mMax = [-Infinity, -Infinity, -Infinity];
+          for (let i2 = 0; i2 < deltas.length; i2 += 3) {
+            mMin[0] = Math.min(mMin[0], deltas[i2]);
+            mMin[1] = Math.min(mMin[1], deltas[i2 + 1]);
+            mMin[2] = Math.min(mMin[2], deltas[i2 + 2]);
+            mMax[0] = Math.max(mMax[0], deltas[i2]);
+            mMax[1] = Math.max(mMax[1], deltas[i2 + 1]);
+            mMax[2] = Math.max(mMax[2], deltas[i2 + 2]);
+          }
+          const mBv = pushBufferSlice(new Uint8Array(deltas.buffer), 34962);
+          const mAcc = accessors.length;
+          accessors.push({
+            bufferView: mBv,
+            componentType: 5126,
+            count: vertCount,
+            type: "VEC3",
+            min: mMin,
+            max: mMax
+          });
+          targetsArray.push({ POSITION: mAcc });
+        }
+        primEntry.targets = targetsArray;
+      }
+      const meshObj = {
+        name: prim.name,
+        primitives: [primEntry]
+      };
+      if (prim.hasMorphTargets) {
+        meshObj.extras = { targetNames: MORPH_EXPRESSION_NAMES };
+      }
+      gltfMeshes.push(meshObj);
+    }
+    const nodes = [];
+    const boneChildrenMap = /* @__PURE__ */ new Map();
+    bones.forEach((b, i2) => {
+      if (b.parent >= 0) {
+        const list = boneChildrenMap.get(b.parent) ?? [];
+        list.push(i2 + 1);
+        boneChildrenMap.set(b.parent, list);
+      }
+    });
+    const meshNodeIndices = primitives.map((_, idx) => firstMeshNodeIdx + idx);
+    nodes.push({
+      name: `${spec.name.replace(/\s+/g, "_")}_Root`,
+      children: [1, ...meshNodeIndices]
+    });
+    for (let i2 = 0; i2 < bones.length; i2++) {
+      const b = bones[i2];
+      const tr = rotateY180 ? [negZeroClean(b.localPos[0]), b.localPos[1], negZeroClean(b.localPos[2])] : b.localPos;
+      const nodeObj = {
+        name: b.name,
+        translation: tr
+      };
+      const ch = boneChildrenMap.get(i2);
+      if (ch && ch.length > 0) {
+        nodeObj.children = ch;
+      }
+      nodes.push(nodeObj);
+    }
+    for (let mIdx = 0; mIdx < primitives.length; mIdx++) {
+      nodes.push({
+        name: primitives[mIdx].name,
+        mesh: mIdx,
+        skin: 0
+      });
+    }
+    const jointNodeIndices = bones.map((_, i2) => i2 + 1);
+    const binBytes = new Uint8Array(byteOffset);
+    let writePtr = 0;
+    for (const ch of chunks) {
+      binBytes.set(ch, writePtr);
+      writePtr += ch.length;
+    }
+    const baseGltf = {
+      asset: {
+        version: "2.0",
+        generator: `VRM Forge Studio High-Detail Anatomical Sculptor (glTF 2.0 + VRM ${targetVrmVersion})`
+      },
+      scene: 0,
+      scenes: [{ name: "Scene", nodes: [0] }],
+      nodes,
+      meshes: gltfMeshes,
+      skins: [
+        {
+          name: "HumanoidArmature",
+          inverseBindMatrices: ibmAccessorIdx,
+          skeleton: 1,
+          joints: jointNodeIndices
+        }
+      ],
+      materials,
+      textures,
+      images,
+      samplers: [
+        {
+          magFilter: 9729,
+          minFilter: 9987,
+          wrapS: 10497,
+          wrapT: 10497
+        }
+      ],
+      accessors,
+      bufferViews,
+      buffers: [{ byteLength: binBytes.length }]
+    };
+    return { baseGltf, binBytes, totalVertices, totalTriangles, texturesCount: textures.length };
   };
-  const glbBuffer = packGlbBinary(baseGltf, binBytes);
-  const vrmGltf = {
-    ...baseGltf,
+  const glbPack = packScene(false);
+  const glbBuffer = packGlbBinary(glbPack.baseGltf, glbPack.binBytes);
+  if (mode === "glb_only") {
+    return {
+      vrmBuffer: glbBuffer,
+      glbBuffer,
+      stats: {
+        vertexCount: glbPack.totalVertices,
+        triangleCount: glbPack.totalTriangles,
+        boneCount: bones.length,
+        materialCount: materials.length,
+        textureCount: glbPack.texturesCount,
+        expressionCount: Object.keys(expressionPresetMap).length,
+        springBoneJointCount: springJointDefs.length
+      }
+    };
+  }
+  const vrmPack = targetVrmVersion === "0.0" ? packScene(true) : glbPack;
+  const meshNodesMap = primitives.map((_, idx) => ({
+    meshIndex: idx,
+    nodeIndex: firstMeshNodeIdx + idx
+  }));
+  const vrmGltf = targetVrmVersion === "0.0" ? {
+    ...vrmPack.baseGltf,
+    extensionsUsed: ["VRM"],
+    extensions: {
+      VRM: buildVrm0Extension({
+        meta: effectiveMeta,
+        humanBones,
+        headScale: spec.proportions.headScale,
+        meshNodes: meshNodesMap,
+        expressionPresetBinds,
+        colliderGroups: vrm0ColliderGroups,
+        boneGroups: vrm0BoneGroups
+      })
+    }
+  } : {
+    ...vrmPack.baseGltf,
     extensionsUsed: ["VRMC_vrm", "VRMC_springBone"],
     extensions: {
       VRMC_vrm: {
         specVersion: "1.0",
-        meta: {
-          name: spec.name,
-          version: `1.${spec.version}.0`,
-          authors: ["VRM Forge Studio"],
-          copyrightInformation: "Generated with VRM Forge Studio",
-          contactInformation: "",
-          references: [],
-          licenseUrl: "https://vrm.dev/licenses/1.0/",
-          avatarPermission: "everyone",
-          allowExcessivelyViolentUsage: false,
-          allowExcessivelySexualUsage: false,
-          commercialUsage: "personalNonProfit",
-          allowPoliticalOrReligiousUsage: false,
-          allowAntisocialOrHateUsage: false,
-          creditNotation: "unnecessary",
-          allowRedistribution: true,
-          modification: "allowModificationRedistribution"
-        },
+        meta: buildVrm1MetaBlock(effectiveMeta),
         humanoid: { humanBones },
         firstPerson: { meshAnnotations: [] },
         lookAt: {
@@ -50438,21 +50838,16 @@ function assembleGltfPackage(spec, bones, primitives, texPx, includeNormalMaps) 
       }
     }
   };
-  for (const req of VRM_REQUIRED_HUMANOID_BONES) {
-    if (!humanBones[req]) {
-      throw new Error(`Internal builder error: missing required VRM bone ${req}`);
-    }
-  }
-  const vrmBuffer = packGlbBinary(vrmGltf, binBytes);
+  const vrmBuffer = packGlbBinary(vrmGltf, vrmPack.binBytes);
   return {
     vrmBuffer,
     glbBuffer,
     stats: {
-      vertexCount: totalVertices,
-      triangleCount: totalTriangles,
+      vertexCount: vrmPack.totalVertices,
+      triangleCount: vrmPack.totalTriangles,
       boneCount: bones.length,
       materialCount: materials.length,
-      textureCount: textures.length,
+      textureCount: vrmPack.texturesCount,
       expressionCount: Object.keys(expressionPresetMap).length,
       springBoneJointCount: springJointDefs.length
     }
@@ -50512,8 +50907,8 @@ function buildCharacterVrmAndGlb(spec) {
     Math.min(512, textureResolutionToTargetPx(spec.qualityConfig.textureResolution))
   );
   const tPkg0 = performance.now();
-  const vrmPackage = assembleGltfPackage(spec, bones, vrmPrimitives, packedTexturePx, true);
-  const sourcePackage = isUnoptimized ? vrmPackage : assembleGltfPackage(spec, bones, sourcePrimitives, sourceTexPx, true);
+  const vrmPackage = assembleGltfPackage(spec, bones, vrmPrimitives, packedTexturePx, true, "both");
+  const sourcePackage = isUnoptimized ? vrmPackage : assembleGltfPackage(spec, bones, sourcePrimitives, sourceTexPx, true, "glb_only");
   const totalPkgMs = Math.max(1, Math.round(performance.now() - tPkg0));
   const materialsMs = Math.max(1, Math.round(totalPkgMs * 0.45));
   const facialMs = Math.max(1, Math.round(totalPkgMs * 0.35));
@@ -50533,10 +50928,12 @@ function buildCharacterVrmAndGlb(spec) {
     estimatedVrmSizeKb: Math.round(vrmPackage.vrmBuffer.byteLength / 1024),
     estimatedSourceGlbSizeKb: Math.round(sourcePackage.glbBuffer.byteLength / 1024)
   };
+  const targetVrmVersion = spec.riggingRequirements.vrmVersion === "1.0" ? "1.0" : "0.0";
   return {
     vrmBuffer: vrmPackage.vrmBuffer,
     glbBuffer: vrmPackage.glbBuffer,
     sourceGlbBuffer: sourcePackage.glbBuffer,
+    vrmVersion: targetVrmVersion,
     stats: vrmPackage.stats,
     sourceStats: sourcePackage.stats,
     estimates,
@@ -50547,6 +50944,14 @@ function buildCharacterVrmAndGlb(spec) {
       riggingMs,
       facialMs,
       packageMs
+    },
+    rigReport: {
+      sourceState: "unrigged",
+      mappingSource: "generated",
+      mappedCount: bones.filter((b) => Boolean(b.vrmName)).length,
+      missingBones: [],
+      secondaryBoneCount: bones.filter((b) => !b.vrmName).length,
+      detail: `Generated sculpted 65-bone humanoid + secondary spring skeleton (${targetVrmVersion})`
     }
   };
 }
@@ -50586,8 +50991,34 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
   const targetHeight = spec.proportions.heightMeters;
   const primarySkin = externalAsset.hasExistingSkin && externalAsset.skins.length > 0 ? externalAsset.skins[0] : void 0;
   const allPrimsSkinned = Boolean(primarySkin) && flatPrims.every((p) => p.hasSkinning && p.joints && p.weights);
-  const skinMapping = primarySkin && allPrimsSkinned ? mapExistingSkinToVrmHumanoid(primarySkin, externalAsset.existingVrmHumanoid) : null;
+  const skinMapping = primarySkin && allPrimsSkinned ? mapExistingSkinToVrmHumanoid(
+    primarySkin,
+    externalAsset.existingVrmHumanoid,
+    externalAsset.sourceVrmVersion
+  ) : null;
   const preserveExistingRig = Boolean(skinMapping && skinMapping.allRequiredPresent && primarySkin);
+  const rigReport = preserveExistingRig && skinMapping && primarySkin ? {
+    sourceState: "valid_preserved",
+    mappingSource: skinMapping.mappingSource,
+    mappedCount: Object.keys(skinMapping.humanBoneToJointIndex).length,
+    missingBones: [],
+    secondaryBoneCount: skinMapping.secondaryJointIndices.length,
+    detail: `Preserved existing skeleton (${primarySkin.joints.length} joints) via ${skinMapping.mappingSource} mapping with ${skinMapping.secondaryJointIndices.length} secondary/accessory bones`
+  } : primarySkin ? {
+    sourceState: "replaced",
+    mappingSource: "generated",
+    mappedCount: 55,
+    missingBones: skinMapping?.missingRequired ?? [...VRM_REQUIRED_HUMANOID_BONES],
+    secondaryBoneCount: 10,
+    detail: `Replaced incomplete/unskinned source rig (missing: ${(skinMapping?.missingRequired ?? []).join(", ") || "skinning weights"}) with silhouette-fitted humanoid armature`
+  } : {
+    sourceState: "unrigged",
+    mappingSource: "generated",
+    mappedCount: 55,
+    missingBones: [],
+    secondaryBoneCount: 10,
+    detail: "Fitted 65-bone humanoid armature & Laplacian-smoothed capsule skin weights onto unrigged GLB"
+  };
   const tRig0 = performance.now();
   let scale = 1;
   let offsetX = 0;
@@ -50823,39 +51254,14 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
     }
   }
   const riggingMs = Math.max(1, Math.round(performance.now() - tRig0));
+  const targetVrmVersion = spec.riggingRequirements.vrmVersion === "1.0" ? "1.0" : "0.0";
+  const lArmNodeIdx = humanBones["leftUpperArm"]?.node ? humanBones["leftUpperArm"].node - 1 : -1;
+  const rArmNodeIdx = humanBones["rightUpperArm"]?.node ? humanBones["rightUpperArm"].node - 1 : -1;
+  const lArmX = lArmNodeIdx >= 0 ? jointNodes[lArmNodeIdx]?.worldPos[0] ?? 0.15 : 0.15;
+  const rArmX = rArmNodeIdx >= 0 ? jointNodes[rArmNodeIdx]?.worldPos[0] ?? -0.15 : -0.15;
+  const currentlyFacesPlusZ = Math.abs(lArmX - rArmX) > 1e-4 ? lArmX > rArmX : faceForwardSign === 1;
+  const rotateVrmY180 = targetVrmVersion === "0.0" && currentlyFacesPlusZ || targetVrmVersion === "1.0" && !currentlyFacesPlusZ;
   const tMat0 = performance.now();
-  const chunks = [];
-  let byteOffset = 0;
-  const bufferViews = [];
-  const accessors = [];
-  const pushBufferSlice = (bytes, target) => {
-    const pad = (4 - byteOffset % 4) % 4;
-    if (pad > 0) {
-      chunks.push(new Uint8Array(pad));
-      byteOffset += pad;
-    }
-    const bvIdx = bufferViews.length;
-    const bv = {
-      buffer: 0,
-      byteOffset,
-      byteLength: bytes.length
-    };
-    if (target) bv.target = target;
-    bufferViews.push(bv);
-    chunks.push(bytes);
-    byteOffset += bytes.length;
-    return bvIdx;
-  };
-  const imagesOut = [];
-  for (const img of externalAsset.images || []) {
-    if (img.bytes.byteLength === 0) continue;
-    const bvIdx = pushBufferSlice(img.bytes);
-    imagesOut.push({
-      name: img.name || `image_${imagesOut.length}`,
-      mimeType: img.mimeType || "image/png",
-      bufferView: bvIdx
-    });
-  }
   const samplersOut = externalAsset.samplers && externalAsset.samplers.length > 0 ? externalAsset.samplers.map((s2) => ({
     ...s2.magFilter !== void 0 ? { magFilter: s2.magFilter } : { magFilter: 9729 },
     ...s2.minFilter !== void 0 ? { minFilter: s2.minFilter } : { minFilter: 9987 },
@@ -50897,93 +51303,18 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
       }
     }
   ];
-  const ibmBv = pushBufferSlice(new Uint8Array(ibmBytes.buffer));
-  const ibmAccessorIdx = accessors.length;
-  accessors.push({ bufferView: ibmBv, componentType: 5126, count: jointNodes.length, type: "MAT4" });
   const materialsMs = Math.max(1, Math.round(performance.now() - tMat0));
   const tFace0 = performance.now();
   const useUint16Joints = jointNodes.length > 255;
-  const gltfMeshes = [];
   const expressionPresetBinds = {};
   let totalTriangles = 0;
   let preservedMorphCount = 0;
   let synthesizedMorphCount = 0;
   const meshNodeFirstIndex = 1 + jointNodes.length;
-  for (let pIdx = 0; pIdx < flatPrims.length; pIdx++) {
-    const srcPrim = flatPrims[pIdx];
-    const scaledPos = primPositions[pIdx];
-    const vertCount = Math.floor(scaledPos.length / 3);
+  const primMorphBuilds = flatPrims.map((srcPrim, pIdx) => {
     totalTriangles += Math.floor(srcPrim.indices.length / 3);
-    const min = [Infinity, Infinity, Infinity];
-    const max = [-Infinity, -Infinity, -Infinity];
-    for (let i2 = 0; i2 < scaledPos.length; i2 += 3) {
-      min[0] = Math.min(min[0], scaledPos[i2]);
-      min[1] = Math.min(min[1], scaledPos[i2 + 1]);
-      min[2] = Math.min(min[2], scaledPos[i2 + 2]);
-      max[0] = Math.max(max[0], scaledPos[i2]);
-      max[1] = Math.max(max[1], scaledPos[i2 + 1]);
-      max[2] = Math.max(max[2], scaledPos[i2 + 2]);
-    }
-    const posBv = pushBufferSlice(new Uint8Array(scaledPos.buffer), 34962);
-    const posAcc = accessors.length;
-    accessors.push({ bufferView: posBv, componentType: 5126, count: vertCount, type: "VEC3", min, max });
-    const normArr = srcPrim.normals.length >= vertCount * 3 ? new Float32Array(srcPrim.normals.subarray(0, vertCount * 3)) : new Float32Array(vertCount * 3);
-    const normBv = pushBufferSlice(new Uint8Array(normArr.buffer), 34962);
-    const normAcc = accessors.length;
-    accessors.push({ bufferView: normBv, componentType: 5126, count: vertCount, type: "VEC3" });
-    const uvArr = srcPrim.uvs.length >= vertCount * 2 ? new Float32Array(srcPrim.uvs.subarray(0, vertCount * 2)) : new Float32Array(vertCount * 2);
-    const uvBv = pushBufferSlice(new Uint8Array(uvArr.buffer), 34962);
-    const uvAcc = accessors.length;
-    accessors.push({ bufferView: uvBv, componentType: 5126, count: vertCount, type: "VEC2" });
-    const primAttributes = {
-      POSITION: posAcc,
-      NORMAL: normAcc,
-      TEXCOORD_0: uvAcc
-    };
-    if (srcPrim.uvs1 && srcPrim.uvs1.length >= vertCount * 2) {
-      const uv1Arr = new Float32Array(srcPrim.uvs1.subarray(0, vertCount * 2));
-      const uv1Bv = pushBufferSlice(new Uint8Array(uv1Arr.buffer), 34962);
-      const uv1Acc = accessors.length;
-      accessors.push({ bufferView: uv1Bv, componentType: 5126, count: vertCount, type: "VEC2" });
-      primAttributes.TEXCOORD_1 = uv1Acc;
-    }
-    if (srcPrim.colors && srcPrim.colors.length >= vertCount * 4) {
-      const colArr = new Float32Array(srcPrim.colors.subarray(0, vertCount * 4));
-      const colBv = pushBufferSlice(new Uint8Array(colArr.buffer), 34962);
-      const colAcc = accessors.length;
-      accessors.push({ bufferView: colBv, componentType: 5126, count: vertCount, type: "VEC4" });
-      primAttributes.COLOR_0 = colAcc;
-    }
-    const jSrc = primJoints[pIdx];
-    if (useUint16Joints) {
-      const jBv = pushBufferSlice(new Uint8Array(jSrc.buffer.slice(0)), 34962);
-      const jAcc = accessors.length;
-      accessors.push({ bufferView: jBv, componentType: 5123, count: vertCount, type: "VEC4" });
-      primAttributes.JOINTS_0 = jAcc;
-    } else {
-      const jBytes = new Uint8Array(vertCount * 4);
-      for (let i2 = 0; i2 < vertCount * 4; i2++) jBytes[i2] = jSrc[i2];
-      const jBv = pushBufferSlice(jBytes, 34962);
-      const jAcc = accessors.length;
-      accessors.push({ bufferView: jBv, componentType: 5121, count: vertCount, type: "VEC4" });
-      primAttributes.JOINTS_0 = jAcc;
-    }
-    const wArr = primWeights[pIdx];
-    const wBv = pushBufferSlice(new Uint8Array(wArr.buffer.slice(0)), 34962);
-    const wAcc = accessors.length;
-    accessors.push({ bufferView: wBv, componentType: 5126, count: vertCount, type: "VEC4" });
-    primAttributes.WEIGHTS_0 = wAcc;
-    const indexArr = new Uint32Array(srcPrim.indices);
-    const indexBv = pushBufferSlice(new Uint8Array(indexArr.buffer), 34963);
-    const indexAcc = accessors.length;
-    accessors.push({ bufferView: indexBv, componentType: 5125, count: indexArr.length, type: "SCALAR" });
-    const primEntry = {
-      attributes: primAttributes,
-      indices: indexAcc,
-      material: Math.min(srcPrim.materialIndex, materialsOut.length - 1)
-    };
     const morphBuild = buildOrPreserveMorphTargetsForExternalPrimitive(
-      scaledPos,
+      primPositions[pIdx],
       srcPrim.morphTargets,
       scale,
       headBoneY,
@@ -50994,31 +51325,6 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
     preservedMorphCount += morphBuild.preservedCount;
     synthesizedMorphCount += morphBuild.synthesizedCount;
     if (morphBuild.targets.length > 0) {
-      const targetsArray = [];
-      for (const m2 of morphBuild.targets) {
-        const mMin = [Infinity, Infinity, Infinity];
-        const mMax = [-Infinity, -Infinity, -Infinity];
-        for (let i2 = 0; i2 < m2.deltas.length; i2 += 3) {
-          mMin[0] = Math.min(mMin[0], m2.deltas[i2]);
-          mMin[1] = Math.min(mMin[1], m2.deltas[i2 + 1]);
-          mMin[2] = Math.min(mMin[2], m2.deltas[i2 + 2]);
-          mMax[0] = Math.max(mMax[0], m2.deltas[i2]);
-          mMax[1] = Math.max(mMax[1], m2.deltas[i2 + 1]);
-          mMax[2] = Math.max(mMax[2], m2.deltas[i2 + 2]);
-        }
-        const mBv = pushBufferSlice(new Uint8Array(m2.deltas.buffer), 34962);
-        const mAcc = accessors.length;
-        accessors.push({
-          bufferView: mBv,
-          componentType: 5126,
-          count: vertCount,
-          type: "VEC3",
-          min: mMin,
-          max: mMax
-        });
-        targetsArray.push({ POSITION: mAcc });
-      }
-      primEntry.targets = targetsArray;
       const nodeIdx = meshNodeFirstIndex + pIdx;
       for (const [presetName, targetIdx] of Object.entries(morphBuild.presetToTargetIndex)) {
         const arr = expressionPresetBinds[presetName] ?? [];
@@ -51026,55 +51332,268 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
         expressionPresetBinds[presetName] = arr;
       }
     }
-    const meshObj = {
-      name: srcPrim.name,
-      primitives: [primEntry]
-    };
-    if (morphBuild.targets.length > 0) {
-      meshObj.extras = { targetNames: morphBuild.targets.map((t2) => t2.name) };
-    }
-    gltfMeshes.push(meshObj);
-  }
+    return morphBuild;
+  });
   const facialMs = Math.max(1, Math.round(performance.now() - tFace0));
   const tPkg0 = performance.now();
-  const nodes = [];
-  const boneChildrenMap = /* @__PURE__ */ new Map();
-  jointNodes.forEach((b, i2) => {
-    if (b.parent >= 0) {
-      const ch = boneChildrenMap.get(b.parent) ?? [];
-      ch.push(i2 + 1);
-      boneChildrenMap.set(b.parent, ch);
-    }
-  });
-  const rootJointChildren = [];
-  jointNodes.forEach((b, i2) => {
-    if (b.parent < 0) rootJointChildren.push(i2 + 1);
-  });
-  const meshNodeIndices = flatPrims.map((_, idx) => meshNodeFirstIndex + idx);
-  nodes.push({
-    name: `${spec.name.replace(/\s+/g, "_")}_Root`,
-    children: [...rootJointChildren, ...meshNodeIndices]
-  });
-  for (let i2 = 0; i2 < jointNodes.length; i2++) {
-    const b = jointNodes[i2];
-    const nodeObj = {
-      name: b.name,
-      translation: b.translation
+  const negZeroClean = (v) => v === 0 ? 0 : -v;
+  const packExternalScene = (rotateY180) => {
+    const chunks = [];
+    let byteOffset = 0;
+    const bufferViews = [];
+    const accessors = [];
+    const pushBufferSlice = (bytes, target) => {
+      const pad = (4 - byteOffset % 4) % 4;
+      if (pad > 0) {
+        chunks.push(new Uint8Array(pad));
+        byteOffset += pad;
+      }
+      const bvIdx = bufferViews.length;
+      const bv = {
+        buffer: 0,
+        byteOffset,
+        byteLength: bytes.length
+      };
+      if (target) bv.target = target;
+      bufferViews.push(bv);
+      chunks.push(bytes);
+      byteOffset += bytes.length;
+      return bvIdx;
     };
-    if (b.rotation) nodeObj.rotation = b.rotation;
-    if (b.scale) nodeObj.scale = b.scale;
-    const ch = boneChildrenMap.get(i2);
-    if (ch && ch.length > 0) nodeObj.children = ch;
-    nodes.push(nodeObj);
-  }
-  for (let mIdx = 0; mIdx < flatPrims.length; mIdx++) {
-    nodes.push({
-      name: flatPrims[mIdx].name,
-      mesh: mIdx,
-      skin: 0
+    const imagesOut2 = [];
+    for (const img of externalAsset.images || []) {
+      if (img.bytes.byteLength === 0) continue;
+      const bvIdx = pushBufferSlice(img.bytes);
+      imagesOut2.push({
+        name: img.name || `image_${imagesOut2.length}`,
+        mimeType: img.mimeType || "image/png",
+        bufferView: bvIdx
+      });
+    }
+    const ibmCopy = new Float32Array(ibmBytes);
+    if (rotateY180) {
+      for (let i2 = 0; i2 < jointNodes.length; i2++) {
+        const b = i2 * 16;
+        ibmCopy[b + 1] = negZeroClean(ibmCopy[b + 1]);
+        ibmCopy[b + 3] = negZeroClean(ibmCopy[b + 3]);
+        ibmCopy[b + 4] = negZeroClean(ibmCopy[b + 4]);
+        ibmCopy[b + 6] = negZeroClean(ibmCopy[b + 6]);
+        ibmCopy[b + 9] = negZeroClean(ibmCopy[b + 9]);
+        ibmCopy[b + 11] = negZeroClean(ibmCopy[b + 11]);
+        ibmCopy[b + 12] = negZeroClean(ibmCopy[b + 12]);
+        ibmCopy[b + 14] = negZeroClean(ibmCopy[b + 14]);
+      }
+    }
+    const ibmBv = pushBufferSlice(new Uint8Array(ibmCopy.buffer));
+    const ibmAccessorIdx = accessors.length;
+    accessors.push({ bufferView: ibmBv, componentType: 5126, count: jointNodes.length, type: "MAT4" });
+    const gltfMeshes = [];
+    for (let pIdx = 0; pIdx < flatPrims.length; pIdx++) {
+      const srcPrim = flatPrims[pIdx];
+      const scaledPos = new Float32Array(primPositions[pIdx]);
+      if (rotateY180) {
+        for (let i2 = 0; i2 < scaledPos.length; i2 += 3) {
+          scaledPos[i2] = negZeroClean(scaledPos[i2]);
+          scaledPos[i2 + 2] = negZeroClean(scaledPos[i2 + 2]);
+        }
+      }
+      const vertCount = Math.floor(scaledPos.length / 3);
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+      for (let i2 = 0; i2 < scaledPos.length; i2 += 3) {
+        min[0] = Math.min(min[0], scaledPos[i2]);
+        min[1] = Math.min(min[1], scaledPos[i2 + 1]);
+        min[2] = Math.min(min[2], scaledPos[i2 + 2]);
+        max[0] = Math.max(max[0], scaledPos[i2]);
+        max[1] = Math.max(max[1], scaledPos[i2 + 1]);
+        max[2] = Math.max(max[2], scaledPos[i2 + 2]);
+      }
+      const posBv = pushBufferSlice(new Uint8Array(scaledPos.buffer), 34962);
+      const posAcc = accessors.length;
+      accessors.push({ bufferView: posBv, componentType: 5126, count: vertCount, type: "VEC3", min, max });
+      const normArr = srcPrim.normals.length >= vertCount * 3 ? new Float32Array(srcPrim.normals.subarray(0, vertCount * 3)) : new Float32Array(vertCount * 3);
+      if (rotateY180) {
+        for (let i2 = 0; i2 < normArr.length; i2 += 3) {
+          normArr[i2] = negZeroClean(normArr[i2]);
+          normArr[i2 + 2] = negZeroClean(normArr[i2 + 2]);
+        }
+      }
+      const normBv = pushBufferSlice(new Uint8Array(normArr.buffer), 34962);
+      const normAcc = accessors.length;
+      accessors.push({ bufferView: normBv, componentType: 5126, count: vertCount, type: "VEC3" });
+      const uvArr = srcPrim.uvs.length >= vertCount * 2 ? new Float32Array(srcPrim.uvs.subarray(0, vertCount * 2)) : new Float32Array(vertCount * 2);
+      const uvBv = pushBufferSlice(new Uint8Array(uvArr.buffer), 34962);
+      const uvAcc = accessors.length;
+      accessors.push({ bufferView: uvBv, componentType: 5126, count: vertCount, type: "VEC2" });
+      const primAttributes = {
+        POSITION: posAcc,
+        NORMAL: normAcc,
+        TEXCOORD_0: uvAcc
+      };
+      if (srcPrim.uvs1 && srcPrim.uvs1.length >= vertCount * 2) {
+        const uv1Arr = new Float32Array(srcPrim.uvs1.subarray(0, vertCount * 2));
+        const uv1Bv = pushBufferSlice(new Uint8Array(uv1Arr.buffer), 34962);
+        const uv1Acc = accessors.length;
+        accessors.push({ bufferView: uv1Bv, componentType: 5126, count: vertCount, type: "VEC2" });
+        primAttributes.TEXCOORD_1 = uv1Acc;
+      }
+      if (srcPrim.colors && srcPrim.colors.length >= vertCount * 4) {
+        const colArr = new Float32Array(srcPrim.colors.subarray(0, vertCount * 4));
+        const colBv = pushBufferSlice(new Uint8Array(colArr.buffer), 34962);
+        const colAcc = accessors.length;
+        accessors.push({ bufferView: colBv, componentType: 5126, count: vertCount, type: "VEC4" });
+        primAttributes.COLOR_0 = colAcc;
+      }
+      const jSrc = primJoints[pIdx];
+      if (useUint16Joints) {
+        const jBv = pushBufferSlice(new Uint8Array(jSrc.buffer.slice(0)), 34962);
+        const jAcc = accessors.length;
+        accessors.push({ bufferView: jBv, componentType: 5123, count: vertCount, type: "VEC4" });
+        primAttributes.JOINTS_0 = jAcc;
+      } else {
+        const jBytes = new Uint8Array(vertCount * 4);
+        for (let i2 = 0; i2 < vertCount * 4; i2++) jBytes[i2] = jSrc[i2];
+        const jBv = pushBufferSlice(jBytes, 34962);
+        const jAcc = accessors.length;
+        accessors.push({ bufferView: jBv, componentType: 5121, count: vertCount, type: "VEC4" });
+        primAttributes.JOINTS_0 = jAcc;
+      }
+      const wArr = primWeights[pIdx];
+      const wBv = pushBufferSlice(new Uint8Array(wArr.buffer.slice(0)), 34962);
+      const wAcc = accessors.length;
+      accessors.push({ bufferView: wBv, componentType: 5126, count: vertCount, type: "VEC4" });
+      primAttributes.WEIGHTS_0 = wAcc;
+      const indexArr = new Uint32Array(srcPrim.indices);
+      const indexBv = pushBufferSlice(new Uint8Array(indexArr.buffer), 34963);
+      const indexAcc = accessors.length;
+      accessors.push({ bufferView: indexBv, componentType: 5125, count: indexArr.length, type: "SCALAR" });
+      const primEntry = {
+        attributes: primAttributes,
+        indices: indexAcc,
+        material: Math.min(srcPrim.materialIndex, materialsOut.length - 1)
+      };
+      const morphBuild = primMorphBuilds[pIdx];
+      if (morphBuild.targets.length > 0) {
+        const targetsArray = [];
+        for (const m2 of morphBuild.targets) {
+          const deltas = rotateY180 ? new Float32Array(m2.deltas) : m2.deltas;
+          if (rotateY180) {
+            for (let i2 = 0; i2 < deltas.length; i2 += 3) {
+              deltas[i2] = negZeroClean(deltas[i2]);
+              deltas[i2 + 2] = negZeroClean(deltas[i2 + 2]);
+            }
+          }
+          const mMin = [Infinity, Infinity, Infinity];
+          const mMax = [-Infinity, -Infinity, -Infinity];
+          for (let i2 = 0; i2 < deltas.length; i2 += 3) {
+            mMin[0] = Math.min(mMin[0], deltas[i2]);
+            mMin[1] = Math.min(mMin[1], deltas[i2 + 1]);
+            mMin[2] = Math.min(mMin[2], deltas[i2 + 2]);
+            mMax[0] = Math.max(mMax[0], deltas[i2]);
+            mMax[1] = Math.max(mMax[1], deltas[i2 + 1]);
+            mMax[2] = Math.max(mMax[2], deltas[i2 + 2]);
+          }
+          const mBv = pushBufferSlice(new Uint8Array(deltas.buffer), 34962);
+          const mAcc = accessors.length;
+          accessors.push({
+            bufferView: mBv,
+            componentType: 5126,
+            count: vertCount,
+            type: "VEC3",
+            min: mMin,
+            max: mMax
+          });
+          targetsArray.push({ POSITION: mAcc });
+        }
+        primEntry.targets = targetsArray;
+      }
+      const meshObj = {
+        name: srcPrim.name,
+        primitives: [primEntry]
+      };
+      if (morphBuild.targets.length > 0) {
+        meshObj.extras = { targetNames: morphBuild.targets.map((t2) => t2.name) };
+      }
+      gltfMeshes.push(meshObj);
+    }
+    const nodes = [];
+    const boneChildrenMap = /* @__PURE__ */ new Map();
+    jointNodes.forEach((b, i2) => {
+      if (b.parent >= 0) {
+        const ch = boneChildrenMap.get(b.parent) ?? [];
+        ch.push(i2 + 1);
+        boneChildrenMap.set(b.parent, ch);
+      }
     });
-  }
-  const jointNodeIndices = jointNodes.map((_, i2) => i2 + 1);
+    const rootJointChildren = [];
+    jointNodes.forEach((b, i2) => {
+      if (b.parent < 0) rootJointChildren.push(i2 + 1);
+    });
+    const meshNodeIndices = flatPrims.map((_, idx) => meshNodeFirstIndex + idx);
+    nodes.push({
+      name: `${spec.name.replace(/\s+/g, "_")}_Root`,
+      children: [...rootJointChildren, ...meshNodeIndices]
+    });
+    for (let i2 = 0; i2 < jointNodes.length; i2++) {
+      const b = jointNodes[i2];
+      const tr = rotateY180 ? [negZeroClean(b.translation[0]), b.translation[1], negZeroClean(b.translation[2])] : b.translation;
+      const nodeObj = {
+        name: b.name,
+        translation: tr
+      };
+      if (b.rotation) {
+        nodeObj.rotation = rotateY180 ? [negZeroClean(b.rotation[0]), b.rotation[1], negZeroClean(b.rotation[2]), b.rotation[3]] : b.rotation;
+      }
+      if (b.scale) nodeObj.scale = b.scale;
+      const ch = boneChildrenMap.get(i2);
+      if (ch && ch.length > 0) nodeObj.children = ch;
+      nodes.push(nodeObj);
+    }
+    for (let mIdx = 0; mIdx < flatPrims.length; mIdx++) {
+      nodes.push({
+        name: flatPrims[mIdx].name,
+        mesh: mIdx,
+        skin: 0
+      });
+    }
+    const jointNodeIndices = jointNodes.map((_, i2) => i2 + 1);
+    const binBytes = new Uint8Array(byteOffset);
+    let writePtr = 0;
+    for (const ch of chunks) {
+      binBytes.set(ch, writePtr);
+      writePtr += ch.length;
+    }
+    const baseGltf = {
+      asset: {
+        version: "2.0",
+        generator: `VRM Forge Studio External GLB -> VRM ${targetVrmVersion} Rigging Pipeline`
+      },
+      scene: 0,
+      scenes: [{ name: "Scene", nodes: [0] }],
+      nodes,
+      meshes: gltfMeshes,
+      skins: [
+        {
+          name: primarySkin?.name || "HumanoidArmature",
+          inverseBindMatrices: ibmAccessorIdx,
+          skeleton: skeletonRootLocalIdx + 1,
+          joints: jointNodeIndices
+        }
+      ],
+      materials: materialsOut,
+      ...texturesOut.length > 0 ? { textures: texturesOut } : {},
+      ...imagesOut2.length > 0 ? { images: imagesOut2 } : {},
+      samplers: samplersOut,
+      accessors,
+      bufferViews,
+      buffers: [{ byteLength: binBytes.length }]
+    };
+    return { baseGltf, binBytes, imagesOut: imagesOut2 };
+  };
+  const glbPack = packExternalScene(false);
+  const glbBuffer = packGlbBinary(glbPack.baseGltf, glbPack.binBytes);
+  const vrmPack = rotateVrmY180 ? packExternalScene(true) : glbPack;
+  const imagesOut = vrmPack.imagesOut;
   const expressionPresetMap = {
     neutral: { isBinary: false, morphTargetBinds: [] }
   };
@@ -51088,81 +51607,114 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
       };
     }
   }
-  const binBytes = new Uint8Array(byteOffset);
-  let writePtr = 0;
-  for (const ch of chunks) {
-    binBytes.set(ch, writePtr);
-    writePtr += ch.length;
-  }
-  const baseGltf = {
-    asset: {
-      version: "2.0",
-      generator: "VRM Forge Studio External GLB -> VRM 1.0 Rigging Pipeline"
-    },
-    scene: 0,
-    scenes: [{ name: "Scene", nodes: [0] }],
-    nodes,
-    meshes: gltfMeshes,
-    skins: [
-      {
-        name: primarySkin?.name || "HumanoidArmature",
-        inverseBindMatrices: ibmAccessorIdx,
-        skeleton: skeletonRootLocalIdx + 1,
-        joints: jointNodeIndices
-      }
-    ],
-    materials: materialsOut,
-    ...texturesOut.length > 0 ? { textures: texturesOut } : {},
-    ...imagesOut.length > 0 ? { images: imagesOut } : {},
-    samplers: samplersOut,
-    accessors,
-    bufferViews,
-    buffers: [{ byteLength: binBytes.length }]
-  };
-  const glbBuffer = packGlbBinary(baseGltf, binBytes);
-  const springBoneJointNames = [
-    "hairBackRoot",
-    "hairBackMid",
-    "hairBackTip",
-    "hairLeftRoot",
-    "hairLeftTip",
-    "hairRightRoot",
-    "hairRightTip"
-  ];
+  const effectiveMeta = resolveEffectiveVrmMetadata(spec, externalAsset.sourceVrmMeta);
   const jointIdxByName = /* @__PURE__ */ new Map();
   jointNodes.forEach((b, i2) => jointIdxByName.set(b.name, i2 + 1));
-  const springJointDefs = springBoneJointNames.map((n) => jointIdxByName.get(n)).filter((n) => n !== void 0).map((node) => ({
-    node,
-    hitRadius: 0.03,
-    stiffness: 0.65,
-    gravityPower: 0.35,
-    gravityDir: [0, -1, 0],
-    dragForce: 0.4
+  const vrm0ColliderGroups = [
+    {
+      node: humanBones.head?.node ?? 1,
+      colliders: [{ offset: { x: 0, y: 0.06 * spec.proportions.headScale, z: 0 }, radius: 0.085 }]
+    },
+    {
+      node: humanBones.upperChest?.node ?? humanBones.chest?.node ?? 1,
+      colliders: [{ offset: { x: 0, y: 0.03, z: 0 }, radius: 0.1 }]
+    }
+  ];
+  const vrm0BoneGroups = [];
+  const vrm1Springs = [];
+  let springJointCount = 0;
+  if (externalAsset.existingVrmSprings && externalAsset.existingVrmSprings.length > 0) {
+    for (const sp of externalAsset.existingVrmSprings) {
+      const rootNodes = sp.boneNames.map((bn) => jointIdxByName.get(bn)).filter((n) => n !== void 0);
+      if (rootNodes.length === 0) continue;
+      springJointCount += rootNodes.length;
+      const centerNode = sp.centerNodeName ? jointIdxByName.get(sp.centerNodeName) ?? -1 : -1;
+      const gDir = rotateVrmY180 ? [negZeroClean(sp.gravityDir[0]), sp.gravityDir[1], negZeroClean(sp.gravityDir[2])] : sp.gravityDir;
+      vrm0BoneGroups.push({
+        comment: sp.comment || "PreservedSpring",
+        stiffiness: sp.stiffiness,
+        gravityPower: sp.gravityPower,
+        gravityDir: { x: gDir[0], y: gDir[1], z: gDir[2] },
+        dragForce: sp.dragForce,
+        center: centerNode,
+        hitRadius: sp.hitRadius,
+        bones: rootNodes,
+        colliderGroups: [0, 1]
+      });
+      vrm1Springs.push({
+        name: sp.comment || "PreservedSpring",
+        joints: rootNodes.map((node) => ({
+          node,
+          hitRadius: sp.hitRadius,
+          stiffness: sp.stiffiness,
+          gravityPower: sp.gravityPower,
+          gravityDir: gDir,
+          dragForce: sp.dragForce
+        }))
+      });
+    }
+  } else {
+    const mappedNodeSet = new Set(Object.values(humanBones).map((r2) => r2.node));
+    const secRoots = jointNodes.map((b, idx) => ({ bone: b, nodeIdx: idx + 1 })).filter(({ bone, nodeIdx }) => {
+      if (mappedNodeSet.has(nodeIdx)) return false;
+      const isSecName = /^(?:j_sec_|hair|cloak|cape|skirt|ribbon|tail|ear)/i.test(bone.name);
+      if (!isSecName) return false;
+      const parentMapped = bone.parent >= 0 && mappedNodeSet.has(bone.parent + 1);
+      const parentIsSecRoot = bone.parent < 0 || parentMapped;
+      return parentIsSecRoot;
+    });
+    if (secRoots.length > 0) {
+      const rootIndices = secRoots.map((s2) => s2.nodeIdx);
+      springJointCount += rootIndices.length;
+      vrm0BoneGroups.push({
+        comment: "SecondaryHairCloakSpring",
+        stiffiness: 0.6,
+        gravityPower: 0.25,
+        gravityDir: { x: 0, y: -1, z: 0 },
+        dragForce: 0.4,
+        center: -1,
+        hitRadius: 0.025,
+        bones: rootIndices,
+        colliderGroups: [0, 1]
+      });
+      vrm1Springs.push({
+        name: "ExternalSecondarySpring",
+        joints: rootIndices.map((node) => ({
+          node,
+          hitRadius: 0.025,
+          stiffness: 0.6,
+          gravityPower: 0.25,
+          gravityDir: [0, -1, 0],
+          dragForce: 0.4
+        }))
+      });
+    }
+  }
+  const meshNodesMap = flatPrims.map((_, idx) => ({
+    meshIndex: idx,
+    nodeIndex: meshNodeFirstIndex + idx
   }));
-  const vrmGltf = {
-    ...baseGltf,
-    extensionsUsed: ["VRMC_vrm", ...springJointDefs.length > 0 ? ["VRMC_springBone"] : []],
+  const vrmGltf = targetVrmVersion === "0.0" ? {
+    ...vrmPack.baseGltf,
+    extensionsUsed: ["VRM"],
+    extensions: {
+      VRM: buildVrm0Extension({
+        meta: effectiveMeta,
+        humanBones,
+        headScale: spec.proportions.headScale,
+        meshNodes: meshNodesMap,
+        expressionPresetBinds,
+        colliderGroups: vrm0ColliderGroups,
+        boneGroups: vrm0BoneGroups
+      })
+    }
+  } : {
+    ...vrmPack.baseGltf,
+    extensionsUsed: ["VRMC_vrm", ...vrm1Springs.length > 0 ? ["VRMC_springBone"] : []],
     extensions: {
       VRMC_vrm: {
         specVersion: "1.0",
-        meta: {
-          name: spec.name,
-          version: `1.${spec.version}.0`,
-          authors: ["VRM Forge Studio"],
-          copyrightInformation: "Converted with VRM Forge Studio",
-          contactInformation: "",
-          references: [],
-          licenseUrl: "https://vrm.dev/licenses/1.0/",
-          avatarPermission: "everyone",
-          allowExcessivelyViolentUsage: false,
-          allowExcessivelySexualUsage: false,
-          commercialUsage: "personalNonProfit",
-          allowPoliticalOrReligiousUsage: false,
-          allowAntisocialOrHateUsage: false,
-          creditNotation: "unnecessary",
-          allowRedistribution: true,
-          modification: "allowModificationRedistribution"
-        },
+        meta: buildVrm1MetaBlock(effectiveMeta),
         humanoid: { humanBones },
         firstPerson: { meshAnnotations: [] },
         lookAt: {
@@ -51175,15 +51727,15 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
         },
         expressions: { preset: expressionPresetMap }
       },
-      ...springJointDefs.length > 0 ? {
+      ...vrm1Springs.length > 0 ? {
         VRMC_springBone: {
           specVersion: "1.0",
-          springs: [{ name: "ExternalSecondarySpring", joints: springJointDefs }]
+          springs: vrm1Springs
         }
       } : {}
     }
   };
-  const vrmBuffer = packGlbBinary(vrmGltf, binBytes);
+  const vrmBuffer = packGlbBinary(vrmGltf, vrmPack.binBytes);
   const packageMs = Math.max(1, Math.round(performance.now() - tPkg0));
   const stats = {
     vertexCount: totalVertices,
@@ -51192,7 +51744,7 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
     materialCount: materialsOut.length,
     textureCount: texturesOut.length,
     expressionCount: Object.keys(expressionPresetBinds).length,
-    springBoneJointCount: springJointDefs.length
+    springBoneJointCount: springJointCount
   };
   const textureTargetPx = textureResolutionToTargetPx(spec.qualityConfig.textureResolution);
   const packedTexturePx = resolvePackedTextureSize(spec.qualityConfig);
@@ -51222,6 +51774,7 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
     vrmBuffer,
     glbBuffer,
     sourceGlbBuffer: rawExternalGlbBuffer,
+    vrmVersion: targetVrmVersion,
     stats,
     sourceStats: stats,
     estimates: {
@@ -51243,12 +51796,13 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
       facialMs,
       packageMs
     },
-    externalAudit
+    externalAudit,
+    rigReport
   };
 }
 
 // src/shared/vrmValidator.ts
-var CORE_FACIAL_EXPRESSION_PRESETS = [
+var CORE_VRM1_EXPRESSION_PRESETS = [
   "blink",
   "blinkLeft",
   "blinkRight",
@@ -51257,12 +51811,51 @@ var CORE_FACIAL_EXPRESSION_PRESETS = [
   "sad",
   "surprised"
 ];
-function validateVrmBinary(bytes) {
+var CORE_VRM0_EXPRESSION_PRESETS = [
+  "blink",
+  "blink_l",
+  "blink_r",
+  "joy",
+  "angry",
+  "sorrow",
+  "a"
+];
+function hasNonZeroMorphDelta(acc, bufferViews, binChunk, binView) {
+  if (!acc) return false;
+  if (acc.min && acc.max && acc.min.length >= 3 && acc.max.length >= 3) {
+    const mag = Math.max(Math.abs(acc.min[0]), Math.abs(acc.max[0])) + Math.max(Math.abs(acc.min[1]), Math.abs(acc.max[1])) + Math.max(Math.abs(acc.min[2]), Math.abs(acc.max[2]));
+    if (mag > 1e-4) return true;
+  }
+  if (acc.sparse && acc.sparse.count > 0 && bufferViews[acc.sparse.values.bufferView]) {
+    const bv = bufferViews[acc.sparse.values.bufferView];
+    const base = (bv.byteOffset ?? 0) + (acc.sparse.values.byteOffset ?? 0);
+    for (let i2 = 0; i2 < acc.sparse.count; i2++) {
+      const p = base + i2 * 12;
+      if (p + 12 > binChunk.byteLength) break;
+      const mag = Math.abs(binView.getFloat32(p, true)) + Math.abs(binView.getFloat32(p + 4, true)) + Math.abs(binView.getFloat32(p + 8, true));
+      if (mag > 1e-4) return true;
+    }
+  }
+  if (acc.bufferView !== void 0 && bufferViews[acc.bufferView]) {
+    const bv = bufferViews[acc.bufferView];
+    const stride = bv.byteStride && bv.byteStride >= 12 ? bv.byteStride : 12;
+    const base = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+    for (let i2 = 0; i2 < acc.count; i2++) {
+      const p = base + i2 * stride;
+      if (p + 12 > binChunk.byteLength) break;
+      const mag = Math.abs(binView.getFloat32(p, true)) + Math.abs(binView.getFloat32(p + 4, true)) + Math.abs(binView.getFloat32(p + 8, true));
+      if (mag > 1e-4) return true;
+    }
+  }
+  return false;
+}
+function validateVrmBinary(bytes, expectedVersion) {
   const checks = [];
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const failReport = (reason) => ({
     valid: false,
     vrmVersion: "unknown",
+    expectedVersion,
     fileSizeBytes: bytes.byteLength,
     meshCount: 0,
     primitiveCount: 0,
@@ -51290,7 +51883,9 @@ function validateVrmBinary(bytes) {
     return failReport(`Invalid GLB header: magic=0x${magic.toString(16)}, version=${version}`);
   }
   if (declaredLen !== bytes.byteLength) {
-    return failReport(`GLB declared length (${declaredLen}) does not match actual buffer (${bytes.byteLength}).`);
+    return failReport(
+      `GLB declared length (${declaredLen}) does not match actual buffer (${bytes.byteLength}).`
+    );
   }
   checks.push({
     id: "glb_header",
@@ -51325,28 +51920,80 @@ function validateVrmBinary(bytes) {
     return failReport("Missing required JSON or BIN chunk inside GLB.");
   }
   const binView = new DataView(binChunk.buffer, binChunk.byteOffset, binChunk.byteLength);
-  const vrmExt = gltf.extensions?.VRMC_vrm;
-  const specVersion = vrmExt?.specVersion ?? "missing";
-  const hasVrm = Boolean(vrmExt && specVersion === "1.0");
+  const vrm0Ext = gltf.extensions?.VRM;
+  const vrm1Ext = gltf.extensions?.VRMC_vrm;
+  let detectedVersion = "missing";
+  if (vrm0Ext && vrm1Ext) {
+    detectedVersion = "ambiguous";
+  } else if (vrm0Ext) {
+    detectedVersion = vrm0Ext.specVersion === "0.0" || !vrm0Ext.specVersion ? "0.0" : String(vrm0Ext.specVersion);
+  } else if (vrm1Ext) {
+    detectedVersion = vrm1Ext.specVersion ?? "unknown";
+  }
+  const isVrm0 = Boolean(vrm0Ext && !vrm1Ext && (vrm0Ext.specVersion === "0.0" || !vrm0Ext.specVersion));
+  const isVrm1 = Boolean(vrm1Ext && !vrm0Ext && vrm1Ext.specVersion === "1.0");
+  let versionCheckPass = isVrm0 || isVrm1;
+  if (expectedVersion === "0.0") {
+    versionCheckPass = isVrm0;
+  } else if (expectedVersion === "1.0") {
+    versionCheckPass = isVrm1;
+  }
+  const metaSummary = isVrm0 ? {
+    title: vrm0Ext?.meta?.title || "Unnamed",
+    author: vrm0Ext?.meta?.author || "Unspecified",
+    licenseName: vrm0Ext?.meta?.licenseName || "Other",
+    commercialUsage: vrm0Ext?.meta?.commercialUssageName || "Disallow"
+  } : isVrm1 ? {
+    title: vrm1Ext?.meta?.name || "Unnamed",
+    author: vrm1Ext?.meta?.authors?.join(", ") || "Unspecified",
+    licenseName: vrm1Ext?.meta?.licenseUrl || "VRM 1.0",
+    commercialUsage: vrm1Ext?.meta?.commercialUsage || "personalNonProfit"
+  } : void 0;
   checks.push({
-    id: "vrmc_vrm",
-    label: "VRMC_vrm 1.0 Extension",
-    status: hasVrm ? "pass" : "fail",
-    detail: hasVrm ? `VRMC_vrm specVersion ${specVersion} \xB7 Meta: "${vrmExt?.meta?.name || "Unnamed"}"` : `Expected VRMC_vrm specVersion 1.0, found "${specVersion}"`
+    id: "vrm_extension",
+    label: expectedVersion ? `VRM ${expectedVersion} Extension` : "VRM Extension (0.0 / 1.0)",
+    status: versionCheckPass ? "pass" : "fail",
+    detail: versionCheckPass ? isVrm0 ? `VRM 0.0 (extensions.VRM, specVersion=${detectedVersion}) \xB7 Title: "${metaSummary?.title}" \xB7 Commercial: ${metaSummary?.commercialUsage}` : `VRMC_vrm specVersion ${detectedVersion} \xB7 Title: "${metaSummary?.title}"` : expectedVersion ? `Expected VRM ${expectedVersion}, but found "${detectedVersion}"` : `Missing or ambiguous VRM extension (found "${detectedVersion}")`
   });
-  const humanBonesObj = vrmExt?.humanoid?.humanBones ?? {};
-  const mappedHumanoidBones = Object.keys(humanBonesObj);
-  const missingRequiredBones = VRM_REQUIRED_HUMANOID_BONES.filter((b) => !(b in humanBonesObj));
   const nodeCount = gltf.nodes?.length ?? 0;
+  const boneMap = /* @__PURE__ */ new Map();
+  let invalidHumanoidFormat = false;
+  if (isVrm0) {
+    const rawBones = vrm0Ext?.humanoid?.humanBones;
+    if (!Array.isArray(rawBones)) {
+      invalidHumanoidFormat = true;
+    } else {
+      for (const entry of rawBones) {
+        if (entry && typeof entry.bone === "string" && typeof entry.node === "number") {
+          boneMap.set(entry.bone, entry.node);
+        }
+      }
+    }
+  } else if (isVrm1) {
+    const rawBones = vrm1Ext?.humanoid?.humanBones ?? {};
+    for (const [bName, ref] of Object.entries(rawBones)) {
+      if (ref && typeof ref.node === "number") {
+        boneMap.set(bName, ref.node);
+      }
+    }
+  }
+  const mappedHumanoidBones = Array.from(boneMap.keys());
+  const missingRequiredBones = VRM_REQUIRED_HUMANOID_BONES.filter((b) => !boneMap.has(b));
   const invalidBoneNodes = mappedHumanoidBones.filter((b) => {
-    const idx = humanBonesObj[b]?.node;
+    const idx = boneMap.get(b);
     return typeof idx !== "number" || idx < 0 || idx >= nodeCount;
   });
+  if (isVrm0 && vrm0Ext?.firstPerson?.firstPersonBone !== void 0) {
+    const fpIdx = vrm0Ext.firstPerson.firstPersonBone;
+    if (typeof fpIdx !== "number" || fpIdx < 0 || fpIdx >= nodeCount) {
+      invalidBoneNodes.push("firstPersonBone");
+    }
+  }
   checks.push({
     id: "humanoid_bones",
     label: "VRM Humanoid Bone Mapping",
-    status: missingRequiredBones.length === 0 && invalidBoneNodes.length === 0 ? "pass" : "fail",
-    detail: missingRequiredBones.length === 0 && invalidBoneNodes.length === 0 ? `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length} optional bones mapped` : invalidBoneNodes.length > 0 ? `Invalid node indices for bones: ${invalidBoneNodes.join(", ")}` : `Missing required bones: ${missingRequiredBones.join(", ")}`
+    status: !invalidHumanoidFormat && missingRequiredBones.length === 0 && invalidBoneNodes.length === 0 ? "pass" : "fail",
+    detail: invalidHumanoidFormat ? "VRM 0.0 humanoid.humanBones must be an array of { bone, node } entries" : missingRequiredBones.length === 0 && invalidBoneNodes.length === 0 ? `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${Math.max(0, mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length)} optional/finger bones mapped` : invalidBoneNodes.length > 0 ? `Invalid node indices for bones: ${invalidBoneNodes.join(", ")}` : `Missing required bones: ${missingRequiredBones.join(", ")}`
   });
   const meshes = gltf.meshes ?? [];
   const accessors = gltf.accessors ?? [];
@@ -51372,6 +52019,8 @@ function validateVrmBinary(bytes) {
       vertexCount += posAcc?.count ?? 0;
       if (prim.indices !== void 0 && accessors[prim.indices]) {
         triangleCount += Math.floor(accessors[prim.indices].count / 3);
+      } else if (posAcc) {
+        triangleCount += Math.floor(posAcc.count / 3);
       }
       if (wAcc && wAcc.bufferView !== void 0 && bufferViews[wAcc.bufferView]) {
         const bv = bufferViews[wAcc.bufferView];
@@ -51396,7 +52045,7 @@ function validateVrmBinary(bytes) {
               sum += binView.getUint8(cOff) / 255;
             }
           }
-          if (!Number.isFinite(sum) || Math.abs(sum - 1) > 0.02) {
+          if (!Number.isFinite(sum) || Math.abs(sum - 1) > 0.025) {
             skinWeightsValid = false;
             weightCheckDetail = `Unnormalized skin weights detected at vertex ${v} (sum=${sum.toFixed(3)})`;
             break;
@@ -51420,65 +52069,88 @@ function validateVrmBinary(bytes) {
     status: skinWeightsValid && hasIbm && boneCount > 0 ? "pass" : "fail",
     detail: hasIbm ? `${boneCount} skin joints \xB7 ${weightCheckDetail}` : "Missing or undersized skin inverseBindMatrices"
   });
-  const presets = vrmExt?.expressions?.preset ?? {};
-  const expressionNames = Object.keys(presets);
   const nonEmptyExpressions = [];
-  for (const exprName of expressionNames) {
-    const preset = presets[exprName];
-    const binds = preset?.morphTargetBinds ?? [];
-    if (binds.length === 0) continue;
-    let hasNonZeroDelta = false;
-    for (const bind of binds) {
-      const targetNode = gltf.nodes?.[bind.node];
-      const targetMesh = targetNode?.mesh !== void 0 ? meshes[targetNode.mesh] : meshes[0];
-      for (const prim of targetMesh?.primitives ?? []) {
-        const targetEntry = prim.targets?.[bind.index];
-        const posAccIdx = targetEntry?.POSITION;
-        if (posAccIdx === void 0) continue;
-        const acc = accessors[posAccIdx];
-        if (!acc) continue;
-        if (acc.min && acc.max && acc.min.length >= 3 && acc.max.length >= 3) {
-          const mag = Math.max(Math.abs(acc.min[0]), Math.abs(acc.max[0])) + Math.max(Math.abs(acc.min[1]), Math.abs(acc.max[1])) + Math.max(Math.abs(acc.min[2]), Math.abs(acc.max[2]));
-          if (mag > 1e-4) {
-            hasNonZeroDelta = true;
+  let expressionCount = 0;
+  let blendShapeGroupCount = 0;
+  let invalidBindCount = 0;
+  let exprDetail = "";
+  let exprStatus = "fail";
+  if (isVrm0) {
+    const groups = vrm0Ext?.blendShapeMaster?.blendShapeGroups ?? [];
+    blendShapeGroupCount = groups.length;
+    expressionCount = groups.length;
+    const seenPresets = /* @__PURE__ */ new Set();
+    for (const grp of groups) {
+      const presetKey = (grp.presetName && grp.presetName !== "unknown" ? grp.presetName : grp.name || "unknown").toLowerCase();
+      seenPresets.add(presetKey);
+      const binds = grp.binds ?? [];
+      if (binds.length === 0) continue;
+      let hasDelta = false;
+      for (const b of binds) {
+        const targetMesh = meshes[b.mesh];
+        if (!targetMesh || b.mesh < 0 || b.mesh >= meshes.length) {
+          invalidBindCount++;
+          continue;
+        }
+        for (const prim of targetMesh.primitives ?? []) {
+          const targetEntry = prim.targets?.[b.index];
+          const posAccIdx = targetEntry?.POSITION;
+          if (posAccIdx !== void 0 && hasNonZeroMorphDelta(accessors[posAccIdx], bufferViews, binChunk, binView)) {
+            hasDelta = true;
             break;
           }
-        } else if (acc.bufferView !== void 0 && bufferViews[acc.bufferView]) {
-          const bv = bufferViews[acc.bufferView];
-          const stride = bv.byteStride && bv.byteStride >= 12 ? bv.byteStride : 12;
-          const base = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
-          let maxMag = 0;
-          for (let i2 = 0; i2 < acc.count; i2++) {
-            const p = base + i2 * stride;
-            if (p + 12 > binChunk.byteLength) break;
-            const dx = Math.abs(binView.getFloat32(p, true));
-            const dy = Math.abs(binView.getFloat32(p + 4, true));
-            const dz = Math.abs(binView.getFloat32(p + 8, true));
-            maxMag = Math.max(maxMag, dx + dy + dz);
-            if (maxMag > 1e-4) {
-              hasNonZeroDelta = true;
-              break;
-            }
-          }
-          if (hasNonZeroDelta) break;
         }
+        if (hasDelta) break;
       }
-      if (hasNonZeroDelta) break;
+      if (hasDelta && !nonEmptyExpressions.includes(presetKey)) {
+        nonEmptyExpressions.push(presetKey);
+      }
     }
-    if (hasNonZeroDelta) {
-      nonEmptyExpressions.push(exprName);
+    const missingCore0 = CORE_VRM0_EXPRESSION_PRESETS.filter(
+      (p) => !nonEmptyExpressions.includes(p)
+    );
+    const hasNeutral0 = seenPresets.has("neutral");
+    exprStatus = invalidBindCount > 0 || nonEmptyExpressions.length === 0 ? "fail" : missingCore0.length === 0 && hasNeutral0 ? "pass" : "warn";
+    exprDetail = invalidBindCount > 0 ? `${invalidBindCount} invalid VRM 0.0 blendShapeMaster mesh/target binds` : missingCore0.length === 0 ? `${nonEmptyExpressions.length} non-empty VRM 0.0 blendShapeGroups (${blendShapeGroupCount} total incl. neutral)` : `${nonEmptyExpressions.length} non-empty VRM 0.0 groups \xB7 missing core: ${missingCore0.join(", ")}`;
+  } else {
+    const presets = vrm1Ext?.expressions?.preset ?? {};
+    const expressionNames = Object.keys(presets);
+    expressionCount = expressionNames.length;
+    blendShapeGroupCount = expressionCount;
+    for (const exprName of expressionNames) {
+      const preset = presets[exprName];
+      const binds = preset?.morphTargetBinds ?? [];
+      if (binds.length === 0) continue;
+      let hasDelta = false;
+      for (const bind of binds) {
+        const targetNode = gltf.nodes?.[bind.node];
+        const targetMesh = targetNode?.mesh !== void 0 ? meshes[targetNode.mesh] : meshes[0];
+        for (const prim of targetMesh?.primitives ?? []) {
+          const targetEntry = prim.targets?.[bind.index];
+          const posAccIdx = targetEntry?.POSITION;
+          if (posAccIdx !== void 0 && hasNonZeroMorphDelta(accessors[posAccIdx], bufferViews, binChunk, binView)) {
+            hasDelta = true;
+            break;
+          }
+        }
+        if (hasDelta) break;
+      }
+      if (hasDelta) {
+        nonEmptyExpressions.push(exprName);
+      }
     }
+    const missingCore1 = CORE_VRM1_EXPRESSION_PRESETS.filter(
+      (name) => !nonEmptyExpressions.includes(name)
+    );
+    const hasNeutralPreset = "neutral" in presets;
+    exprStatus = nonEmptyExpressions.length === 0 ? "fail" : missingCore1.length === 0 && hasNeutralPreset ? "pass" : "warn";
+    exprDetail = missingCore1.length === 0 ? `${nonEmptyExpressions.length} non-empty facial morph expressions (${expressionNames.length} presets incl. neutral & core set)` : `${nonEmptyExpressions.length} non-empty expressions \xB7 missing core presets: ${missingCore1.join(", ")}`;
   }
-  const missingCoreExpr = CORE_FACIAL_EXPRESSION_PRESETS.filter(
-    (name) => !nonEmptyExpressions.includes(name)
-  );
-  const hasNeutralPreset = "neutral" in presets;
-  const exprStatus = nonEmptyExpressions.length === 0 ? "fail" : missingCoreExpr.length === 0 && hasNeutralPreset ? "pass" : "warn";
   checks.push({
     id: "facial_expressions",
-    label: "Facial Morph Targets & Expressions",
+    label: isVrm0 ? "VRM 0.0 BlendShapeMaster" : "Facial Morph Targets & Expressions",
     status: exprStatus,
-    detail: missingCoreExpr.length === 0 ? `${nonEmptyExpressions.length} non-empty facial morph expressions (${expressionNames.length} presets incl. neutral & core set)` : `${nonEmptyExpressions.length} non-empty expressions \xB7 missing core presets: ${missingCoreExpr.join(", ")}`
+    detail: exprDetail
   });
   const materialCount = gltf.materials?.length ?? 0;
   const textures = gltf.textures ?? [];
@@ -51502,18 +52174,57 @@ function validateVrmBinary(bytes) {
     status: brokenRefs > 0 || materialCount === 0 ? "fail" : "pass",
     detail: brokenRefs > 0 ? `${brokenRefs} invalid texture/image buffer references` : textureCount > 0 ? `${materialCount} PBR materials \xB7 ${textureCount} textures \xB7 ${imageCount} embedded images` : `${materialCount} PBR materials (factor-based, 0 embedded textures)`
   });
-  const springs = gltf.extensions?.VRMC_springBone?.springs ?? [];
-  const springBoneJointCount = springs.reduce((acc, s2) => acc + (s2.joints?.length ?? 0), 0);
+  let springBoneJointCount = 0;
+  let secondaryBoneGroupCount = 0;
+  let colliderGroupCount = 0;
+  let springStatus = "warn";
+  let springDetail = "";
+  if (isVrm0) {
+    const boneGroups = vrm0Ext?.secondaryAnimation?.boneGroups ?? [];
+    const colliderGroups = vrm0Ext?.secondaryAnimation?.colliderGroups ?? [];
+    secondaryBoneGroupCount = boneGroups.length;
+    colliderGroupCount = colliderGroups.length;
+    let badSpringRefs = 0;
+    for (const bg of boneGroups) {
+      if ((bg.stiffiness ?? 0) < 0 || (bg.hitRadius ?? 0) < 0) badSpringRefs++;
+      for (const bNode of bg.bones ?? []) {
+        if (typeof bNode !== "number" || bNode < 0 || bNode >= nodeCount) {
+          badSpringRefs++;
+        } else {
+          springBoneJointCount++;
+        }
+      }
+      for (const cgIdx of bg.colliderGroups ?? []) {
+        if (typeof cgIdx !== "number" || cgIdx < 0 || cgIdx >= colliderGroups.length) {
+          badSpringRefs++;
+        }
+      }
+    }
+    for (const cg of colliderGroups) {
+      if (typeof cg.node !== "number" || cg.node < 0 || cg.node >= nodeCount) {
+        badSpringRefs++;
+      }
+    }
+    springStatus = badSpringRefs > 0 ? "fail" : springBoneJointCount > 0 || secondaryBoneGroupCount === 0 ? "pass" : "warn";
+    springDetail = badSpringRefs > 0 ? `${badSpringRefs} invalid VRM 0.0 secondaryAnimation node or colliderGroup references` : `${secondaryBoneGroupCount} boneGroups (${springBoneJointCount} physics roots) \xB7 ${colliderGroupCount} colliderGroups`;
+  } else {
+    const springs = gltf.extensions?.VRMC_springBone?.springs ?? [];
+    secondaryBoneGroupCount = springs.length;
+    springBoneJointCount = springs.reduce((acc, s2) => acc + (s2.joints?.length ?? 0), 0);
+    springStatus = springBoneJointCount > 0 ? "pass" : "warn";
+    springDetail = `${springs.length} spring chains \xB7 ${springBoneJointCount} physics joints`;
+  }
   checks.push({
     id: "spring_bones",
-    label: "VRMC_springBone Physics",
-    status: springBoneJointCount > 0 ? "pass" : "warn",
-    detail: `${springs.length} spring chains \xB7 ${springBoneJointCount} physics joints`
+    label: isVrm0 ? "VRM 0.0 SecondaryAnimation" : "VRMC_springBone Physics",
+    status: springStatus,
+    detail: springDetail
   });
   const valid = checks.every((c) => c.status !== "fail");
   return {
     valid,
-    vrmVersion: specVersion,
+    vrmVersion: isVrm0 ? "0.0" : isVrm1 ? "1.0" : detectedVersion,
+    expectedVersion,
     fileSizeBytes: bytes.byteLength,
     meshCount: meshes.length,
     primitiveCount,
@@ -51524,9 +52235,13 @@ function validateVrmBinary(bytes) {
     boneCount,
     mappedHumanoidBones,
     missingRequiredBones,
-    expressionCount: expressionNames.length,
+    expressionCount,
     nonEmptyExpressions,
     springBoneJointCount,
+    blendShapeGroupCount,
+    secondaryBoneGroupCount,
+    colliderGroupCount,
+    metaSummary,
     skinWeightsValid,
     checks,
     validatedAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -55245,7 +55960,7 @@ var Batches = class extends BaseModule {
       params
     );
     const urlParams = body["_url"];
-    const path6 = formatMap("{model}:batchGenerateContent", urlParams);
+    const path7 = formatMap("{model}:batchGenerateContent", urlParams);
     const batch = body["batch"];
     const inputConfig = batch["inputConfig"];
     const requestsWrapper = inputConfig["requests"];
@@ -55266,7 +55981,7 @@ var Batches = class extends BaseModule {
     delete body["config"];
     delete body["_url"];
     delete body["_query"];
-    return { path: path6, body };
+    return { path: path7, body };
   }
   // Helper function to get the first GCS URI
   getGcsUri(src) {
@@ -55322,16 +56037,16 @@ var Batches = class extends BaseModule {
   async createInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createBatchJobParametersToVertex(this.apiClient, params);
-      path6 = formatMap("batchPredictionJobs", body["_url"]);
+      path7 = formatMap("batchPredictionJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -55346,12 +56061,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = createBatchJobParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{model}:batchGenerateContent", body["_url"]);
+      path7 = formatMap("{model}:batchGenerateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -55376,18 +56091,18 @@ var Batches = class extends BaseModule {
   async createEmbeddingsInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createEmbeddingsBatchJobParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{model}:asyncBatchEmbedContent", body["_url"]);
+      path7 = formatMap("{model}:asyncBatchEmbedContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -55416,16 +56131,16 @@ var Batches = class extends BaseModule {
   async get(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getBatchJobParametersToVertex(this.apiClient, params);
-      path6 = formatMap("batchPredictionJobs/{name}", body["_url"]);
+      path7 = formatMap("batchPredictionJobs/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -55440,12 +56155,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = getBatchJobParametersToMldev(this.apiClient, params);
-      path6 = formatMap("batches/{name}", body["_url"]);
+      path7 = formatMap("batches/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -55473,16 +56188,16 @@ var Batches = class extends BaseModule {
    */
   async cancel(params) {
     var _a2, _b, _c, _d;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = cancelBatchJobParametersToVertex(this.apiClient, params);
-      path6 = formatMap("batchPredictionJobs/{name}:cancel", body["_url"]);
+      path7 = formatMap("batchPredictionJobs/{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -55491,12 +56206,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = cancelBatchJobParametersToMldev(this.apiClient, params);
-      path6 = formatMap("batches/{name}:cancel", body["_url"]);
+      path7 = formatMap("batches/{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -55508,16 +56223,16 @@ var Batches = class extends BaseModule {
   async listInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listBatchJobsParametersToVertex(params);
-      path6 = formatMap("batchPredictionJobs", body["_url"]);
+      path7 = formatMap("batchPredictionJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -55540,12 +56255,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = listBatchJobsParametersToMldev(params);
-      path6 = formatMap("batches", body["_url"]);
+      path7 = formatMap("batches", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -55582,16 +56297,16 @@ var Batches = class extends BaseModule {
   async delete(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteBatchJobParametersToVertex(this.apiClient, params);
-      path6 = formatMap("batchPredictionJobs/{name}", body["_url"]);
+      path7 = formatMap("batchPredictionJobs/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -55612,12 +56327,12 @@ var Batches = class extends BaseModule {
       });
     } else {
       const body = deleteBatchJobParametersToMldev(this.apiClient, params);
-      path6 = formatMap("batches/{name}", body["_url"]);
+      path7 = formatMap("batches/{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -56552,16 +57267,16 @@ var Caches = class extends BaseModule {
   async create(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createCachedContentParametersToVertex(this.apiClient, params);
-      path6 = formatMap("cachedContents", body["_url"]);
+      path7 = formatMap("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -56575,12 +57290,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = createCachedContentParametersToMldev(this.apiClient, params);
-      path6 = formatMap("cachedContents", body["_url"]);
+      path7 = formatMap("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -56608,16 +57323,16 @@ var Caches = class extends BaseModule {
   async get(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getCachedContentParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -56631,12 +57346,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = getCachedContentParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -56664,16 +57379,16 @@ var Caches = class extends BaseModule {
   async delete(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteCachedContentParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -56696,12 +57411,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = deleteCachedContentParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -56741,16 +57456,16 @@ var Caches = class extends BaseModule {
   async update(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = updateCachedContentParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -56764,12 +57479,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = updateCachedContentParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -56786,16 +57501,16 @@ var Caches = class extends BaseModule {
   async listInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listCachedContentsParametersToVertex(params);
-      path6 = formatMap("cachedContents", body["_url"]);
+      path7 = formatMap("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -56818,12 +57533,12 @@ var Caches = class extends BaseModule {
       });
     } else {
       const body = listCachedContentsParametersToMldev(params);
-      path6 = formatMap("cachedContents", body["_url"]);
+      path7 = formatMap("cachedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -57448,18 +58163,18 @@ var Files$1 = class Files extends BaseModule {
   async listInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listFilesParametersToMldev(params);
-      path6 = formatMap("files", body["_url"]);
+      path7 = formatMap("files", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -57485,18 +58200,18 @@ var Files$1 = class Files extends BaseModule {
   async createInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createFileParametersToMldev(params);
-      path6 = formatMap("upload/{api_version}/files", body["_url"]);
+      path7 = formatMap("upload/{api_version}/files", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -57531,18 +58246,18 @@ var Files$1 = class Files extends BaseModule {
   async get(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getFileParametersToMldev(params);
-      path6 = formatMap("files/{file}", body["_url"]);
+      path7 = formatMap("files/{file}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -57572,18 +58287,18 @@ var Files$1 = class Files extends BaseModule {
   async delete(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteFileParametersToMldev(params);
-      path6 = formatMap("files/{file}", body["_url"]);
+      path7 = formatMap("files/{file}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -57609,18 +58324,18 @@ var Files$1 = class Files extends BaseModule {
   async registerFilesInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = internalRegisterFilesParametersToMldev(params);
-      path6 = formatMap("files:register", body["_url"]);
+      path7 = formatMap("files:register", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -62952,15 +63667,15 @@ var ApiClient = class {
       throw new Error("HTTP options are not correctly set.");
     }
   }
-  resolveApiVersionInPath(path6, apiVersion) {
+  resolveApiVersionInPath(path7, apiVersion) {
     const placeholder = "{api_version}";
     if (apiVersion !== "") {
-      return path6.replaceAll(placeholder, apiVersion);
+      return path7.replaceAll(placeholder, apiVersion);
     }
-    return path6.replaceAll(`${placeholder}/`, "").replaceAll(`/${placeholder}`, "").replaceAll(placeholder, "");
+    return path7.replaceAll(`${placeholder}/`, "").replaceAll(`/${placeholder}`, "").replaceAll(placeholder, "");
   }
-  constructUrl(path6, httpOptions, prependProjectLocation) {
-    if (path6.includes("{api_version}")) {
+  constructUrl(path7, httpOptions, prependProjectLocation) {
+    if (path7.includes("{api_version}")) {
       if (!httpOptions || httpOptions.baseUrl === void 0 || httpOptions.apiVersion === void 0) {
         throw new Error("HTTP options are not correctly set.");
       }
@@ -62969,7 +63684,7 @@ var ApiClient = class {
       if (prependProjectLocation) {
         urlElement2.push(this.getBaseResourcePath());
       }
-      const resolvedPath = this.resolveApiVersionInPath(path6, httpOptions.apiVersion);
+      const resolvedPath = this.resolveApiVersionInPath(path7, httpOptions.apiVersion);
       if (resolvedPath !== "") {
         urlElement2.push(resolvedPath);
       }
@@ -62979,8 +63694,8 @@ var ApiClient = class {
     if (prependProjectLocation) {
       urlElement.push(this.getBaseResourcePath());
     }
-    if (path6 !== "") {
-      urlElement.push(path6);
+    if (path7 !== "") {
+      urlElement.push(path7);
     }
     const url = new URL(`${urlElement.join("/")}`);
     return url;
@@ -63282,13 +63997,13 @@ var ApiClient = class {
     if (mimeType === void 0 || mimeType === "") {
       throw new Error("Can not determine mimeType. Please provide mimeType in the config.");
     }
-    const path6 = `upload/{api_version}/${fileSearchStoreName}:uploadToFileSearchStore`;
+    const path7 = `upload/{api_version}/${fileSearchStoreName}:uploadToFileSearchStore`;
     const fileName = this.getFileName(file);
     const body = {};
     if (config != null) {
       uploadToFileSearchStoreConfigToMldev(config, body);
     }
-    const uploadUrl = await this.fetchUploadUrl(path6, sizeBytes, mimeType, fileName, body, config === null || config === void 0 ? void 0 : config.httpOptions);
+    const uploadUrl = await this.fetchUploadUrl(path7, sizeBytes, mimeType, fileName, body, config === null || config === void 0 ? void 0 : config.httpOptions);
     return uploader.uploadToFileSearchStore(file, uploadUrl, this);
   }
   /**
@@ -63301,11 +64016,11 @@ var ApiClient = class {
     const downloader = this.clientOptions.downloader;
     await downloader.download(params, this);
   }
-  async fetchUploadUrl(path6, sizeBytes, mimeType, fileName, body, configHttpOptions) {
+  async fetchUploadUrl(path7, sizeBytes, mimeType, fileName, body, configHttpOptions) {
     var _a2;
     const httpOptions = Object.assign(Object.assign({}, configHttpOptions), { headers: Object.assign(Object.assign(Object.assign({}, configHttpOptions === null || configHttpOptions === void 0 ? void 0 : configHttpOptions.headers), { "Content-Type": "application/json", "X-Goog-Upload-Protocol": "resumable", "X-Goog-Upload-Command": "start", "X-Goog-Upload-Header-Content-Length": `${sizeBytes}`, "X-Goog-Upload-Header-Content-Type": `${mimeType}` }), fileName ? { "X-Goog-Upload-File-Name": fileName } : {}) });
     const httpResponse = await this.request({
-      path: path6,
+      path: path7,
       body: JSON.stringify(body),
       httpMethod: "POST",
       httpOptions
@@ -65079,16 +65794,16 @@ var Models = class _Models extends BaseModule {
   async generateContentInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateContentParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:generateContent", body["_url"]);
+      path7 = formatMap("{model}:generateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65111,12 +65826,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = generateContentParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{model}:generateContent", body["_url"]);
+      path7 = formatMap("{model}:generateContent", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65142,17 +65857,17 @@ var Models = class _Models extends BaseModule {
   async generateContentStreamInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateContentParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:streamGenerateContent?alt=sse", body["_url"]);
+      path7 = formatMap("{model}:streamGenerateContent?alt=sse", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       const apiClient = this.apiClient;
       response = apiClient.requestStream({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65188,13 +65903,13 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = generateContentParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{model}:streamGenerateContent?alt=sse", body["_url"]);
+      path7 = formatMap("{model}:streamGenerateContent?alt=sse", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       const apiClient = this.apiClient;
       response = apiClient.requestStream({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65254,17 +65969,17 @@ var Models = class _Models extends BaseModule {
   async embedContentInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = embedContentParametersPrivateToVertex(this.apiClient, params, params);
       const endpointUrl = tIsVertexEmbedContentModel(params.model) ? "{model}:embedContent" : "{model}:predict";
-      path6 = formatMap(endpointUrl, body["_url"]);
+      path7 = formatMap(endpointUrl, body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65287,12 +66002,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = embedContentParametersPrivateToMldev(this.apiClient, params);
-      path6 = formatMap("{model}:batchEmbedContents", body["_url"]);
+      path7 = formatMap("{model}:batchEmbedContents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65321,16 +66036,16 @@ var Models = class _Models extends BaseModule {
   async generateImagesInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateImagesParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:predict", body["_url"]);
+      path7 = formatMap("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65361,16 +66076,16 @@ var Models = class _Models extends BaseModule {
   async editImageInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = editImageParametersInternalToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:predict", body["_url"]);
+      path7 = formatMap("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65401,16 +66116,16 @@ var Models = class _Models extends BaseModule {
   async upscaleImageInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = upscaleImageAPIParametersInternalToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:predict", body["_url"]);
+      path7 = formatMap("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65462,16 +66177,16 @@ var Models = class _Models extends BaseModule {
   async recontextImage(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = recontextImageParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:predict", body["_url"]);
+      path7 = formatMap("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65513,16 +66228,16 @@ var Models = class _Models extends BaseModule {
   async segmentImage(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = segmentImageParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:predict", body["_url"]);
+      path7 = formatMap("{model}:predict", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65552,16 +66267,16 @@ var Models = class _Models extends BaseModule {
   async get(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getModelParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -65576,12 +66291,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = getModelParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -65599,16 +66314,16 @@ var Models = class _Models extends BaseModule {
   async listInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listModelsParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{models_url}", body["_url"]);
+      path7 = formatMap("{models_url}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -65631,12 +66346,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = listModelsParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{models_url}", body["_url"]);
+      path7 = formatMap("{models_url}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -65679,16 +66394,16 @@ var Models = class _Models extends BaseModule {
   async update(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = updateModelParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}", body["_url"]);
+      path7 = formatMap("{model}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -65703,12 +66418,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = updateModelParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "PATCH",
@@ -65737,16 +66452,16 @@ var Models = class _Models extends BaseModule {
   async delete(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = deleteModelParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -65769,12 +66484,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = deleteModelParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -65816,16 +66531,16 @@ var Models = class _Models extends BaseModule {
   async countTokens(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = countTokensParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:countTokens", body["_url"]);
+      path7 = formatMap("{model}:countTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65848,12 +66563,12 @@ var Models = class _Models extends BaseModule {
       });
     } else {
       const body = countTokensParametersToMldev(this.apiClient, params);
-      path6 = formatMap("{model}:countTokens", body["_url"]);
+      path7 = formatMap("{model}:countTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65897,16 +66612,16 @@ var Models = class _Models extends BaseModule {
   async computeTokens(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = computeTokensParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:computeTokens", body["_url"]);
+      path7 = formatMap("{model}:computeTokens", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -65937,16 +66652,16 @@ var Models = class _Models extends BaseModule {
   async generateVideosInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = generateVideosParametersToVertex(this.apiClient, params);
-      path6 = formatMap("{model}:predictLongRunning", body["_url"]);
+      path7 = formatMap("{model}:predictLongRunning", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -66053,16 +66768,16 @@ var Operations = class extends BaseModule {
   async getVideosOperationInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getOperationParametersToVertex(params);
-      path6 = formatMap("{operationName}", body["_url"]);
+      path7 = formatMap("{operationName}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -66074,12 +66789,12 @@ var Operations = class extends BaseModule {
       return response;
     } else {
       const body = getOperationParametersToMldev(params);
-      path6 = formatMap("{operationName}", body["_url"]);
+      path7 = formatMap("{operationName}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -66094,16 +66809,16 @@ var Operations = class extends BaseModule {
   async fetchPredictVideosOperationInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = fetchPredictOperationParametersToVertex(params);
-      path6 = formatMap("{resourceName}:fetchPredictOperation", body["_url"]);
+      path7 = formatMap("{resourceName}:fetchPredictOperation", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -66766,20 +67481,20 @@ var Tokens = class extends BaseModule {
   async create(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("The client.tokens.create method is only supported by the Gemini Developer API.");
     } else {
       const body = createAuthTokenParametersToMldev(this.apiClient, params);
-      path6 = formatMap("auth_tokens", body["_url"]);
+      path7 = formatMap("auth_tokens", body["_url"]);
       queryParams = body["_query"];
       delete body["config"];
       delete body["_url"];
       delete body["_query"];
       const transformedBody = convertBidiSetupToTokenSetup(body, params.config);
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(transformedBody),
         httpMethod: "POST",
@@ -66889,18 +67604,18 @@ var Documents = class extends BaseModule {
   async get(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getDocumentParametersToMldev(params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -66921,18 +67636,18 @@ var Documents = class extends BaseModule {
    */
   async delete(params) {
     var _a2, _b;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteDocumentParametersToMldev(params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -66944,18 +67659,18 @@ var Documents = class extends BaseModule {
   async listInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listDocumentsParametersToMldev(params);
-      path6 = formatMap("{parent}/documents", body["_url"]);
+      path7 = formatMap("{parent}/documents", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -67072,18 +67787,18 @@ var FileSearchStores = class extends BaseModule {
   async create(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createFileSearchStoreParametersToMldev(this.apiClient, params);
-      path6 = formatMap("fileSearchStores", body["_url"]);
+      path7 = formatMap("fileSearchStores", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -67106,18 +67821,18 @@ var FileSearchStores = class extends BaseModule {
   async get(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = getFileSearchStoreParametersToMldev(params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -67138,18 +67853,18 @@ var FileSearchStores = class extends BaseModule {
    */
   async delete(params) {
     var _a2, _b;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = deleteFileSearchStoreParametersToMldev(params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       await this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "DELETE",
@@ -67161,18 +67876,18 @@ var FileSearchStores = class extends BaseModule {
   async listInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = listFileSearchStoresParametersToMldev(params);
-      path6 = formatMap("fileSearchStores", body["_url"]);
+      path7 = formatMap("fileSearchStores", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -67192,18 +67907,18 @@ var FileSearchStores = class extends BaseModule {
   async uploadToFileSearchStoreInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = uploadToFileSearchStoreParametersToMldev(params);
-      path6 = formatMap("upload/{api_version}/{file_search_store_name}:uploadToFileSearchStore", body["_url"]);
+      path7 = formatMap("upload/{api_version}/{file_search_store_name}:uploadToFileSearchStore", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -67231,18 +67946,18 @@ var FileSearchStores = class extends BaseModule {
   async importFile(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = importFileParametersToMldev(params);
-      path6 = formatMap("{file_search_store_name}:importFile", body["_url"]);
+      path7 = formatMap("{file_search_store_name}:importFile", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -69230,16 +69945,16 @@ var ClientSDK = class {
   }
   _createRequest(context, conf, options) {
     var _a2, _b, _c, _d, _e;
-    const { method, path: path6, query, headers: opHeaders, security } = conf;
+    const { method, path: path7, query, headers: opHeaders, security } = conf;
     const base = (_a2 = conf.baseURL) !== null && _a2 !== void 0 ? _a2 : this._baseURL;
     if (!base) {
       return ERR(new InvalidRequestError("No base URL provided for operation"));
     }
     const baseURL = new URL(base);
     let reqURL;
-    if (path6) {
+    if (path7) {
       baseURL.pathname = baseURL.pathname.replace(/\/+$/, "") + "/";
-      reqURL = new URL(path6, baseURL);
+      reqURL = new URL(path7, baseURL);
       if (!reqURL.search && baseURL.search) {
         reqURL.search = baseURL.search;
       }
@@ -69859,7 +70574,7 @@ async function $do$B(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/agents")(pathParams);
+  const path7 = pathToFunc("/{api_version}/agents")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -69890,7 +70605,7 @@ async function $do$B(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -69934,7 +70649,7 @@ async function $do$A(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/agents/{agentsId}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/agents/{agentsId}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -69964,7 +70679,7 @@ async function $do$A(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -70008,7 +70723,7 @@ async function $do$z(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/agents/{agentsId}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/agents/{agentsId}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -70038,7 +70753,7 @@ async function $do$z(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -70080,7 +70795,7 @@ async function $do$y(client, api_version, page_size, page_token, parent, options
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/agents")(pathParams);
+  const path7 = pathToFunc("/{api_version}/agents")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token,
@@ -70115,7 +70830,7 @@ async function $do$y(client, api_version, page_size, page_token, parent, options
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body,
@@ -70183,7 +70898,7 @@ async function $do$x(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/credentials")(pathParams);
+  const path7 = pathToFunc("/{api_version}/credentials")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -70214,7 +70929,7 @@ async function $do$x(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -70258,7 +70973,7 @@ async function $do$w(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/credentials/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/credentials/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -70288,7 +71003,7 @@ async function $do$w(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -70332,7 +71047,7 @@ async function $do$v(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/credentials/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/credentials/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -70362,7 +71077,7 @@ async function $do$v(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -70403,7 +71118,7 @@ async function $do$u(client, api_version, page_size, page_token, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/credentials")(pathParams);
+  const path7 = pathToFunc("/{api_version}/credentials")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token
@@ -70437,7 +71152,7 @@ async function $do$u(client, api_version, page_size, page_token, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body,
@@ -70484,7 +71199,7 @@ async function $do$t(client, id, body, api_version, update_mask, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/credentials/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/credentials/{id}")(pathParams);
   const query = encodeFormQuery({
     "update_mask": payload.update_mask
   });
@@ -70518,7 +71233,7 @@ async function $do$t(client, id, body, api_version, update_mask, options) {
     security: requestSecurity,
     method: "PATCH",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body: body$,
@@ -70593,7 +71308,7 @@ async function $do$s(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/decisions")(pathParams);
+  const path7 = pathToFunc("/{api_version}/decisions")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -70624,7 +71339,7 @@ async function $do$s(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -70673,7 +71388,7 @@ async function $do$r(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/environments")(pathParams);
+  const path7 = pathToFunc("/{api_version}/environments")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -70704,7 +71419,7 @@ async function $do$r(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -70748,7 +71463,7 @@ async function $do$q(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -70778,7 +71493,7 @@ async function $do$q(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -70822,7 +71537,7 @@ async function $do$p(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/environments/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -70852,7 +71567,7 @@ async function $do$p(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -70893,7 +71608,7 @@ async function $do$o(client, api_version, page_size, page_token, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/environments")(pathParams);
+  const path7 = pathToFunc("/{api_version}/environments")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token
@@ -70927,7 +71642,7 @@ async function $do$o(client, api_version, page_size, page_token, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body,
@@ -70954,14 +71669,14 @@ async function $do$o(client, api_version, page_size, page_token, options) {
   }
   return [result, { status: "complete", request: req, response }];
 }
-function environmentsFilesList(client, environment, path6, api_version, page_size, page_token, recursive, options) {
-  return new APIPromise($do$n(client, environment, path6, api_version, page_size, page_token, recursive, options));
+function environmentsFilesList(client, environment, path7, api_version, page_size, page_token, recursive, options) {
+  return new APIPromise($do$n(client, environment, path7, api_version, page_size, page_token, recursive, options));
 }
-async function $do$n(client, environment, path6, api_version, page_size, page_token, recursive, options) {
+async function $do$n(client, environment, path7, api_version, page_size, page_token, recursive, options) {
   var _a2, _b, _c;
   const input = {
     environment,
-    path: path6,
+    path: path7,
     api_version,
     page_size,
     page_token,
@@ -71046,18 +71761,18 @@ var Files2 = class extends ClientSDK {
   /**
    * Retrieves file metadata or directory contents from an environment's snapshot. To download file content, use the download URL returned in the response.
    */
-  list(environment, path6, params, options) {
-    return unwrapAsAPIPromise(environmentsFilesList(this, environment, path6, params === null || params === void 0 ? void 0 : params.api_version, params === null || params === void 0 ? void 0 : params.page_size, params === null || params === void 0 ? void 0 : params.page_token, params === null || params === void 0 ? void 0 : params.recursive, options));
+  list(environment, path7, params, options) {
+    return unwrapAsAPIPromise(environmentsFilesList(this, environment, path7, params === null || params === void 0 ? void 0 : params.api_version, params === null || params === void 0 ? void 0 : params.page_size, params === null || params === void 0 ? void 0 : params.page_token, params === null || params === void 0 ? void 0 : params.recursive, options));
   }
 };
-function environmentsInternalStartUpload(client, environment, path6, x_goog_upload_command, x_goog_upload_header_content_length, x_goog_upload_header_content_type, x_goog_upload_protocol, api_version, extract, overwrite, options) {
-  return new APIPromise($do$m(client, environment, path6, x_goog_upload_command, x_goog_upload_header_content_length, x_goog_upload_header_content_type, x_goog_upload_protocol, api_version, extract, overwrite, options));
+function environmentsInternalStartUpload(client, environment, path7, x_goog_upload_command, x_goog_upload_header_content_length, x_goog_upload_header_content_type, x_goog_upload_protocol, api_version, extract, overwrite, options) {
+  return new APIPromise($do$m(client, environment, path7, x_goog_upload_command, x_goog_upload_header_content_length, x_goog_upload_header_content_type, x_goog_upload_protocol, api_version, extract, overwrite, options));
 }
-async function $do$m(client, environment, path6, x_goog_upload_command, x_goog_upload_header_content_length, x_goog_upload_header_content_type, x_goog_upload_protocol, api_version, extract, overwrite, options) {
+async function $do$m(client, environment, path7, x_goog_upload_command, x_goog_upload_header_content_length, x_goog_upload_header_content_type, x_goog_upload_protocol, api_version, extract, overwrite, options) {
   var _a2, _b, _c;
   const input = {
     environment,
-    path: path6,
+    path: path7,
     "X-Goog-Upload-Command": x_goog_upload_command,
     "X-Goog-Upload-Header-Content-Length": x_goog_upload_header_content_length,
     "X-Goog-Upload-Header-Content-Type": x_goog_upload_header_content_type,
@@ -71158,8 +71873,8 @@ var Internal = class extends ClientSDK {
    * Upload the file bytes to the URL returned in the `X-Goog-Upload-URL`
    * response header, using the resumable upload protocol.
    */
-  startUpload(environment, path6, params, options) {
-    return unwrapAsAPIPromise(environmentsInternalStartUpload(this, environment, path6, params["X-Goog-Upload-Command"], params["X-Goog-Upload-Header-Content-Length"], params["X-Goog-Upload-Header-Content-Type"], params["X-Goog-Upload-Protocol"], params.api_version, params.extract, params.overwrite, options));
+  startUpload(environment, path7, params, options) {
+    return unwrapAsAPIPromise(environmentsInternalStartUpload(this, environment, path7, params["X-Goog-Upload-Command"], params["X-Goog-Upload-Header-Content-Length"], params["X-Goog-Upload-Header-Content-Type"], params["X-Goog-Upload-Protocol"], params.api_version, params.extract, params.overwrite, options));
   }
 };
 var Environments = class extends ClientSDK {
@@ -71294,7 +72009,7 @@ async function $do$l(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/interactions/{interactionsId}/cancel")(pathParams);
+  const path7 = pathToFunc("/{api_version}/interactions/{interactionsId}/cancel")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -71324,7 +72039,7 @@ async function $do$l(client, id, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -71367,7 +72082,7 @@ async function $do$k(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/interactions")(pathParams);
+  const path7 = pathToFunc("/{api_version}/interactions")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: ((_b = input === null || input === void 0 ? void 0 : input.body) === null || _b === void 0 ? void 0 : _b.stream) ? "text/event-stream" : "application/json"
@@ -71398,7 +72113,7 @@ async function $do$k(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -71448,7 +72163,7 @@ async function $do$j(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/interactions/{interactionsId}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/interactions/{interactionsId}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -71478,7 +72193,7 @@ async function $do$j(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -71528,7 +72243,7 @@ async function $do$i(client, id, api_version, include_input, last_event_id, stre
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/interactions/{interactionsId}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/interactions/{interactionsId}")(pathParams);
   const query = encodeFormQuery({
     "include_input": payload.include_input,
     "last_event_id": payload.last_event_id,
@@ -71563,7 +72278,7 @@ async function $do$i(client, id, api_version, include_input, last_event_id, stre
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body,
@@ -71632,7 +72347,7 @@ async function $do$h(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/triggers")(pathParams);
+  const path7 = pathToFunc("/{api_version}/triggers")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -71663,7 +72378,7 @@ async function $do$h(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -71707,7 +72422,7 @@ async function $do$g(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -71737,7 +72452,7 @@ async function $do$g(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -71781,7 +72496,7 @@ async function $do$f(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -71811,7 +72526,7 @@ async function $do$f(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -71857,7 +72572,7 @@ async function $do$e(client, trigger_id, api_version, page_size, page_token, opt
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/triggers/{triggerId}/executions")(pathParams);
+  const path7 = pathToFunc("/{api_version}/triggers/{triggerId}/executions")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload.page_size,
     "page_token": payload.page_token
@@ -71891,7 +72606,7 @@ async function $do$e(client, trigger_id, api_version, page_size, page_token, opt
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body,
@@ -71934,7 +72649,7 @@ async function $do$d(client, api_version, filter, page_size, page_token, options
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/triggers")(pathParams);
+  const path7 = pathToFunc("/{api_version}/triggers")(pathParams);
   const query = encodeFormQuery({
     "filter": payload === null || payload === void 0 ? void 0 : payload.filter,
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
@@ -71969,7 +72684,7 @@ async function $do$d(client, api_version, filter, page_size, page_token, options
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body,
@@ -72014,7 +72729,7 @@ async function $do$c(client, trigger_id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/triggers/{triggerId}/executions")(pathParams);
+  const path7 = pathToFunc("/{api_version}/triggers/{triggerId}/executions")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -72044,7 +72759,7 @@ async function $do$c(client, trigger_id, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -72089,7 +72804,7 @@ async function $do$b(client, id, body, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/triggers/{id}")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -72120,7 +72835,7 @@ async function $do$b(client, id, body, api_version, options) {
     security: requestSecurity,
     method: "PATCH",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -72207,7 +72922,7 @@ async function $do$a(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/voices")(pathParams);
+  const path7 = pathToFunc("/{api_version}/voices")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -72238,7 +72953,7 @@ async function $do$a(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -72282,7 +72997,7 @@ async function $do$9(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/voices/{voicesId}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/voices/{voicesId}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -72312,7 +73027,7 @@ async function $do$9(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -72356,7 +73071,7 @@ async function $do$8(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/voices/{voicesId}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/voices/{voicesId}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -72386,7 +73101,7 @@ async function $do$8(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -72436,7 +73151,7 @@ async function $do$7(client, api_version, accent, contexts, gender, language_cod
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/voices")(pathParams);
+  const path7 = pathToFunc("/{api_version}/voices")(pathParams);
   const query = encodeFormQuery({
     "accent": payload === null || payload === void 0 ? void 0 : payload.accent,
     "context": payload === null || payload === void 0 ? void 0 : payload.contexts,
@@ -72479,7 +73194,7 @@ async function $do$7(client, api_version, accent, contexts, gender, language_cod
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body,
@@ -72552,7 +73267,7 @@ async function $do$6(client, body, api_version, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/webhooks")(pathParams);
+  const path7 = pathToFunc("/{api_version}/webhooks")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -72583,7 +73298,7 @@ async function $do$6(client, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -72627,7 +73342,7 @@ async function $do$5(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -72657,7 +73372,7 @@ async function $do$5(client, id, api_version, options) {
     security: requestSecurity,
     method: "DELETE",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -72701,7 +73416,7 @@ async function $do$4(client, id, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const headers = new Headers(compactMap({
     Accept: "application/json"
   }));
@@ -72731,7 +73446,7 @@ async function $do$4(client, id, api_version, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body,
     userAgent: client._options.user_agent,
@@ -72772,7 +73487,7 @@ async function $do$3(client, api_version, page_size, page_token, options) {
   const pathParams = {
     api_version: encodeSimple("api_version", (_a2 = payload === null || payload === void 0 ? void 0 : payload.api_version) !== null && _a2 !== void 0 ? _a2 : client._options.api_version, { explode: false, charEncoding: "percent" })
   };
-  const path6 = pathToFunc("/{api_version}/webhooks")(pathParams);
+  const path7 = pathToFunc("/{api_version}/webhooks")(pathParams);
   const query = encodeFormQuery({
     "page_size": payload === null || payload === void 0 ? void 0 : payload.page_size,
     "page_token": payload === null || payload === void 0 ? void 0 : payload.page_token
@@ -72806,7 +73521,7 @@ async function $do$3(client, api_version, page_size, page_token, options) {
     security: requestSecurity,
     method: "GET",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body,
@@ -72852,7 +73567,7 @@ async function $do$2(client, id, api_version, body, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/webhooks/{id}:ping")(pathParams);
+  const path7 = pathToFunc("/{api_version}/webhooks/{id}:ping")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -72883,7 +73598,7 @@ async function $do$2(client, id, api_version, body, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -72928,7 +73643,7 @@ async function $do$1(client, id, body, api_version, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/webhooks/{id}:rotateSigningSecret")(pathParams);
+  const path7 = pathToFunc("/{api_version}/webhooks/{id}:rotateSigningSecret")(pathParams);
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",
     Accept: "application/json"
@@ -72959,7 +73674,7 @@ async function $do$1(client, id, body, api_version, options) {
     security: requestSecurity,
     method: "POST",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     body: body$,
     userAgent: client._options.user_agent,
@@ -73005,7 +73720,7 @@ async function $do(client, id, body, api_version, update_mask, options) {
       charEncoding: "percent"
     })
   };
-  const path6 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
+  const path7 = pathToFunc("/{api_version}/webhooks/{id}")(pathParams);
   const query = encodeFormQuery({
     "update_mask": payload.update_mask
   });
@@ -73039,7 +73754,7 @@ async function $do(client, id, body, api_version, update_mask, options) {
     security: requestSecurity,
     method: "PATCH",
     baseURL: options === null || options === void 0 ? void 0 : options.server_url,
-    path: path6,
+    path: path7,
     headers,
     query,
     body: body$,
@@ -73700,8 +74415,8 @@ var GeminiNextGenEnvironmentFiles = class {
       try {
         const req = globalThis.require;
         if (req) {
-          const fs7 = req("fs");
-          buffer = fs7.readFileSync(params.file);
+          const fs8 = req("fs");
+          buffer = fs8.readFileSync(params.file);
         }
       } catch (_j) {
       }
@@ -73709,8 +74424,8 @@ var GeminiNextGenEnvironmentFiles = class {
         try {
           const mod = (_b = (_a2 = globalThis.process.mainModule) === null || _a2 === void 0 ? void 0 : _a2.require) !== null && _b !== void 0 ? _b : globalThis.require;
           if (mod) {
-            const fs7 = mod("fs");
-            buffer = fs7.readFileSync(params.file);
+            const fs8 = mod("fs");
+            buffer = fs8.readFileSync(params.file);
           }
         } catch (_k) {
         }
@@ -75644,16 +76359,16 @@ var Tunings = class extends BaseModule {
   async getInternal(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = getTuningJobParametersToVertex(params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -75674,12 +76389,12 @@ var Tunings = class extends BaseModule {
       });
     } else {
       const body = getTuningJobParametersToMldev(params);
-      path6 = formatMap("{name}", body["_url"]);
+      path7 = formatMap("{name}", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -75703,16 +76418,16 @@ var Tunings = class extends BaseModule {
   async listInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = listTuningJobsParametersToVertex(params);
-      path6 = formatMap("tuningJobs", body["_url"]);
+      path7 = formatMap("tuningJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "GET",
@@ -75751,16 +76466,16 @@ var Tunings = class extends BaseModule {
   async cancel(params) {
     var _a2, _b, _c, _d;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = cancelTuningJobParametersToVertex(params);
-      path6 = formatMap("{name}:cancel", body["_url"]);
+      path7 = formatMap("{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -75783,12 +76498,12 @@ var Tunings = class extends BaseModule {
       });
     } else {
       const body = cancelTuningJobParametersToMldev(params);
-      path6 = formatMap("{name}:cancel", body["_url"]);
+      path7 = formatMap("{name}:cancel", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -75814,16 +76529,16 @@ var Tunings = class extends BaseModule {
   async tuneInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = createTuningJobParametersPrivateToVertex(params, params);
-      path6 = formatMap("tuningJobs", body["_url"]);
+      path7 = formatMap("tuningJobs", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -75849,18 +76564,18 @@ var Tunings = class extends BaseModule {
   async tuneMldevInternal(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       throw new Error("This method is only supported by the Gemini Developer API.");
     } else {
       const body = createTuningJobParametersPrivateToMldev(params);
-      path6 = formatMap("tunedModels", body["_url"]);
+      path7 = formatMap("tunedModels", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -75884,16 +76599,16 @@ var Tunings = class extends BaseModule {
   async validateReward(params) {
     var _a2, _b;
     let response;
-    let path6 = "";
+    let path7 = "";
     let queryParams = {};
     if (this.apiClient.isVertexAI()) {
       const body = validateRewardParametersToVertex(params);
-      path6 = formatMap("{parent}/tuningJobs:validateReinforcementTuningReward", body["_url"]);
+      path7 = formatMap("{parent}/tuningJobs:validateReinforcementTuningReward", body["_url"]);
       queryParams = body["_query"];
       delete body["_url"];
       delete body["_query"];
       response = this.apiClient.request({
-        path: path6,
+        path: path7,
         queryParams,
         body: JSON.stringify(body),
         httpMethod: "POST",
@@ -76638,28 +77353,61 @@ function readScalar(view, byteOffset, componentType, normalized = false) {
 }
 function readAccessorArray(binBytes, accessors, bufferViews, accessorIdx) {
   const acc = accessors[accessorIdx];
-  if (!acc || acc.bufferView === void 0) {
-    return new Float32Array(0);
-  }
-  const bv = bufferViews[acc.bufferView];
-  if (!bv) return new Float32Array(0);
+  if (!acc) return new Float32Array(0);
   const elems = typeElementCount(acc.type);
   const compBytes = componentSize(acc.componentType);
   if (!compBytes) return new Float32Array(0);
-  const stride = bv.byteStride && bv.byteStride > 0 ? bv.byteStride : elems * compBytes;
-  const baseOffset = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
   const out = new Float32Array(acc.count * elems);
   const view = new DataView(binBytes.buffer, binBytes.byteOffset, binBytes.byteLength);
-  for (let i2 = 0; i2 < acc.count; i2++) {
-    const elemStart = baseOffset + i2 * stride;
-    if (elemStart + elems * compBytes > binBytes.byteLength) break;
-    for (let k = 0; k < elems; k++) {
-      out[i2 * elems + k] = readScalar(
-        view,
-        elemStart + k * compBytes,
-        acc.componentType,
-        Boolean(acc.normalized)
-      );
+  if (acc.bufferView !== void 0) {
+    const bv = bufferViews[acc.bufferView];
+    if (!bv) return new Float32Array(0);
+    const stride = bv.byteStride && bv.byteStride > 0 ? bv.byteStride : elems * compBytes;
+    const baseOffset = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+    for (let i2 = 0; i2 < acc.count; i2++) {
+      const elemStart = baseOffset + i2 * stride;
+      if (elemStart + elems * compBytes > binBytes.byteLength) break;
+      for (let k = 0; k < elems; k++) {
+        out[i2 * elems + k] = readScalar(
+          view,
+          elemStart + k * compBytes,
+          acc.componentType,
+          Boolean(acc.normalized)
+        );
+      }
+    }
+  } else if (!acc.sparse) {
+    return out;
+  }
+  if (acc.sparse && acc.sparse.count > 0) {
+    const idxMeta = acc.sparse.indices;
+    const valMeta = acc.sparse.values;
+    const idxBv = bufferViews[idxMeta.bufferView];
+    const valBv = bufferViews[valMeta.bufferView];
+    const idxCompBytes = componentSize(idxMeta.componentType);
+    if (idxBv && valBv && idxCompBytes > 0) {
+      const idxBase = (idxBv.byteOffset ?? 0) + (idxMeta.byteOffset ?? 0);
+      const valBase = (valBv.byteOffset ?? 0) + (valMeta.byteOffset ?? 0);
+      const idxStride = idxBv.byteStride && idxBv.byteStride >= idxCompBytes ? idxBv.byteStride : idxCompBytes;
+      const valStride = valBv.byteStride && valBv.byteStride >= elems * compBytes ? valBv.byteStride : elems * compBytes;
+      for (let s2 = 0; s2 < acc.sparse.count; s2++) {
+        const iOff = idxBase + s2 * idxStride;
+        const vOff = valBase + s2 * valStride;
+        if (iOff + idxCompBytes > binBytes.byteLength || vOff + elems * compBytes > binBytes.byteLength) {
+          break;
+        }
+        const targetVertexIdx = Math.floor(readScalar(view, iOff, idxMeta.componentType, false));
+        if (targetVertexIdx >= 0 && targetVertexIdx < acc.count) {
+          for (let k = 0; k < elems; k++) {
+            out[targetVertexIdx * elems + k] = readScalar(
+              view,
+              vOff + k * compBytes,
+              acc.componentType,
+              Boolean(acc.normalized)
+            );
+          }
+        }
+      }
     }
   }
   return out;
@@ -77032,13 +77780,75 @@ function parseAndValidateGlbAsset(payload) {
     };
   });
   let existingVrmHumanoid;
-  const vrmBonesRaw = gltfJson.extensions?.VRMC_vrm?.humanoid?.humanBones;
-  if (vrmBonesRaw && typeof vrmBonesRaw === "object") {
-    existingVrmHumanoid = {};
-    for (const [vrmBone, ref] of Object.entries(vrmBonesRaw)) {
-      if (ref && typeof ref.node === "number" && gltfNodes[ref.node]) {
-        existingVrmHumanoid[vrmBone] = gltfNodes[ref.node].name || `node_${ref.node}`;
+  let sourceVrmVersion;
+  let sourceVrmMeta;
+  let existingVrmSprings;
+  const vrm0Ext = gltfJson.extensions?.VRM;
+  const vrm1Ext = gltfJson.extensions?.VRMC_vrm;
+  if (vrm0Ext && typeof vrm0Ext === "object") {
+    sourceVrmVersion = "0.0";
+    if (Array.isArray(vrm0Ext.humanoid?.humanBones)) {
+      existingVrmHumanoid = {};
+      for (const hb of vrm0Ext.humanoid.humanBones) {
+        if (hb && typeof hb.bone === "string" && typeof hb.node === "number" && gltfNodes[hb.node]) {
+          existingVrmHumanoid[hb.bone] = gltfNodes[hb.node].name || `node_${hb.node}`;
+        }
       }
+    }
+    if (vrm0Ext.meta) {
+      sourceVrmMeta = {
+        title: vrm0Ext.meta.title,
+        author: vrm0Ext.meta.author,
+        version: vrm0Ext.meta.version,
+        contactInformation: vrm0Ext.meta.contactInformation,
+        reference: vrm0Ext.meta.reference,
+        sourceAttribution: [vrm0Ext.meta.author, vrm0Ext.meta.reference].filter(Boolean).join(" \xB7 ") || void 0
+      };
+    }
+    if (Array.isArray(vrm0Ext.secondaryAnimation?.boneGroups)) {
+      const cgGroups = vrm0Ext.secondaryAnimation?.colliderGroups || [];
+      existingVrmSprings = vrm0Ext.secondaryAnimation.boneGroups.map((bg) => {
+        const boneNames = (bg.bones || []).map((nodeIdx) => gltfNodes[nodeIdx] ? gltfNodes[nodeIdx].name || `node_${nodeIdx}` : null).filter((n) => Boolean(n));
+        const colliderGroupNodeNames = (bg.colliderGroups || []).map((cgIdx) => {
+          const cgNodeIdx = cgGroups[cgIdx]?.node;
+          return cgNodeIdx !== void 0 && gltfNodes[cgNodeIdx] ? gltfNodes[cgNodeIdx].name || `node_${cgNodeIdx}` : null;
+        }).filter((n) => Boolean(n));
+        return {
+          comment: bg.comment,
+          stiffiness: typeof bg.stiffiness === "number" ? bg.stiffiness : 0.65,
+          gravityPower: typeof bg.gravityPower === "number" ? bg.gravityPower : 0.25,
+          gravityDir: [
+            bg.gravityDir?.x ?? 0,
+            bg.gravityDir?.y ?? -1,
+            bg.gravityDir?.z ?? 0
+          ],
+          dragForce: typeof bg.dragForce === "number" ? bg.dragForce : 0.4,
+          hitRadius: typeof bg.hitRadius === "number" ? bg.hitRadius : 0.02,
+          centerNodeName: typeof bg.center === "number" && bg.center >= 0 && gltfNodes[bg.center] ? gltfNodes[bg.center].name || `node_${bg.center}` : void 0,
+          boneNames,
+          colliderGroupNodeNames
+        };
+      }).filter((s2) => s2.boneNames.length > 0);
+    }
+  } else if (vrm1Ext && typeof vrm1Ext === "object") {
+    sourceVrmVersion = "1.0";
+    const vrmBonesRaw = vrm1Ext.humanoid?.humanBones;
+    if (vrmBonesRaw && typeof vrmBonesRaw === "object") {
+      existingVrmHumanoid = {};
+      for (const [vrmBone, ref] of Object.entries(vrmBonesRaw)) {
+        if (ref && typeof ref.node === "number" && gltfNodes[ref.node]) {
+          existingVrmHumanoid[vrmBone] = gltfNodes[ref.node].name || `node_${ref.node}`;
+        }
+      }
+    }
+    if (vrm1Ext.meta) {
+      sourceVrmMeta = {
+        title: vrm1Ext.meta.name,
+        author: Array.isArray(vrm1Ext.meta.authors) ? vrm1Ext.meta.authors.join(", ") : void 0,
+        version: vrm1Ext.meta.version,
+        contactInformation: vrm1Ext.meta.contactInformation,
+        reference: Array.isArray(vrm1Ext.meta.references) ? vrm1Ext.meta.references[0] : void 0
+      };
     }
   }
   const meshInstances = [];
@@ -77066,6 +77876,8 @@ function parseAndValidateGlbAsset(payload) {
   let hasExistingSkin = false;
   let hasMorphTargets = false;
   let hasVertexColors = false;
+  let hasMultiInfluenceSkin = false;
+  const unsupportedFeatures = /* @__PURE__ */ new Set();
   let minX = Infinity;
   let minY = Infinity;
   let minZ = Infinity;
@@ -77111,6 +77923,10 @@ function parseAndValidateGlbAsset(payload) {
           }
           hasVertexColors = true;
         }
+      }
+      if (prim.attributes?.JOINTS_1 !== void 0 || prim.attributes?.WEIGHTS_1 !== void 0) {
+        hasMultiInfluenceSkin = true;
+        unsupportedFeatures.add("JOINTS_1/WEIGHTS_1 (8-bone skinning influences truncated to top 4)");
       }
       const hasJointsAttr = prim.attributes?.JOINTS_0 !== void 0 && prim.attributes?.WEIGHTS_0 !== void 0;
       let joints;
@@ -77256,7 +78072,22 @@ function parseAndValidateGlbAsset(payload) {
           if (target.NORMAL !== void 0) {
             const rawTN = readAccessorArray(binChunk, accessors, bufferViews, target.NORMAL);
             if (rawTN.length >= vertCount * 3) {
-              tNormals = rawTN.subarray(0, vertCount * 3);
+              if (applyWorldTransform) {
+                tNormals = new Float32Array(vertCount * 3);
+                for (let i2 = 0; i2 < vertCount; i2++) {
+                  const [nx, ny, nz] = transformVectorMat4(
+                    worldMat,
+                    rawTN[i2 * 3],
+                    rawTN[i2 * 3 + 1],
+                    rawTN[i2 * 3 + 2]
+                  );
+                  tNormals[i2 * 3] = nx;
+                  tNormals[i2 * 3 + 1] = ny;
+                  tNormals[i2 * 3 + 2] = nz;
+                }
+              } else {
+                tNormals = rawTN.subarray(0, vertCount * 3);
+              }
             }
           }
           morphTargets.push({
@@ -77317,7 +78148,12 @@ function parseAndValidateGlbAsset(payload) {
     hasMorphTargets,
     hasVertexColors,
     hasNodeTransforms,
+    hasMultiInfluenceSkin,
+    unsupportedFeatures: unsupportedFeatures.size > 0 ? Array.from(unsupportedFeatures) : void 0,
+    sourceVrmVersion,
+    sourceVrmMeta,
     existingVrmHumanoid,
+    existingVrmSprings,
     boundsMin: [minX, minY, minZ],
     boundsMax: [maxX, maxY, maxZ],
     meshes: importedMeshes,
@@ -77697,7 +78533,7 @@ function detectBlenderInstallation() {
     vrmAddonDetected: false,
     platform,
     searchedPaths,
-    statusMessage: "Blender executable not found on this host. Script generation & built-in VRM 1.0 synthesis remain active; configure a trusted Blender 3.6\u20134.3 installation or choose blender.exe via the desktop picker."
+    statusMessage: "Blender executable not found on this host. Generated bpy scripts & TypeScript VRM 0.0/1.0 synthesis remain active as fallback; configure a trusted Blender 3.6\u20134.3 installation or choose blender.exe via the desktop picker."
   };
 }
 function probeHardwareCapabilities() {
@@ -77822,7 +78658,7 @@ function listProviderStatuses(blender) {
       configured: true,
       available: true,
       capabilityState: "verified_live",
-      verificationNote: "Built-in sculpted anatomical mesh & VRM 1.0 synthesis verified.",
+      verificationNote: "Built-in sculpted anatomical mesh & VRM 0.0 / 1.0 synthesis verified.",
       costModel: "Free / Built-in Engine",
       description: "Synthesizes sculpted cranio-facial topology, recessed eye sockets, Catmull-Rom curved hair ribbons, contoured armor/clothing, PBR normal maps, 65 VRM bones, and 17 morph targets."
     },
@@ -77836,7 +78672,7 @@ function listProviderStatuses(blender) {
       capabilityState: tripoState.capabilityState,
       verificationNote: tripoState.verificationNote,
       costModel: "Commercial Credit API (TRIPO_API_KEY)",
-      description: "Submits real text-to-3D tasks, polls completion, downloads GLB, and binds into a VRM 1.0 humanoid rig."
+      description: "Submits real text-to-3D tasks, polls completion, downloads GLB, and binds into a VRM 0.0/1.0 humanoid rig."
     },
     {
       id: "meshy-ai-adapter",
@@ -77848,7 +78684,7 @@ function listProviderStatuses(blender) {
       capabilityState: meshyState.capabilityState,
       verificationNote: meshyState.verificationNote,
       costModel: "Commercial Credit API (MESHY_API_KEY)",
-      description: "Submits real Meshy preview tasks, polls completion, downloads GLB, and binds into a VRM 1.0 humanoid rig."
+      description: "Submits real Meshy preview tasks, polls completion, downloads GLB, and binds into a VRM 0.0/1.0 humanoid rig."
     },
     {
       id: "local-triposr-instantmesh",
@@ -77868,11 +78704,11 @@ function listProviderStatuses(blender) {
       category: "local_runtime",
       modeSupport: ["local", "hybrid", "cloud"],
       configured: blender.installed,
-      available: blender.installed,
-      capabilityState: blender.installed ? "verified_live" : "unconfigured",
+      available: blender.installed && blender.vrmAddonDetected,
+      capabilityState: blender.installed && blender.vrmAddonDetected ? "ready" : blender.installed ? "unverified_key" : "unconfigured",
       verificationNote: blender.statusMessage,
       costModel: "Free / GPL Local Blender",
-      description: "Imports humanoid source GLB, validates bone mapping & depsgraph deformation, and runs VRM Add-on export."
+      description: "Imports humanoid source GLB, validates bone mapping & depsgraph deformation, and runs VRM Add-on export (VRM 0.0 primary / 1.0 optional)."
     }
   ];
 }
@@ -78240,13 +79076,14 @@ async function resolveGeometryProviderExecution(spec, requestedProvider, opts) {
   }
   if (provider === "blender-bpy-bridge") {
     const blender = detectBlenderInstallation();
+    const eligible = blender.installed && blender.vrmAddonDetected;
     return {
       requestedProvider: provider,
-      executedProvider: blender.installed ? "blender-bpy-bridge" : "sculpted-anatomical-vrm",
-      usedFallback: !blender.installed,
-      externalGenerationSucceeded: blender.installed,
-      fallbackReason: blender.installed ? void 0 : "Blender executable not detected on host.",
-      detail: blender.installed ? `Blender ${blender.version} detected; generated source_high.glb + anatomical bpy refinement pipeline.` : "Blender executable not detected on host; fell back to High-Detail Sculpted Anatomical VRM Engine + generated bpy script."
+      executedProvider: eligible ? "blender-bpy-bridge" : "sculpted-anatomical-vrm",
+      usedFallback: !eligible,
+      externalGenerationSucceeded: false,
+      fallbackReason: eligible ? void 0 : blender.installed ? `${blender.version} detected without VRM_Addon_for_Blender; falling back to TypeScript VRM synthesis.` : "Blender executable not detected on host; using TypeScript VRM synthesis + generated bpy script.",
+      detail: eligible ? `${blender.version} + VRM Add-on detected; base geometry prepared for live headless Blender execution.` : blender.installed ? `${blender.version} detected without VRM Add-on; using TypeScript VRM synthesis + generated bpy script.` : "Blender executable not detected on host; using TypeScript VRM synthesis + generated bpy script."
     };
   }
   return {
@@ -78259,8 +79096,8 @@ async function resolveGeometryProviderExecution(spec, requestedProvider, opts) {
 }
 
 // server/projectStore.ts
-var import_node_fs4 = __toESM(require("node:fs"), 1);
-var import_node_path4 = __toESM(require("node:path"), 1);
+var import_node_fs5 = __toESM(require("node:fs"), 1);
+var import_node_path5 = __toESM(require("node:path"), 1);
 var import_node_zlib2 = __toESM(require("node:zlib"), 1);
 
 // src/shared/blenderScriptGen.ts
@@ -78276,15 +79113,17 @@ function generateBlenderCharacterScript(spec, outputDirPlaceholder = "./output")
   const safeName = spec.name.replace(/[^a-zA-Z0-9_-]/g, "_");
   const hScale = (spec.proportions.heightMeters / 1.7).toFixed(4);
   const texPx = textureResolutionToTargetPx(spec.qualityConfig.textureResolution);
+  const targetVrmVersion = spec.riggingRequirements.vrmVersion === "1.0" ? "1.0" : "0.0";
+  const vrmMeta = createDefaultVrmMetadata(spec.name, spec.vrmMetadata);
   const subsurfLevels = spec.qualityConfig.geometryQuality === "ultra" ? 2 : spec.qualityConfig.geometryQuality === "high" ? 1 : 0;
   return `"""
-VRM Forge Studio \u2014 High-Detail Blender 4.x / 3.6 Anatomical Refinement & VRM 1.0 Export Script
+VRM Forge Studio \u2014 Blender 3.6\u20134.3 Anatomical Refinement, Rig Mapping & VRM ${targetVrmVersion} Export Script
 Character: ${spec.name} (${spec.species} | Art Style: ${spec.artStyle})
-Geometry Quality: ${spec.qualityConfig.geometryQuality} | Texture Target: ${texPx}px | VRM Opt: ${spec.qualityConfig.vrmOptimization}
+Primary Export Target: VRM ${targetVrmVersion} | Geometry: ${spec.qualityConfig.geometryQuality} | Texture Target: ${texPx}px
 Generated: ${spec.updatedAt}
 
 Usage (Background / Headless):
-  blender --background --python ${safeName}_build.py -- --out-dir "${outputDirPlaceholder}"
+  blender --background --python ${safeName}_build.py -- --out-dir "${outputDirPlaceholder}" --vrm-version ${targetVrmVersion}
 """
 
 import bpy
@@ -78292,12 +79131,80 @@ import bmesh
 import json
 import math
 import os
+import re
 import sys
 from mathutils import Vector
 
 CHAR_SPEC = ${JSON.stringify(spec, null, 2)}
+VRM_META_DEFAULTS = ${JSON.stringify(vrmMeta, null, 2)}
+TARGET_VRM_VERSION = "${targetVrmVersion}"
 TARGET_TEXTURE_PX = ${texPx}
 SUBSURF_LEVELS = ${subsurfLevels}
+
+REQUIRED_VRM_HUMANOID_BONES = [
+    "hips", "spine", "chest", "neck", "head",
+    "leftUpperArm", "leftLowerArm", "leftHand",
+    "rightUpperArm", "rightLowerArm", "rightHand",
+    "leftUpperLeg", "leftLowerLeg", "leftFoot",
+    "rightUpperLeg", "rightLowerLeg", "rightFoot",
+]
+
+VROID_AND_CANONICAL_ALIASES = {
+    "hips": ["hips", "j_bip_c_hips", "mixamorig:hips", "pelvis", "root"],
+    "spine": ["spine", "j_bip_c_spine", "mixamorig:spine", "spine1", "spine_01"],
+    "chest": ["chest", "j_bip_c_chest", "mixamorig:spine1", "mixamorig:spine2", "spine2", "spine_02"],
+    "upperChest": ["upperchest", "j_bip_c_upperchest", "spine_03"],
+    "neck": ["neck", "j_bip_c_neck", "mixamorig:neck", "neck_01"],
+    "head": ["head", "j_bip_c_head", "mixamorig:head"],
+    "leftEye": ["lefteye", "j_adj_l_faceeye", "eye_l"],
+    "rightEye": ["righteye", "j_adj_r_faceeye", "eye_r"],
+    "leftShoulder": ["leftshoulder", "j_bip_l_shoulder", "mixamorig:leftshoulder", "clavicle_l"],
+    "leftUpperArm": ["leftupperarm", "j_bip_l_upperarm", "mixamorig:leftarm", "upperarm_l"],
+    "leftLowerArm": ["leftlowerarm", "j_bip_l_lowerarm", "mixamorig:leftforearm", "lowerarm_l"],
+    "leftHand": ["lefthand", "j_bip_l_hand", "mixamorig:lefthand", "hand_l"],
+    "rightShoulder": ["rightshoulder", "j_bip_r_shoulder", "mixamorig:rightshoulder", "clavicle_r"],
+    "rightUpperArm": ["rightupperarm", "j_bip_r_upperarm", "mixamorig:rightarm", "upperarm_r"],
+    "rightLowerArm": ["rightlowerarm", "j_bip_r_lowerarm", "mixamorig:rightforearm", "lowerarm_r"],
+    "rightHand": ["righthand", "j_bip_r_hand", "mixamorig:righthand", "hand_r"],
+    "leftUpperLeg": ["leftupperleg", "j_bip_l_upperleg", "mixamorig:leftupleg", "thigh_l"],
+    "leftLowerLeg": ["leftlowerleg", "j_bip_l_lowerleg", "mixamorig:leftleg", "calf_l"],
+    "leftFoot": ["leftfoot", "j_bip_l_foot", "mixamorig:leftfoot", "foot_l"],
+    "leftToes": ["lefttoes", "j_bip_l_toebase", "mixamorig:lefttoebase", "ball_l"],
+    "rightUpperLeg": ["rightupperleg", "j_bip_r_upperleg", "mixamorig:rightupleg", "thigh_r"],
+    "rightLowerLeg": ["rightlowerleg", "j_bip_r_lowerleg", "mixamorig:rightleg", "calf_r"],
+    "rightFoot": ["rightfoot", "j_bip_r_foot", "mixamorig:rightfoot", "foot_r"],
+    "rightToes": ["righttoes", "j_bip_r_toebase", "mixamorig:righttoebase", "ball_r"],
+    "leftThumbMetacarpal": ["leftthumbmetacarpal", "j_bip_l_thumb1"],
+    "leftThumbProximal": ["leftthumbproximal", "j_bip_l_thumb2"],
+    "leftThumbDistal": ["leftthumbdistal", "j_bip_l_thumb3"],
+    "leftIndexProximal": ["leftindexproximal", "j_bip_l_index1"],
+    "leftIndexIntermediate": ["leftindexintermediate", "j_bip_l_index2"],
+    "leftIndexDistal": ["leftindexdistal", "j_bip_l_index3"],
+    "leftMiddleProximal": ["leftmiddleproximal", "j_bip_l_middle1"],
+    "leftMiddleIntermediate": ["leftmiddleintermediate", "j_bip_l_middle2"],
+    "leftMiddleDistal": ["leftmiddledistal", "j_bip_l_middle3"],
+    "leftRingProximal": ["leftringproximal", "j_bip_l_ring1"],
+    "leftRingIntermediate": ["leftringintermediate", "j_bip_l_ring2"],
+    "leftRingDistal": ["leftringdistal", "j_bip_l_ring3"],
+    "leftLittleProximal": ["leftlittleproximal", "j_bip_l_little1"],
+    "leftLittleIntermediate": ["leftlittleintermediate", "j_bip_l_little2"],
+    "leftLittleDistal": ["leftlittledistal", "j_bip_l_little3"],
+    "rightThumbMetacarpal": ["rightthumbmetacarpal", "j_bip_r_thumb1"],
+    "rightThumbProximal": ["rightthumbproximal", "j_bip_r_thumb2"],
+    "rightThumbDistal": ["rightthumbdistal", "j_bip_r_thumb3"],
+    "rightIndexProximal": ["rightindexproximal", "j_bip_r_index1"],
+    "rightIndexIntermediate": ["rightindexintermediate", "j_bip_r_index2"],
+    "rightIndexDistal": ["rightindexdistal", "j_bip_r_index3"],
+    "rightMiddleProximal": ["rightmiddleproximal", "j_bip_r_middle1"],
+    "rightMiddleIntermediate": ["rightmiddleintermediate", "j_bip_r_middle2"],
+    "rightMiddleDistal": ["rightmiddledistal", "j_bip_r_middle3"],
+    "rightRingProximal": ["rightringproximal", "j_bip_r_ring1"],
+    "rightRingIntermediate": ["rightringintermediate", "j_bip_r_ring2"],
+    "rightRingDistal": ["rightringdistal", "j_bip_r_ring3"],
+    "rightLittleProximal": ["rightlittleproximal", "j_bip_r_little1"],
+    "rightLittleIntermediate": ["rightlittleintermediate", "j_bip_r_little2"],
+    "rightLittleDistal": ["rightlittledistal", "j_bip_r_little3"],
+}
 
 
 def clear_scene():
@@ -78317,14 +79224,10 @@ def create_material(name, rgba, metallic=0.0, roughness=0.5, emissive_rgba=None)
         if emissive_rgba and "Emission Color" in bsdf.inputs:
             bsdf.inputs["Emission Color"].default_value = emissive_rgba
             bsdf.inputs["Emission Strength"].default_value = 1.25
-        # Create target bake image node (${texPx}x${texPx}) for PBR baking
         bake_img = bpy.data.images.new(f"{name}_Bake_${texPx}", width=TARGET_TEXTURE_PX, height=TARGET_TEXTURE_PX)
         tex_node = nodes.new("ShaderNodeTexImage")
         tex_node.image = bake_img
         tex_node.location = (-360, 200)
-        if not bsdf.inputs["Base Color"].is_linked:
-            pass  # Keeps viewport material tint active until user triggers Cycles bake
-        # Procedural micro-normal bump for surface richness
         noise = nodes.new("ShaderNodeTexNoise")
         noise.inputs["Scale"].default_value = 28.0
         noise.inputs["Detail"].default_value = 6.0
@@ -78378,8 +79281,10 @@ def create_humanoid_armature(name, h_scale=${hScale}):
 
         for idx, (fkey, y_off) in enumerate([("Thumb", -0.026), ("Index", -0.022), ("Middle", -0.008), ("Ring", 0.008), ("Little", 0.022)]):
             bx = sign * (0.667 if fkey == "Thumb" else 0.71) * sw
-            p1 = add_bone(f"{side}{fkey}Proximal", (bx, y_off, sh_y - 0.015), (bx + sign * 0.032, y_off, sh_y - 0.017), hand)
-            p2 = add_bone(f"{side}{fkey}Intermediate", (bx + sign * 0.032, y_off, sh_y - 0.017), (bx + sign * 0.056, y_off, sh_y - 0.019), p1)
+            first_suffix = "Metacarpal" if fkey == "Thumb" else "Proximal"
+            second_suffix = "Proximal" if fkey == "Thumb" else "Intermediate"
+            p1 = add_bone(f"{side}{fkey}{first_suffix}", (bx, y_off, sh_y - 0.015), (bx + sign * 0.032, y_off, sh_y - 0.017), hand)
+            p2 = add_bone(f"{side}{fkey}{second_suffix}", (bx + sign * 0.032, y_off, sh_y - 0.017), (bx + sign * 0.056, y_off, sh_y - 0.019), p1)
             add_bone(f"{side}{fkey}Distal", (bx + sign * 0.056, y_off, sh_y - 0.019), (bx + sign * 0.074, y_off, sh_y - 0.021), p2)
 
         ul = add_bone(f"{side}UpperLeg", (sign * 0.092 * hw, 0, hips_y - 0.04), (sign * 0.092 * hw, 0, hips_y * 0.52), hips)
@@ -78402,7 +79307,6 @@ def append_anatomical_loft(bm, rings, radial_segs=28):
             if axis == "x":
                 verts.append(bm.verts.new((cx, cy + sn * rz, cz + c * rx)))
             else:
-                # Harmonic chest/waist/spine anatomical contouring
                 sternum = math.exp(-((c / 0.18) ** 2))
                 pec = math.exp(-(((abs(c) - 0.42) / 0.28) ** 2))
                 dz = (pec * 0.014 - sternum * 0.005) * sn if sn > 0 else 0.0
@@ -78478,7 +79382,6 @@ def build_anatomical_fallback_scene(name, h_scale=${hScale}):
 
     bm = bmesh.new()
     hips_z = 0.94 * h_scale
-    # Multi-ring anatomical torso (pelvis -> iliac waist -> ribcage/bust -> clavicles -> neck)
     append_anatomical_loft(bm, [
         (0, 0, hips_z - 0.10 * h_scale, 0.125, 0.095, "z"),
         (0, 0, hips_z + 0.02 * h_scale, 0.145, 0.105, "z"),
@@ -78489,7 +79392,6 @@ def build_anatomical_fallback_scene(name, h_scale=${hScale}):
         (0, 0, hips_z + 0.58 * h_scale, 0.044, 0.046, "z"),
     ], radial_segs=32)
 
-    # Sculpted cranio-facial loft (jaw -> cheekbones -> brow -> crown)
     head_z = hips_z + 0.59 * h_scale
     append_anatomical_loft(bm, [
         (0, -0.01, head_z + 0.005, 0.046, 0.052, "z"),
@@ -78499,7 +79401,6 @@ def build_anatomical_fallback_scene(name, h_scale=${hScale}):
         (0, 0.005, head_z + 0.215, 0.032, 0.038, "z"),
     ], radial_segs=32)
 
-    # Anatomical contoured legs
     for sign in (1.0, -1.0):
         lx = sign * 0.092
         append_anatomical_loft(bm, [
@@ -78544,7 +79445,34 @@ def build_anatomical_fallback_scene(name, h_scale=${hScale}):
     return arm_obj, [obj, hair_obj]
 
 
-def run_deformation_check(arm_obj):
+def resolve_vrm_bone_map(arm_obj):
+    by_lower = {b.name.lower(): b.name for b in arm_obj.data.bones}
+    by_norm = {re.sub(r"[^a-z0-9]", "", b.name.lower()): b.name for b in arm_obj.data.bones}
+    mapping = {}
+    for canonical, aliases in VROID_AND_CANONICAL_ALIASES.items():
+        for alias in aliases:
+            if alias in by_lower:
+                mapping[canonical] = by_lower[alias]
+                break
+        if canonical not in mapping:
+            for alias in aliases:
+                norm_alias = re.sub(r"[^a-z0-9]", "", alias)
+                if norm_alias in by_norm:
+                    mapping[canonical] = by_norm[norm_alias]
+                    break
+    return mapping
+
+
+def _assign_bone_ref(prop_obj, target_bone_name):
+    if prop_obj is None:
+        return
+    if hasattr(prop_obj, "node") and hasattr(prop_obj.node, "bone_name"):
+        prop_obj.node.bone_name = target_bone_name
+    elif hasattr(prop_obj, "bone_name"):
+        prop_obj.bone_name = target_bone_name
+
+
+def run_deformation_check(arm_obj, bone_map):
     if not arm_obj or arm_obj.type != "ARMATURE":
         return {"deformed": False, "max_delta": 0.0, "weighted_vertices": 0}
     mesh_objs = [o for o in bpy.data.objects if o.type == "MESH"]
@@ -78562,11 +79490,12 @@ def run_deformation_check(arm_obj):
 
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode="POSE")
-    for bname in ("leftUpperArm", "rightUpperArm", "hips"):
+    for canonical in ("leftUpperArm", "rightUpperArm", "hips"):
+        bname = bone_map.get(canonical, canonical)
         pb = arm_obj.pose.bones.get(bname)
         if pb:
             pb.rotation_mode = "XYZ"
-            pb.rotation_euler = (0.25, 0.0, 0.25 if "left" in bname else -0.25)
+            pb.rotation_euler = (0.25, 0.0, 0.25 if "left" in canonical else -0.25)
     bpy.context.view_layer.update()
 
     deps_after = bpy.context.evaluated_depsgraph_get()
@@ -78586,16 +79515,7 @@ def run_deformation_check(arm_obj):
     return {"deformed": max_delta > 1e-4, "max_delta": round(float(max_delta), 6), "weighted_vertices": weighted_verts}
 
 
-REQUIRED_VRM_HUMANOID_BONES = [
-    "hips", "spine", "chest", "neck", "head",
-    "leftUpperArm", "leftLowerArm", "leftHand",
-    "rightUpperArm", "rightLowerArm", "rightHand",
-    "leftUpperLeg", "leftLowerLeg", "leftFoot",
-    "rightUpperLeg", "rightLowerLeg", "rightFoot",
-]
-
-
-def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None):
+def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None, vrm_version=TARGET_VRM_VERSION):
     vrm_path = os.path.join(out_dir, "${safeName}.vrm")
     blend_path = os.path.join(out_dir, "${safeName}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=blend_path)
@@ -78604,18 +79524,43 @@ def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None):
     vrm_exported = False
     vrm_reload_valid = False
     vrm_error = None
-    bone_names = {b.name for b in arm_obj.data.bones} if arm_obj else set()
-    missing_bones = [b for b in REQUIRED_VRM_HUMANOID_BONES if b not in bone_names]
+    bone_map = resolve_vrm_bone_map(arm_obj) if arm_obj else {}
+    missing_bones = [b for b in REQUIRED_VRM_HUMANOID_BONES if b not in bone_map]
 
     if arm_obj and vrm_addon_installed:
         try:
             ext = arm_obj.data.vrm_addon_extension
-            ext.spec_version = "1.0"
-            ext.vrm1.meta.vrm_name = CHAR_SPEC["name"]
-            human_bones = ext.vrm1.humanoid.human_bones
-            for req_bone in REQUIRED_VRM_HUMANOID_BONES:
-                if hasattr(human_bones, req_bone) and req_bone in bone_names:
-                    setattr(getattr(human_bones, req_bone).node, "bone_name", req_bone)
+            if vrm_version == "0.0":
+                ext.spec_version = "0.0"
+                meta0 = ext.vrm0.meta
+                meta0.title = VRM_META_DEFAULTS.get("title", CHAR_SPEC["name"])
+                meta0.author = VRM_META_DEFAULTS.get("author", "") or "Unspecified Author"
+                meta0.version = VRM_META_DEFAULTS.get("version", "1.0")
+                meta0.license_name = VRM_META_DEFAULTS.get("licenseName", "Other")
+                meta0.allowed_user_name = VRM_META_DEFAULTS.get("allowedUserName", "OnlyAuthor")
+                meta0.violent_ussage_name = VRM_META_DEFAULTS.get("violentUsage", "Disallow")
+                meta0.sexual_ussage_name = VRM_META_DEFAULTS.get("sexualUsage", "Disallow")
+                meta0.commercial_ussage_name = VRM_META_DEFAULTS.get("commercialUsage", "Disallow")
+
+                hum0 = ext.vrm0.humanoid
+                for canonical, real_bone in bone_map.items():
+                    snake = re.sub(r"([A-Z])", lambda m: "_" + m.group(1).lower(), canonical)
+                    entry = next((hb for hb in hum0.human_bones if getattr(hb, "bone", "") in (canonical, snake)), None)
+                    if entry is None:
+                        entry = hum0.human_bones.add()
+                        entry.bone = snake if hasattr(entry, "bone") else canonical
+                    _assign_bone_ref(entry, real_bone)
+
+                if hasattr(ext.vrm0, "first_person") and "head" in bone_map:
+                    _assign_bone_ref(ext.vrm0.first_person.first_person_bone, bone_map["head"])
+            else:
+                ext.spec_version = "1.0"
+                ext.vrm1.meta.vrm_name = VRM_META_DEFAULTS.get("title", CHAR_SPEC["name"])
+                human_bones = ext.vrm1.humanoid.human_bones
+                for canonical, real_bone in bone_map.items():
+                    if hasattr(human_bones, canonical):
+                        _assign_bone_ref(getattr(human_bones, canonical), real_bone)
+
             bpy.ops.export_scene.vrm(filepath=vrm_path)
             vrm_exported = os.path.exists(vrm_path)
             if vrm_exported:
@@ -78635,7 +79580,8 @@ def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None):
     total_polys = sum(len(o.data.polygons) for o in mesh_objs)
 
     report = {
-        "status": "ok",
+        "status": "ok" if vrm_exported and vrm_reload_valid else "warn",
+        "vrm_version": vrm_version,
         "character_name": CHAR_SPEC["name"],
         "art_style": CHAR_SPEC.get("artStyle", "semi_realistic"),
         "target_texture_px": TARGET_TEXTURE_PX,
@@ -78648,7 +79594,8 @@ def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None):
         "vrm_note": vrm_error,
         "vertex_count": total_verts,
         "polygon_count": total_polys,
-        "bone_count": len(bone_names),
+        "bone_count": len(arm_obj.data.bones) if arm_obj else 0,
+        "mapped_bone_count": len(bone_map),
         "missing_required_bones": missing_bones,
         "deformation": deform_stats or {},
     }
@@ -78660,10 +79607,13 @@ def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None):
 
 def main():
     out_dir = "${outputDirPlaceholder}"
+    vrm_version = TARGET_VRM_VERSION
     if "--" in sys.argv:
         args = sys.argv[sys.argv.index("--") + 1:]
         if "--out-dir" in args:
             out_dir = args[args.index("--out-dir") + 1]
+        if "--vrm-version" in args:
+            vrm_version = args[args.index("--vrm-version") + 1]
     os.makedirs(out_dir, exist_ok=True)
     clear_scene()
 
@@ -78680,8 +79630,9 @@ def main():
 
     deform_stats = None
     if arm_obj:
-        deform_stats = run_deformation_check(arm_obj)
-    configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats)
+        bmap = resolve_vrm_bone_map(arm_obj)
+        deform_stats = run_deformation_check(arm_obj, bmap)
+    configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats, vrm_version)
 
 
 if __name__ == "__main__":
@@ -78689,15 +79640,200 @@ if __name__ == "__main__":
 `;
 }
 
+// server/blenderExecutor.ts
+var import_node_child_process2 = require("node:child_process");
+var import_node_fs4 = __toESM(require("node:fs"), 1);
+var import_node_path4 = __toESM(require("node:path"), 1);
+function resolveBlenderScriptsDir() {
+  return import_node_path4.default.resolve(
+    process.env.VRM_FORGE_BLENDER_SCRIPTS_DIR || import_node_path4.default.join(process.cwd(), "blender_scripts")
+  );
+}
+async function runHeadlessBlenderPipeline(params) {
+  const t0 = performance.now();
+  const detection = params.blenderOverride ?? detectBlenderInstallation();
+  if (!detection.installed || !detection.executablePath) {
+    return {
+      attempted: false,
+      succeeded: false,
+      durationMs: Math.max(1, Math.round(performance.now() - t0)),
+      blenderVersion: null,
+      vrmAddonInstalled: false,
+      stdout: "",
+      stderr: "",
+      reason: detection.statusMessage || "Blender executable not found on this host."
+    };
+  }
+  if (!detection.vrmAddonDetected) {
+    return {
+      attempted: false,
+      succeeded: false,
+      durationMs: Math.max(1, Math.round(performance.now() - t0)),
+      blenderVersion: detection.version,
+      vrmAddonInstalled: false,
+      stdout: "",
+      stderr: "",
+      reason: `${detection.version} found, but VRM_Addon_for_Blender is not installed.`
+    };
+  }
+  const pathCheck = validateBlenderExecutablePath(detection.executablePath, {
+    allowCustomFolderIfVerified: true,
+    requireExistingFile: true
+  });
+  if (!pathCheck.valid || !pathCheck.normalizedPath) {
+    return {
+      attempted: false,
+      succeeded: false,
+      durationMs: Math.max(1, Math.round(performance.now() - t0)),
+      blenderVersion: detection.version,
+      vrmAddonInstalled: detection.vrmAddonDetected,
+      stdout: "",
+      stderr: "",
+      reason: pathCheck.reason || "Blender executable path rejected by security policy."
+    };
+  }
+  const scriptsDir = resolveBlenderScriptsDir();
+  const pipelineScript = resolveSafePathWithinRoot(scriptsDir, "blender_production_pipeline.py");
+  if (!import_node_fs4.default.existsSync(pipelineScript)) {
+    return {
+      attempted: false,
+      succeeded: false,
+      durationMs: Math.max(1, Math.round(performance.now() - t0)),
+      blenderVersion: detection.version,
+      vrmAddonInstalled: detection.vrmAddonDetected,
+      stdout: "",
+      stderr: "",
+      reason: `Production Blender script missing at ${pipelineScript}`
+    };
+  }
+  const args = [
+    "--background",
+    "--python",
+    pipelineScript,
+    "--",
+    "--glb-path",
+    params.glbPath,
+    "--out-dir",
+    params.outDir,
+    "--vrm-version",
+    params.vrmVersion
+  ];
+  if (params.specJsonPath) {
+    args.push("--spec-json", params.specJsonPath);
+  }
+  const timeoutMs = params.timeoutMs ?? 12e4;
+  return await new Promise((resolve) => {
+    const child = (0, import_node_child_process2.spawn)(pathCheck.normalizedPath, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const finish = (outcome) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (params.signal) {
+        params.signal.removeEventListener("abort", onAbort);
+      }
+      resolve(outcome);
+    };
+    const onAbort = () => {
+      child.kill("SIGTERM");
+      finish({
+        attempted: true,
+        succeeded: false,
+        durationMs: Math.max(1, Math.round(performance.now() - t0)),
+        blenderVersion: detection.version,
+        vrmAddonInstalled: detection.vrmAddonDetected,
+        stdout,
+        stderr,
+        reason: "Blender pipeline aborted by caller signal."
+      });
+    };
+    if (params.signal) {
+      if (params.signal.aborted) {
+        onAbort();
+        return;
+      }
+      params.signal.addEventListener("abort", onAbort, { once: true });
+    }
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish({
+        attempted: true,
+        succeeded: false,
+        durationMs: Math.max(1, Math.round(performance.now() - t0)),
+        blenderVersion: detection.version,
+        vrmAddonInstalled: detection.vrmAddonDetected,
+        stdout,
+        stderr,
+        reason: `Blender pipeline timed out after ${timeoutMs}ms.`
+      });
+    }, timeoutMs);
+    child.stdout?.on("data", (chunk) => {
+      if (stdout.length < 32768) {
+        stdout += chunk.toString("utf8");
+      }
+    });
+    child.stderr?.on("data", (chunk) => {
+      if (stderr.length < 32768) {
+        stderr += chunk.toString("utf8");
+      }
+    });
+    child.on("error", (err) => {
+      finish({
+        attempted: true,
+        succeeded: false,
+        durationMs: Math.max(1, Math.round(performance.now() - t0)),
+        blenderVersion: detection.version,
+        vrmAddonInstalled: detection.vrmAddonDetected,
+        stdout,
+        stderr,
+        reason: `Failed to launch Blender process: ${err.message}`
+      });
+    });
+    child.on("close", (code) => {
+      const durationMs = Math.max(1, Math.round(performance.now() - t0));
+      const reportPath = resolveSafePathWithinRoot(params.outDir, "blender_report.json");
+      const vrmPath = resolveSafePathWithinRoot(params.outDir, "character_blender.vrm");
+      let report;
+      if (import_node_fs4.default.existsSync(reportPath)) {
+        try {
+          report = JSON.parse(import_node_fs4.default.readFileSync(reportPath, "utf8"));
+        } catch {
+          report = void 0;
+        }
+      }
+      const vrmExists = import_node_fs4.default.existsSync(vrmPath) && import_node_fs4.default.statSync(vrmPath).size > 0;
+      const succeeded = code === 0 && report?.status === "ok" && Boolean(report?.vrm_export_success) && Boolean(report?.vrm_reload_success) && vrmExists;
+      const vrmBuffer = succeeded ? new Uint8Array(import_node_fs4.default.readFileSync(vrmPath)) : void 0;
+      finish({
+        attempted: true,
+        succeeded,
+        durationMs,
+        blenderVersion: detection.version,
+        vrmAddonInstalled: detection.vrmAddonDetected,
+        vrmBuffer,
+        report,
+        stdout,
+        stderr,
+        reason: succeeded ? void 0 : report?.vrm_note || (code !== 0 ? `Blender exited with code ${code}${stderr ? `: ${stderr.slice(0, 220)}` : ""}` : "Blender did not produce a verified .vrm file.")
+      });
+    });
+  });
+}
+
 // server/projectStore.ts
 registerPngCompressor((raw) => new Uint8Array(import_node_zlib2.default.deflateSync(raw, { level: 6 })));
 function getProjectsRoot() {
-  return import_node_path4.default.resolve(process.env.VRM_FORGE_PROJECTS_DIR || import_node_path4.default.join(process.cwd(), "projects"));
+  return import_node_path5.default.resolve(process.env.VRM_FORGE_PROJECTS_DIR || import_node_path5.default.join(process.cwd(), "projects"));
 }
 function ensureRoot() {
   const root = getProjectsRoot();
-  if (!import_node_fs4.default.existsSync(root)) {
-    import_node_fs4.default.mkdirSync(root, { recursive: true });
+  if (!import_node_fs5.default.existsSync(root)) {
+    import_node_fs5.default.mkdirSync(root, { recursive: true });
   }
   return root;
 }
@@ -78706,11 +79842,15 @@ function getSafeProjectDir(id) {
   const root = ensureRoot();
   return resolveSafePathWithinRoot(root, safeId);
 }
-function buildMeasuredPipelineStages(spec, ctx, built, validation, timings) {
+function buildMeasuredPipelineStages(spec, ctx, built, validation, timings, blenderOutcome) {
   const design = buildVisualDesignPlan(spec);
   const extAudit = built.externalAudit;
   const isExternal = Boolean(extAudit);
   const unoptimized = spec.qualityConfig.vrmOptimization === "unoptimized";
+  const targetVrmVersion = spec.riggingRequirements.vrmVersion === "1.0" ? "1.0" : "0.0";
+  const blenderLiveSucceeded = Boolean(blenderOutcome?.succeeded);
+  const blenderStatus = blenderLiveSucceeded ? "validated" : blenderOutcome?.attempted ? "fallback" : "prepared";
+  const blenderDetail = blenderLiveSucceeded ? `Blender ${blenderOutcome?.blenderVersion} imported GLB, verified deformation & exported valid VRM ${targetVrmVersion}` : blenderOutcome?.attempted ? `Live Blender failed (${blenderOutcome.reason || "unknown error"}); fell back to TypeScript VRM ${targetVrmVersion} synthesis` : blenderOutcome?.reason ? `Wrote source_high.glb + blender_build.py (${blenderOutcome.reason}); using TypeScript VRM ${targetVrmVersion} fallback` : `Wrote source_high.glb + blender_build.py (live Blender bpy execution not run here; TypeScript VRM ${targetVrmVersion} fallback active)`;
   return [
     {
       id: "interpret",
@@ -78757,9 +79897,10 @@ function buildMeasuredPipelineStages(spec, ctx, built, validation, timings) {
     {
       id: "rigging",
       label: "7. Humanoid Rigging & Weights",
-      status: extAudit ? extAudit.weightsNormalized && extAudit.allJointDeformationsPassed && extAudit.missingVrmBones.length === 0 ? "completed" : "warning" : validation.skinWeightsValid ? "completed" : "error",
+      status: extAudit ? extAudit.weightsNormalized && extAudit.allJointDeformationsPassed && extAudit.missingVrmBones.length === 0 ? "validated" : "warning" : validation.skinWeightsValid ? "validated" : "error",
       durationMs: built.timingsMs.riggingMs,
-      detail: extAudit ? `${extAudit.mode === "preserved_existing_rig" ? "Preserved existing rig" : "Fitted humanoid rig"} \xB7 ${built.stats.boneCount} bones \xB7 max weight error ${extAudit.maxWeightSumError} \xB7 ${extAudit.jointDeformations.filter((j) => j.passed).length}/${extAudit.jointDeformations.length} joint deformations verified` : `Bound ${built.stats.boneCount} VRM humanoid, finger & eye bones with normalized skin weights`
+      detail: extAudit ? `${extAudit.mode === "preserved_existing_rig" ? "Preserved existing rig" : "Fitted humanoid rig"} (${built.rigReport?.mappingSource || "heuristic"}) \xB7 ${built.stats.boneCount} bones \xB7 max weight error ${extAudit.maxWeightSumError} \xB7 ${extAudit.jointDeformations.filter((j) => j.passed).length}/${extAudit.jointDeformations.length} joint deformations verified` : `Bound ${built.stats.boneCount} VRM humanoid, finger & eye bones with normalized skin weights`,
+      validationStatus: validation.skinWeightsValid ? "pass" : "fail"
     },
     {
       id: "facial_rigging",
@@ -78770,93 +79911,57 @@ function buildMeasuredPipelineStages(spec, ctx, built, validation, timings) {
     },
     {
       id: "blender_prep",
-      label: "9. Blender Script & GLB Artifact Prep",
-      status: "completed",
-      durationMs: timings.blenderPrepMs,
-      detail: "Wrote source_high.glb + blender_build.py (live Blender bpy execution not run here)"
+      label: "9. Blender Production & bpy Export",
+      status: blenderStatus,
+      durationMs: timings.blenderPrepMs + (blenderOutcome?.durationMs ?? 0),
+      detail: blenderDetail,
+      artifact: blenderLiveSucceeded ? "character_blender.vrm" : "blender_build.py",
+      validationStatus: blenderLiveSucceeded ? "pass" : blenderOutcome?.attempted ? "warn" : void 0
     },
     {
       id: "vrm_export",
-      label: "10. VRM 1.0 Export & Audit",
-      status: validation.valid ? "completed" : "error",
+      label: `10. VRM ${targetVrmVersion} Export & Audit`,
+      status: validation.valid ? "validated" : "error",
       durationMs: built.timingsMs.packageMs + timings.validateMs,
-      detail: `Independently validated glTF 2.0 + VRMC_vrm ${validation.vrmVersion} binary (${(validation.fileSizeBytes / 1024).toFixed(1)} KB)`
+      detail: `Independently validated VRM ${validation.vrmVersion} binary (${(validation.fileSizeBytes / 1024).toFixed(1)} KB \xB7 ${blenderLiveSucceeded ? "Blender Verified" : "TypeScript Synthesis"})`,
+      artifact: "character.vrm",
+      validationStatus: validation.valid ? "pass" : "fail"
     }
   ];
 }
-function saveProjectArtifacts(spec, mode, execContext, summary = "Initial character generation", externalGeometry) {
-  const tGate0 = performance.now();
-  const specValidation = validateCharacterSpecification(spec);
-  if (!specValidation.valid) {
-    throw new SecurityValidationError(
-      `Character specification failed fidelity audit: ${specValidation.violations.join("; ")}`,
-      422
-    );
-  }
-  const designGateMs = Math.max(1, Math.round(performance.now() - tGate0));
-  ensureRoot();
-  const dir = getSafeProjectDir(spec.id);
-  import_node_fs4.default.mkdirSync(dir, { recursive: true });
-  const built = externalGeometry && externalGeometry.parsedMesh.valid ? buildRiggedVrmFromExternalMesh(
-    spec,
-    externalGeometry.parsedMesh,
-    externalGeometry.glbBuffer
-  ) : buildCharacterVrmAndGlb(spec);
-  const tVal0 = performance.now();
-  const validation = validateVrmBinary(built.vrmBuffer);
-  const validateMs = Math.max(1, Math.round(performance.now() - tVal0));
-  if (!validation.valid) {
-    throw new Error(
-      `Independent VRM validation failed: ${validation.checks.filter((c) => c.status === "fail").map((c) => c.detail).join("; ")}`
-    );
-  }
-  const tPrep0 = performance.now();
-  const blenderScript = generateBlenderCharacterScript(spec, dir);
-  import_node_fs4.default.writeFileSync(resolveSafePathWithinRoot(dir, "character.vrm"), built.vrmBuffer);
-  import_node_fs4.default.writeFileSync(resolveSafePathWithinRoot(dir, "character.glb"), built.glbBuffer);
-  import_node_fs4.default.writeFileSync(resolveSafePathWithinRoot(dir, "source_high.glb"), built.sourceGlbBuffer);
-  if (externalGeometry) {
-    import_node_fs4.default.writeFileSync(
-      resolveSafePathWithinRoot(dir, "external_source.glb"),
-      externalGeometry.glbBuffer
-    );
-  }
-  import_node_fs4.default.writeFileSync(resolveSafePathWithinRoot(dir, "spec.json"), JSON.stringify(spec, null, 2));
-  import_node_fs4.default.writeFileSync(
-    resolveSafePathWithinRoot(dir, "validation.json"),
-    JSON.stringify(validation, null, 2)
-  );
-  import_node_fs4.default.writeFileSync(resolveSafePathWithinRoot(dir, "blender_build.py"), blenderScript);
-  const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
+function finalizeProjectRecord(params) {
+  const { dir, spec, mode, targetVrmVersion, productionPath, execContext, summary, built, validation, timings, blenderOutcome } = params;
   const stages = buildMeasuredPipelineStages(
     spec,
-    {
-      ...execContext,
-      designValidationMs: execContext.designValidationMs || designGateMs
-    },
+    execContext,
     built,
     validation,
-    { validateMs, blenderPrepMs }
+    timings,
+    blenderOutcome
   );
   const metaPath = resolveSafePathWithinRoot(dir, "meta.json");
   let existingRevisions = [];
   let createdAt = spec.createdAt;
-  if (import_node_fs4.default.existsSync(metaPath)) {
+  if (import_node_fs5.default.existsSync(metaPath)) {
     try {
-      const prev = JSON.parse(import_node_fs4.default.readFileSync(metaPath, "utf8"));
+      const prev = JSON.parse(import_node_fs5.default.readFileSync(metaPath, "utf8"));
       existingRevisions = prev.revisions || [];
       createdAt = prev.createdAt || createdAt;
     } catch {
       existingRevisions = [];
     }
   }
+  const hasBlenderReport = import_node_fs5.default.existsSync(resolveSafePathWithinRoot(dir, "blender_report.json"));
   const record = {
     id: spec.id,
     name: spec.name,
     mode,
+    vrmVersion: targetVrmVersion,
+    productionPath,
     spec,
     validation,
     estimates: built.estimates,
+    rigReport: built.rigReport,
     stages,
     revisions: [
       {
@@ -78871,22 +79976,157 @@ function saveProjectArtifacts(spec, mode, execContext, summary = "Initial charac
     glbUrl: `/api/projects/${spec.id}/files/character.glb?v=${spec.version}`,
     sourceGlbUrl: `/api/projects/${spec.id}/files/source_high.glb?v=${spec.version}`,
     blenderScriptUrl: `/api/projects/${spec.id}/files/blender_build.py?v=${spec.version}`,
+    ...hasBlenderReport ? { blenderReportUrl: `/api/projects/${spec.id}/files/blender_report.json?v=${spec.version}` } : {},
     createdAt,
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
-  import_node_fs4.default.writeFileSync(metaPath, JSON.stringify(record, null, 2));
+  import_node_fs5.default.writeFileSync(metaPath, JSON.stringify(record, null, 2));
   return record;
+}
+function prepareSpecAndBaseBuild(spec, externalGeometry) {
+  const tGate0 = performance.now();
+  const specValidation = validateCharacterSpecification(spec);
+  if (!specValidation.valid) {
+    throw new SecurityValidationError(
+      `Character specification failed fidelity audit: ${specValidation.violations.join("; ")}`,
+      422
+    );
+  }
+  const designGateMs = Math.max(1, Math.round(performance.now() - tGate0));
+  ensureRoot();
+  const dir = getSafeProjectDir(spec.id);
+  import_node_fs5.default.mkdirSync(dir, { recursive: true });
+  const built = externalGeometry && externalGeometry.parsedMesh.valid ? buildRiggedVrmFromExternalMesh(
+    spec,
+    externalGeometry.parsedMesh,
+    externalGeometry.glbBuffer
+  ) : buildCharacterVrmAndGlb(spec);
+  const tPrep0 = performance.now();
+  const blenderScript = generateBlenderCharacterScript(spec, dir);
+  const specJsonPath = resolveSafePathWithinRoot(dir, "spec.json");
+  const sourceGlbPath = resolveSafePathWithinRoot(dir, "source_high.glb");
+  const externalGlbPath = resolveSafePathWithinRoot(dir, "external_source.glb");
+  import_node_fs5.default.writeFileSync(resolveSafePathWithinRoot(dir, "character.glb"), built.glbBuffer);
+  import_node_fs5.default.writeFileSync(sourceGlbPath, built.sourceGlbBuffer);
+  if (externalGeometry) {
+    import_node_fs5.default.writeFileSync(externalGlbPath, externalGeometry.glbBuffer);
+  }
+  import_node_fs5.default.writeFileSync(specJsonPath, JSON.stringify(spec, null, 2));
+  import_node_fs5.default.writeFileSync(resolveSafePathWithinRoot(dir, "blender_build.py"), blenderScript);
+  const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
+  return {
+    dir,
+    designGateMs,
+    built,
+    blenderPrepMs,
+    specJsonPath,
+    sourceGlbPath,
+    externalGlbPath
+  };
+}
+function saveProjectArtifacts(spec, mode, execContext, summary = "Initial character generation", externalGeometry) {
+  const prep = prepareSpecAndBaseBuild(spec, externalGeometry);
+  const targetVrmVersion = spec.riggingRequirements.vrmVersion === "1.0" ? "1.0" : "0.0";
+  const tVal0 = performance.now();
+  const validation = validateVrmBinary(prep.built.vrmBuffer, targetVrmVersion);
+  const validateMs = Math.max(1, Math.round(performance.now() - tVal0));
+  if (!validation.valid) {
+    throw new Error(
+      `Independent VRM ${targetVrmVersion} validation failed: ${validation.checks.filter((c) => c.status === "fail").map((c) => c.detail).join("; ")}`
+    );
+  }
+  import_node_fs5.default.writeFileSync(resolveSafePathWithinRoot(prep.dir, "character.vrm"), prep.built.vrmBuffer);
+  import_node_fs5.default.writeFileSync(
+    resolveSafePathWithinRoot(prep.dir, "validation.json"),
+    JSON.stringify(validation, null, 2)
+  );
+  return finalizeProjectRecord({
+    dir: prep.dir,
+    spec,
+    mode,
+    targetVrmVersion,
+    productionPath: "typescript_fallback",
+    execContext: {
+      ...execContext,
+      designValidationMs: execContext.designValidationMs || prep.designGateMs
+    },
+    summary,
+    built: prep.built,
+    validation,
+    timings: { validateMs, blenderPrepMs: prep.blenderPrepMs }
+  });
+}
+async function executeCharacterPipeline(spec, mode, execContext, summary = "Initial character generation", externalGeometry, options) {
+  const prep = prepareSpecAndBaseBuild(spec, externalGeometry);
+  const targetVrmVersion = spec.riggingRequirements.vrmVersion === "1.0" ? "1.0" : "0.0";
+  let blenderOutcome;
+  let finalVrmBuffer = prep.built.vrmBuffer;
+  let productionPath = "typescript_fallback";
+  if (!options?.skipLiveBlender) {
+    const glbForBlender = externalGeometry ? prep.externalGlbPath : prep.sourceGlbPath;
+    blenderOutcome = await runHeadlessBlenderPipeline({
+      glbPath: glbForBlender,
+      outDir: prep.dir,
+      specJsonPath: prep.specJsonPath,
+      vrmVersion: targetVrmVersion,
+      blenderOverride: options?.blenderOverride,
+      signal: options?.signal
+    });
+    if (blenderOutcome.succeeded && blenderOutcome.vrmBuffer) {
+      const blenderCheck = validateVrmBinary(blenderOutcome.vrmBuffer, targetVrmVersion);
+      if (blenderCheck.valid) {
+        finalVrmBuffer = blenderOutcome.vrmBuffer;
+        productionPath = "blender_live";
+      } else {
+        blenderOutcome = {
+          ...blenderOutcome,
+          succeeded: false,
+          reason: `Blender exported VRM ${targetVrmVersion} failed independent TypeScript validation: ${blenderCheck.checks.filter((c) => c.status === "fail").map((c) => c.detail).join("; ")}`
+        };
+      }
+    }
+  }
+  const tVal0 = performance.now();
+  const validation = validateVrmBinary(finalVrmBuffer, targetVrmVersion);
+  const validateMs = Math.max(1, Math.round(performance.now() - tVal0));
+  if (!validation.valid) {
+    throw new Error(
+      `Independent VRM ${targetVrmVersion} validation failed: ${validation.checks.filter((c) => c.status === "fail").map((c) => c.detail).join("; ")}`
+    );
+  }
+  import_node_fs5.default.writeFileSync(resolveSafePathWithinRoot(prep.dir, "character.vrm"), finalVrmBuffer);
+  import_node_fs5.default.writeFileSync(
+    resolveSafePathWithinRoot(prep.dir, "validation.json"),
+    JSON.stringify(validation, null, 2)
+  );
+  const record = finalizeProjectRecord({
+    dir: prep.dir,
+    spec,
+    mode,
+    targetVrmVersion,
+    productionPath,
+    execContext: {
+      ...execContext,
+      designValidationMs: execContext.designValidationMs || prep.designGateMs
+    },
+    summary,
+    built: prep.built,
+    validation,
+    timings: { validateMs, blenderPrepMs: prep.blenderPrepMs },
+    blenderOutcome
+  });
+  return { record, blenderOutcome };
 }
 function listProjects() {
   const root = ensureRoot();
-  const entries = import_node_fs4.default.readdirSync(root, { withFileTypes: true });
+  const entries = import_node_fs5.default.readdirSync(root, { withFileTypes: true });
   const list = [];
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name.startsWith("_")) continue;
-    const metaPath = import_node_path4.default.join(root, entry.name, "meta.json");
-    if (!import_node_fs4.default.existsSync(metaPath)) continue;
+    const metaPath = import_node_path5.default.join(root, entry.name, "meta.json");
+    if (!import_node_fs5.default.existsSync(metaPath)) continue;
     try {
-      const parsed = JSON.parse(import_node_fs4.default.readFileSync(metaPath, "utf8"));
+      const parsed = JSON.parse(import_node_fs5.default.readFileSync(metaPath, "utf8"));
       list.push(parsed);
     } catch {
     }
@@ -78896,14 +80136,14 @@ function listProjects() {
 function getProject(id) {
   const dir = getSafeProjectDir(id);
   const metaPath = resolveSafePathWithinRoot(dir, "meta.json");
-  if (!import_node_fs4.default.existsSync(metaPath)) return null;
-  return JSON.parse(import_node_fs4.default.readFileSync(metaPath, "utf8"));
+  if (!import_node_fs5.default.existsSync(metaPath)) return null;
+  return JSON.parse(import_node_fs5.default.readFileSync(metaPath, "utf8"));
 }
 function getProjectFilePath(id, fileName) {
   const safeFile = assertAllowedArtifactFileName(fileName);
   const dir = getSafeProjectDir(id);
   const full = resolveSafePathWithinRoot(dir, safeFile);
-  return import_node_fs4.default.existsSync(full) ? full : null;
+  return import_node_fs5.default.existsSync(full) ? full : null;
 }
 function duplicateProject(id) {
   const source = getProject(id);
@@ -78937,7 +80177,7 @@ function seedInitialProjectsIfEmpty() {
   ensureRoot();
   const existing = listProjects();
   const hasCurrentSeed = existing.length >= 3 && existing.every(
-    (p) => Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints) && !p.stages.some(
+    (p) => p.vrmVersion === "0.0" && p.validation?.vrmVersion === "0.0" && Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints && p.rigReport && p.productionPath) && !p.stages.some(
       (s2) => s2.id === "visual_design" && s2.durationMs === 14 || s2.id === "geometry_3d" && s2.durationMs === 68
     )
   );
@@ -78958,7 +80198,7 @@ function seedInitialProjectsIfEmpty() {
         }
       },
       mode: "hybrid",
-      summary: "High-detail Armored Fantasy Paladin with wings & cloak"
+      summary: "High-detail Armored Fantasy Paladin with wings & cloak (VRM 0.0 Primary)"
     },
     {
       prompt: "Create an anatomically realistic human male ranger with tan skin, short brown hair, emerald eyes, dark brown tactical leather coat and boots, athletic muscular build, and realistic humanoid proportions.",
@@ -78975,7 +80215,7 @@ function seedInitialProjectsIfEmpty() {
         }
       },
       mode: "local",
-      summary: "High-detail Realistic Human Ranger showcase"
+      summary: "High-detail Realistic Human Ranger showcase (VRM 0.0 Primary)"
     },
     {
       prompt: "Create a tall, slender female dark elf with pale lavender skin, long silver hair, glowing violet eyes, pointed ears, ornate black-and-purple armor, a detailed fantasy cloak, and an athletic physique. Give her realistic humanoid proportions and a mysterious appearance.",
@@ -78992,7 +80232,7 @@ function seedInitialProjectsIfEmpty() {
         }
       },
       mode: "hybrid",
-      summary: "High-detail Stylized Fantasy Dark Elf showcase"
+      summary: "High-detail Stylized Fantasy Dark Elf showcase (VRM 0.0 Primary)"
     }
   ];
   for (const item of seedSpecs) {
@@ -79028,15 +80268,25 @@ function parseListenPort() {
   }
   return DEFAULT_PORT;
 }
-function resolveBlenderScriptsDir() {
-  return import_node_path5.default.resolve(
-    process.env.VRM_FORGE_BLENDER_SCRIPTS_DIR || import_node_path5.default.join(process.cwd(), "blender_scripts")
+function resolveBlenderScriptsDir2() {
+  return import_node_path6.default.resolve(
+    process.env.VRM_FORGE_BLENDER_SCRIPTS_DIR || import_node_path6.default.join(process.cwd(), "blender_scripts")
   );
 }
 function resolveBackendDir() {
-  return import_node_path5.default.resolve(
-    process.env.VRM_FORGE_BACKEND_DIR || import_node_path5.default.join(process.cwd(), "backend")
+  return import_node_path6.default.resolve(
+    process.env.VRM_FORGE_BACKEND_DIR || import_node_path6.default.join(process.cwd(), "backend")
   );
+}
+function parseVrmVersionParam(raw) {
+  if (raw === "0.0" || raw === "1.0") return raw;
+  return void 0;
+}
+function parseAllowanceParam(raw, fallback) {
+  return raw === "Allow" || raw === "Disallow" ? raw : fallback;
+}
+function parseAllowedUserParam(raw, fallback) {
+  return raw === "OnlyAuthor" || raw === "ExplicitlyLicensedPerson" || raw === "Everyone" ? raw : fallback;
 }
 function handleRouteError(res, err) {
   if (err instanceof SecurityValidationError) {
@@ -79093,20 +80343,21 @@ async function startServer() {
   });
   app.post("/api/blender/run-test", (req, res) => {
     const blender = detectBlenderInstallation();
-    const scriptsDir = resolveBlenderScriptsDir();
+    const scriptsDir = resolveBlenderScriptsDir2();
     const testScriptPath = resolveSafePathWithinRoot(scriptsDir, "test_milestone2_blender.py");
     const backendDir = resolveBackendDir();
+    const targetVrmVersion = parseVrmVersionParam(req.body?.vrmVersion) ?? "0.0";
     const requestedProjectId = typeof req.body?.projectId === "string" && req.body.projectId.trim() ? req.body.projectId.trim() : "armored_paladin_aurelia";
     let glbPath = null;
     try {
-      glbPath = getProjectFilePath(requestedProjectId, "source_high.glb");
+      glbPath = getProjectFilePath(requestedProjectId, "external_source.glb") || getProjectFilePath(requestedProjectId, "source_high.glb");
     } catch {
       glbPath = null;
     }
     if (!glbPath) {
       const firstProj = listProjects()[0];
       if (firstProj) {
-        glbPath = getProjectFilePath(firstProj.id, "source_high.glb");
+        glbPath = getProjectFilePath(firstProj.id, "external_source.glb") || getProjectFilePath(firstProj.id, "source_high.glb");
       }
     }
     if (blender.installed && blender.executablePath) {
@@ -79118,10 +80369,10 @@ async function startServer() {
         });
       }
       const outDir = resolveSafePathWithinRoot(getProjectsRoot(), "_blender_test");
-      import_node_fs5.default.mkdirSync(outDir, { recursive: true });
+      import_node_fs6.default.mkdirSync(outDir, { recursive: true });
       const reportPath = resolveSafePathWithinRoot(outDir, "milestone2_report.json");
       try {
-        const stdout = (0, import_node_child_process2.execFileSync)(
+        const stdout = (0, import_node_child_process3.execFileSync)(
           blender.executablePath,
           [
             "--background",
@@ -79131,14 +80382,17 @@ async function startServer() {
             "--out-dir",
             outDir,
             "--glb-path",
-            glbPath
+            glbPath,
+            "--vrm-version",
+            targetVrmVersion
           ],
           { timeout: 6e4, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
         );
-        const report = import_node_fs5.default.existsSync(reportPath) ? JSON.parse(import_node_fs5.default.readFileSync(reportPath, "utf8")) : null;
+        const report = import_node_fs6.default.existsSync(reportPath) ? JSON.parse(import_node_fs6.default.readFileSync(reportPath, "utf8")) : null;
         return res.json({
           executed: Boolean(report?.status === "ok"),
           mode: "blender_live",
+          vrmVersion: targetVrmVersion,
           blenderVersion: blender.version,
           riggingSuccess: Boolean(report?.rigging_success),
           materialPreserved: Boolean(report?.material_preserved),
@@ -79149,14 +80403,15 @@ async function startServer() {
           deformationMaxDelta: report?.deformation_max_delta ?? null,
           report,
           stdout,
-          blendFileExists: import_node_fs5.default.existsSync(resolveSafePathWithinRoot(outDir, "milestone2_test.blend"))
+          blendFileExists: import_node_fs6.default.existsSync(resolveSafePathWithinRoot(outDir, "milestone2_test.blend"))
         });
       } catch (err) {
-        const report = import_node_fs5.default.existsSync(reportPath) ? JSON.parse(import_node_fs5.default.readFileSync(reportPath, "utf8")) : null;
+        const report = import_node_fs6.default.existsSync(reportPath) ? JSON.parse(import_node_fs6.default.readFileSync(reportPath, "utf8")) : null;
         const e2 = err;
         return res.status(report ? 200 : 500).json({
           executed: false,
           mode: "blender_live",
+          vrmVersion: targetVrmVersion,
           blenderVersion: blender.version,
           riggingSuccess: Boolean(report?.rigging_success),
           materialPreserved: Boolean(report?.material_preserved),
@@ -79168,13 +80423,13 @@ async function startServer() {
           report,
           stdout: e2.stdout || e2.stderr || "",
           error: report?.vrm_note || e2.message,
-          blendFileExists: import_node_fs5.default.existsSync(resolveSafePathWithinRoot(outDir, "milestone2_test.blend"))
+          blendFileExists: import_node_fs6.default.existsSync(resolveSafePathWithinRoot(outDir, "milestone2_test.blend"))
         });
       }
     }
     try {
       const pyExec = process.platform === "win32" ? "python" : "python3";
-      const pyTestOut = (0, import_node_child_process2.execFileSync)(
+      const pyTestOut = (0, import_node_child_process3.execFileSync)(
         pyExec,
         ["-m", "unittest", "discover", "-s", backendDir, "-p", "test_*.py", "-v"],
         { timeout: 1e4, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
@@ -79182,6 +80437,7 @@ async function startServer() {
       return res.json({
         executed: false,
         mode: "blender_not_installed",
+        vrmVersion: targetVrmVersion,
         blenderInstalled: false,
         note: "Blender executable is not installed on this host, so live bpy humanoid import/deformation/VRM export did NOT run. Executed Python binary validator unit checks only.",
         stdout: pyTestOut
@@ -79191,6 +80447,7 @@ async function startServer() {
       return res.json({
         executed: false,
         mode: "blender_not_installed",
+        vrmVersion: targetVrmVersion,
         blenderInstalled: false,
         note: `Blender executable is not installed on this host (${e2.message}).`,
         stdout: (e2.stdout || "") + "\n" + (e2.stderr || "")
@@ -79217,6 +80474,88 @@ async function startServer() {
       handleRouteError(res, err);
     }
   });
+  app.post(
+    "/api/characters/import-glb",
+    import_express.default.raw({ type: "*/*", limit: "50mb" }),
+    async (req, res) => {
+      try {
+        const buf = req.body;
+        if (!buf || !Buffer.isBuffer(buf) || buf.byteLength < 20) {
+          return res.status(400).json({ error: "Expected binary GLB file payload." });
+        }
+        const glbBytes = new Uint8Array(buf);
+        const parsedMesh = parseAndValidateGlbAsset(glbBytes);
+        if (!parsedMesh.valid) {
+          return res.status(422).json({
+            error: `Invalid or empty GLB asset: ${parsedMesh.error || "Unknown GLB parse error"}`
+          });
+        }
+        const q = req.query;
+        const rawName = typeof q.name === "string" && q.name.trim() ? q.name.trim().slice(0, 80) : parsedMesh.sourceVrmMeta?.title || "Imported AURA Character";
+        const vrmVersion = parseVrmVersionParam(q.vrmVersion) ?? "0.0";
+        const heightMeters = Number(q.heightMeters);
+        const validHeight = Number.isFinite(heightMeters) && heightMeters >= 0.8 && heightMeters <= 2.6 ? heightMeters : void 0;
+        const vrmMetadata = createDefaultVrmMetadata(rawName, {
+          title: rawName,
+          author: typeof q.author === "string" ? q.author.trim() : "",
+          licenseName: typeof q.licenseName === "string" && q.licenseName.trim() ? q.licenseName.trim() : "Other",
+          commercialUsage: parseAllowanceParam(q.commercialUsage, "Disallow"),
+          allowedUserName: parseAllowedUserParam(q.allowedUserName, "OnlyAuthor"),
+          violentUsage: parseAllowanceParam(q.violentUsage, "Disallow"),
+          sexualUsage: parseAllowanceParam(q.sexualUsage, "Disallow"),
+          sourceAttribution: "Imported via VRM Forge Studio Local GLB Pipeline"
+        });
+        const promptText = `Imported local GLB character: ${rawName}`;
+        const spec = parseCharacterPromptFallback(promptText, {
+          name: rawName,
+          geometryProvider: "local-glb-import",
+          interpreterProvider: "local-glb-import",
+          vrmVersion,
+          vrmMetadata
+        });
+        if (validHeight) {
+          spec.proportions.heightMeters = validHeight;
+        }
+        spec.riggingRequirements.targetPolygonBudget = Math.max(12e3, parsedMesh.triangleCount);
+        const { record, blenderOutcome } = await executeCharacterPipeline(
+          spec,
+          "local",
+          {
+            interpretMs: 1,
+            interpretUsedFallback: false,
+            interpreterNote: `Imported local GLB "${rawName}" (${parsedMesh.meshCount} meshes, ${parsedMesh.triangleCount.toLocaleString()} tris, ${parsedMesh.materialCount} mats)`,
+            designValidationMs: 1,
+            geometryResolveMs: 1,
+            geometryUsedFallback: false,
+            externalGenerationSucceeded: true,
+            adapterDetail: `Local AURA/GLB import (${parsedMesh.hasExistingSkin ? "rigged" : "unrigged"} source)`
+          },
+          `Imported local GLB -> VRM ${vrmVersion} (${parsedMesh.triangleCount.toLocaleString()} tris)`,
+          { glbBuffer: glbBytes, parsedMesh }
+        );
+        return res.json({
+          project: record,
+          productionPath: record.productionPath,
+          blenderExecuted: Boolean(blenderOutcome?.succeeded),
+          rigReport: record.rigReport,
+          parsedMeshSummary: {
+            meshCount: parsedMesh.meshCount,
+            primitiveCount: parsedMesh.primitiveCount,
+            triangleCount: parsedMesh.triangleCount,
+            materialCount: parsedMesh.materialCount,
+            textureCount: parsedMesh.textureCount,
+            imageCount: parsedMesh.imageCount,
+            hasExistingSkin: parsedMesh.hasExistingSkin,
+            hasMorphTargets: parsedMesh.hasMorphTargets,
+            sourceVrmVersion: parsedMesh.sourceVrmVersion,
+            unsupportedFeatures: parsedMesh.unsupportedFeatures ?? []
+          }
+        });
+      } catch (err) {
+        return handleRouteError(res, err);
+      }
+    }
+  );
   app.post("/api/characters/generate", async (req, res) => {
     try {
       const prompt = String(req.body?.prompt ?? "").trim();
@@ -79228,6 +80567,8 @@ async function startServer() {
       const geometryProvider = typeof req.body?.geometryProvider === "string" ? req.body.geometryProvider : "sculpted-anatomical-vrm";
       const artStyle = req.body?.artStyle === "stylized_anime" || req.body?.artStyle === "realistic_human" || req.body?.artStyle === "semi_realistic" ? req.body.artStyle : void 0;
       const qualityConfig = req.body?.qualityConfig;
+      const targetVrmVersion = parseVrmVersionParam(req.body?.vrmVersion) ?? "0.0";
+      const rawMeta = req.body?.vrmMetadata;
       const tInterp0 = performance.now();
       const interpreted = await interpretCharacterDescription(prompt, {
         mode,
@@ -79237,6 +80578,13 @@ async function startServer() {
         qualityConfig
       });
       const interpretMs = Math.max(1, Math.round(performance.now() - tInterp0));
+      interpreted.spec.riggingRequirements.vrmVersion = targetVrmVersion;
+      if (rawMeta || !interpreted.spec.vrmMetadata) {
+        interpreted.spec.vrmMetadata = createDefaultVrmMetadata(
+          interpreted.spec.name,
+          rawMeta
+        );
+      }
       const tGate0 = performance.now();
       const specValidation = validateCharacterSpecification(interpreted.spec);
       const designValidationMs = Math.max(1, Math.round(performance.now() - tGate0));
@@ -79257,7 +80605,7 @@ async function startServer() {
         glbBuffer: adapterExec.externalGlbBuffer,
         parsedMesh: adapterExec.externalParsedMesh
       } : void 0;
-      const project = saveProjectArtifacts(
+      const { record, blenderOutcome } = await executeCharacterPipeline(
         interpreted.spec,
         mode,
         {
@@ -79270,14 +80618,16 @@ async function startServer() {
           externalGenerationSucceeded: adapterExec.externalGenerationSucceeded,
           adapterDetail: adapterExec.detail
         },
-        `Generated in ${mode} mode via ${adapterExec.executedProvider} (${interpreted.spec.qualityConfig.geometryQuality} / ${interpreted.spec.qualityConfig.textureResolution})`,
+        `Generated in ${mode} mode via ${adapterExec.executedProvider} (VRM ${targetVrmVersion}, ${interpreted.spec.qualityConfig.geometryQuality} / ${interpreted.spec.qualityConfig.textureResolution})`,
         externalGeom
       );
       res.json({
-        project,
-        usedFallback: interpreted.usedFallback || adapterExec.usedFallback,
+        project: record,
+        productionPath: record.productionPath,
+        blenderExecuted: Boolean(blenderOutcome?.succeeded),
+        usedFallback: interpreted.usedFallback || adapterExec.usedFallback || record.productionPath === "typescript_fallback",
         externalGenerationSucceeded: adapterExec.externalGenerationSucceeded,
-        fallbackReason: adapterExec.fallbackReason,
+        fallbackReason: adapterExec.fallbackReason || blenderOutcome?.reason,
         requestedGeometryProvider: adapterExec.requestedProvider,
         executedGeometryProvider: adapterExec.executedProvider,
         note: `${interpreted.note} ${adapterExec.detail}`
@@ -79286,7 +80636,7 @@ async function startServer() {
       handleRouteError(res, err);
     }
   });
-  app.post("/api/projects/:id/customize", (req, res) => {
+  app.post("/api/projects/:id/customize", async (req, res) => {
     try {
       const existing = getProject(req.params.id);
       if (!existing) {
@@ -79302,7 +80652,16 @@ async function startServer() {
           violations: specValidation.violations
         });
       }
-      const project = saveProjectArtifacts(
+      let externalGeom;
+      const extPath = getProjectFilePath(existing.id, "external_source.glb");
+      if (extPath) {
+        const buf = new Uint8Array(import_node_fs6.default.readFileSync(extPath));
+        const parsed = parseAndValidateGlbAsset(buf);
+        if (parsed.valid) {
+          externalGeom = { glbBuffer: buf, parsedMesh: parsed };
+        }
+      }
+      const { record } = await executeCharacterPipeline(
         updatedSpec,
         existing.mode,
         {
@@ -79312,17 +80671,18 @@ async function startServer() {
           designValidationMs: 1,
           geometryResolveMs: 0,
           geometryUsedFallback: false,
-          externalGenerationSucceeded: false,
-          adapterDetail: `Sculpted Anatomical VRM Engine (${updatedSpec.qualityConfig.geometryQuality})`
+          externalGenerationSucceeded: Boolean(externalGeom),
+          adapterDetail: externalGeom ? `Preserved external GLB geometry (VRM ${updatedSpec.riggingRequirements.vrmVersion})` : `Sculpted Anatomical VRM Engine (${updatedSpec.qualityConfig.geometryQuality})`
         },
-        `Customized traits & quality (v${updatedSpec.version})`
+        `Customized traits & VRM ${updatedSpec.riggingRequirements.vrmVersion} settings (v${updatedSpec.version})`,
+        externalGeom
       );
-      res.json({ project });
+      res.json({ project: record });
     } catch (err) {
       handleRouteError(res, err);
     }
   });
-  app.post("/api/projects/:id/spec", (req, res) => {
+  app.post("/api/projects/:id/spec", async (req, res) => {
     try {
       const existing = getProject(req.params.id);
       if (!existing) return res.status(404).json({ error: "Project not found" });
@@ -79340,7 +80700,7 @@ async function startServer() {
           violations: specValidation.violations
         });
       }
-      const project = saveProjectArtifacts(
+      const { record } = await executeCharacterPipeline(
         normalized,
         existing.mode,
         {
@@ -79355,7 +80715,7 @@ async function startServer() {
         },
         `Updated character spec JSON (v${normalized.version})`
       );
-      res.json({ project });
+      res.json({ project: record });
     } catch (err) {
       handleRouteError(res, err);
     }
@@ -79368,7 +80728,8 @@ async function startServer() {
       if (!buf || !Buffer.isBuffer(buf)) {
         return res.status(400).json({ error: "Expected binary VRM/GLB payload." });
       }
-      const report = validateVrmBinary(new Uint8Array(buf));
+      const expectedVersion = parseVrmVersionParam(req.query.expectedVersion);
+      const report = validateVrmBinary(new Uint8Array(buf), expectedVersion);
       res.json({ report });
     }
   );
@@ -79397,7 +80758,7 @@ async function startServer() {
     try {
       const filePath = getProjectFilePath(req.params.id, req.params.filename);
       if (!filePath) return res.status(404).json({ error: "Artifact file not found" });
-      const ext = import_node_path5.default.extname(filePath).toLowerCase();
+      const ext = import_node_path6.default.extname(filePath).toLowerCase();
       if (ext === ".vrm" || ext === ".glb") {
         res.setHeader("Content-Type", "model/gltf-binary");
       } else if (ext === ".py") {
@@ -79422,10 +80783,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = import_node_path5.default.resolve(process.env.VRM_FORGE_PUBLIC_DIR || import_node_path5.default.join(process.cwd(), "dist"));
+    const distDir = import_node_path6.default.resolve(process.env.VRM_FORGE_PUBLIC_DIR || import_node_path6.default.join(process.cwd(), "dist"));
     app.use(import_express.default.static(distDir));
     app.get("*", (_req, res) => {
-      res.sendFile(import_node_path5.default.join(distDir, "index.html"));
+      res.sendFile(import_node_path6.default.join(distDir, "index.html"));
     });
   }
   const host = resolveLoopbackHost();

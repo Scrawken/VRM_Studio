@@ -8,16 +8,20 @@ import {
 } from '../src/shared/characterParser';
 import { registerPngCompressor } from '../src/shared/pngEncoder';
 import {
+  BlenderDetectionResult,
   CharacterSpecification,
   GenerationMode,
   PipelineStageResult,
   ProjectRecord,
+  VrmExportVersion,
+  VrmValidationReport,
 } from '../src/shared/types';
 import {
   buildCharacterVrmAndGlb,
   buildRiggedVrmFromExternalMesh,
 } from '../src/shared/vrmBuilder';
 import { validateVrmBinary } from '../src/shared/vrmValidator';
+import { BlenderExecutionOutcome, runHeadlessBlenderPipeline } from './blenderExecutor';
 import { buildVisualDesignPlan } from './generationProviders';
 import { ParsedGlbAsset } from './glbImporter';
 import {
@@ -63,13 +67,30 @@ export function buildMeasuredPipelineStages(
   spec: CharacterSpecification,
   ctx: PipelineExecutionContext,
   built: ReturnType<typeof buildCharacterVrmAndGlb>,
-  validation: ReturnType<typeof validateVrmBinary>,
-  timings: { validateMs: number; blenderPrepMs: number }
+  validation: VrmValidationReport,
+  timings: { validateMs: number; blenderPrepMs: number },
+  blenderOutcome?: BlenderExecutionOutcome
 ): PipelineStageResult[] {
   const design = buildVisualDesignPlan(spec);
   const extAudit = built.externalAudit;
   const isExternal = Boolean(extAudit);
   const unoptimized = spec.qualityConfig.vrmOptimization === 'unoptimized';
+  const targetVrmVersion: VrmExportVersion =
+    spec.riggingRequirements.vrmVersion === '1.0' ? '1.0' : '0.0';
+
+  const blenderLiveSucceeded = Boolean(blenderOutcome?.succeeded);
+  const blenderStatus: PipelineStageResult['status'] = blenderLiveSucceeded
+    ? 'validated'
+    : blenderOutcome?.attempted
+      ? 'fallback'
+      : 'prepared';
+  const blenderDetail = blenderLiveSucceeded
+    ? `Blender ${blenderOutcome?.blenderVersion} imported GLB, verified deformation & exported valid VRM ${targetVrmVersion}`
+    : blenderOutcome?.attempted
+      ? `Live Blender failed (${blenderOutcome.reason || 'unknown error'}); fell back to TypeScript VRM ${targetVrmVersion} synthesis`
+      : blenderOutcome?.reason
+        ? `Wrote source_high.glb + blender_build.py (${blenderOutcome.reason}); using TypeScript VRM ${targetVrmVersion} fallback`
+        : `Wrote source_high.glb + blender_build.py (live Blender bpy execution not run here; TypeScript VRM ${targetVrmVersion} fallback active)`;
 
   return [
     {
@@ -129,15 +150,16 @@ export function buildMeasuredPipelineStages(
         ? extAudit.weightsNormalized &&
           extAudit.allJointDeformationsPassed &&
           extAudit.missingVrmBones.length === 0
-          ? 'completed'
+          ? 'validated'
           : 'warning'
         : validation.skinWeightsValid
-          ? 'completed'
+          ? 'validated'
           : 'error',
       durationMs: built.timingsMs.riggingMs,
       detail: extAudit
-        ? `${extAudit.mode === 'preserved_existing_rig' ? 'Preserved existing rig' : 'Fitted humanoid rig'} · ${built.stats.boneCount} bones · max weight error ${extAudit.maxWeightSumError} · ${extAudit.jointDeformations.filter((j) => j.passed).length}/${extAudit.jointDeformations.length} joint deformations verified`
+        ? `${extAudit.mode === 'preserved_existing_rig' ? 'Preserved existing rig' : 'Fitted humanoid rig'} (${built.rigReport?.mappingSource || 'heuristic'}) · ${built.stats.boneCount} bones · max weight error ${extAudit.maxWeightSumError} · ${extAudit.jointDeformations.filter((j) => j.passed).length}/${extAudit.jointDeformations.length} joint deformations verified`
         : `Bound ${built.stats.boneCount} VRM humanoid, finger & eye bones with normalized skin weights`,
+      validationStatus: validation.skinWeightsValid ? 'pass' : 'fail',
     },
     {
       id: 'facial_rigging',
@@ -155,33 +177,107 @@ export function buildMeasuredPipelineStages(
     },
     {
       id: 'blender_prep',
-      label: '9. Blender Script & GLB Artifact Prep',
-      status: 'completed',
-      durationMs: timings.blenderPrepMs,
-      detail: 'Wrote source_high.glb + blender_build.py (live Blender bpy execution not run here)',
+      label: '9. Blender Production & bpy Export',
+      status: blenderStatus,
+      durationMs: timings.blenderPrepMs + (blenderOutcome?.durationMs ?? 0),
+      detail: blenderDetail,
+      artifact: blenderLiveSucceeded ? 'character_blender.vrm' : 'blender_build.py',
+      validationStatus: blenderLiveSucceeded ? 'pass' : blenderOutcome?.attempted ? 'warn' : undefined,
     },
     {
       id: 'vrm_export',
-      label: '10. VRM 1.0 Export & Audit',
-      status: validation.valid ? 'completed' : 'error',
+      label: `10. VRM ${targetVrmVersion} Export & Audit`,
+      status: validation.valid ? 'validated' : 'error',
       durationMs: built.timingsMs.packageMs + timings.validateMs,
-      detail: `Independently validated glTF 2.0 + VRMC_vrm ${validation.vrmVersion} binary (${(validation.fileSizeBytes / 1024).toFixed(1)} KB)`,
+      detail: `Independently validated VRM ${validation.vrmVersion} binary (${(validation.fileSizeBytes / 1024).toFixed(1)} KB · ${blenderLiveSucceeded ? 'Blender Verified' : 'TypeScript Synthesis'})`,
+      artifact: 'character.vrm',
+      validationStatus: validation.valid ? 'pass' : 'fail',
     },
   ];
 }
 
-export function saveProjectArtifacts(
+function finalizeProjectRecord(params: {
+  dir: string;
+  spec: CharacterSpecification;
+  mode: GenerationMode;
+  targetVrmVersion: VrmExportVersion;
+  productionPath: 'blender_live' | 'typescript_fallback';
+  execContext: PipelineExecutionContext;
+  summary: string;
+  built: ReturnType<typeof buildCharacterVrmAndGlb>;
+  validation: VrmValidationReport;
+  timings: { validateMs: number; blenderPrepMs: number };
+  blenderOutcome?: BlenderExecutionOutcome;
+}): ProjectRecord {
+  const { dir, spec, mode, targetVrmVersion, productionPath, execContext, summary, built, validation, timings, blenderOutcome } = params;
+
+  const stages = buildMeasuredPipelineStages(
+    spec,
+    execContext,
+    built,
+    validation,
+    timings,
+    blenderOutcome
+  );
+
+  const metaPath = resolveSafePathWithinRoot(dir, 'meta.json');
+  let existingRevisions: ProjectRecord['revisions'] = [];
+  let createdAt = spec.createdAt;
+  if (fs.existsSync(metaPath)) {
+    try {
+      const prev = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as ProjectRecord;
+      existingRevisions = prev.revisions || [];
+      createdAt = prev.createdAt || createdAt;
+    } catch {
+      existingRevisions = [];
+    }
+  }
+
+  const hasBlenderReport = fs.existsSync(resolveSafePathWithinRoot(dir, 'blender_report.json'));
+
+  const record: ProjectRecord = {
+    id: spec.id,
+    name: spec.name,
+    mode,
+    vrmVersion: targetVrmVersion,
+    productionPath,
+    spec,
+    validation,
+    estimates: built.estimates,
+    rigReport: built.rigReport,
+    stages,
+    revisions: [
+      {
+        version: spec.version,
+        timestamp: new Date().toISOString(),
+        summary,
+        spec,
+      },
+      ...existingRevisions.slice(0, 19),
+    ],
+    vrmUrl: `/api/projects/${spec.id}/files/character.vrm?v=${spec.version}`,
+    glbUrl: `/api/projects/${spec.id}/files/character.glb?v=${spec.version}`,
+    sourceGlbUrl: `/api/projects/${spec.id}/files/source_high.glb?v=${spec.version}`,
+    blenderScriptUrl: `/api/projects/${spec.id}/files/blender_build.py?v=${spec.version}`,
+    ...(hasBlenderReport
+      ? { blenderReportUrl: `/api/projects/${spec.id}/files/blender_report.json?v=${spec.version}` }
+      : {}),
+    createdAt,
+    updatedAt: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(metaPath, JSON.stringify(record, null, 2));
+  return record;
+}
+
+function prepareSpecAndBaseBuild(
   spec: CharacterSpecification,
-  mode: GenerationMode,
-  execContext: PipelineExecutionContext,
-  summary = 'Initial character generation',
   externalGeometry?: {
     glbBuffer: Uint8Array;
     parsedMesh: ParsedGlbAsset;
   }
-): ProjectRecord {
+) {
   const tGate0 = performance.now();
-  // Pre-geometry Character Specification Fidelity Gate
   const specValidation = validateCharacterSpecification(spec);
   if (!specValidation.valid) {
     throw new SecurityValidationError(
@@ -204,89 +300,169 @@ export function saveProjectArtifacts(
         )
       : buildCharacterVrmAndGlb(spec);
 
+  const tPrep0 = performance.now();
+  const blenderScript = generateBlenderCharacterScript(spec, dir);
+  const specJsonPath = resolveSafePathWithinRoot(dir, 'spec.json');
+  const sourceGlbPath = resolveSafePathWithinRoot(dir, 'source_high.glb');
+  const externalGlbPath = resolveSafePathWithinRoot(dir, 'external_source.glb');
+
+  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'character.glb'), built.glbBuffer);
+  fs.writeFileSync(sourceGlbPath, built.sourceGlbBuffer);
+  if (externalGeometry) {
+    fs.writeFileSync(externalGlbPath, externalGeometry.glbBuffer);
+  }
+  fs.writeFileSync(specJsonPath, JSON.stringify(spec, null, 2));
+  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'blender_build.py'), blenderScript);
+  const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
+
+  return {
+    dir,
+    designGateMs,
+    built,
+    blenderPrepMs,
+    specJsonPath,
+    sourceGlbPath,
+    externalGlbPath,
+  };
+}
+
+export function saveProjectArtifacts(
+  spec: CharacterSpecification,
+  mode: GenerationMode,
+  execContext: PipelineExecutionContext,
+  summary = 'Initial character generation',
+  externalGeometry?: {
+    glbBuffer: Uint8Array;
+    parsedMesh: ParsedGlbAsset;
+  }
+): ProjectRecord {
+  const prep = prepareSpecAndBaseBuild(spec, externalGeometry);
+  const targetVrmVersion: VrmExportVersion =
+    spec.riggingRequirements.vrmVersion === '1.0' ? '1.0' : '0.0';
+
   const tVal0 = performance.now();
-  const validation = validateVrmBinary(built.vrmBuffer);
+  const validation = validateVrmBinary(prep.built.vrmBuffer, targetVrmVersion);
   const validateMs = Math.max(1, Math.round(performance.now() - tVal0));
   if (!validation.valid) {
     throw new Error(
-      `Independent VRM validation failed: ${validation.checks
+      `Independent VRM ${targetVrmVersion} validation failed: ${validation.checks
         .filter((c) => c.status === 'fail')
         .map((c) => c.detail)
         .join('; ')}`
     );
   }
 
-  const tPrep0 = performance.now();
-  const blenderScript = generateBlenderCharacterScript(spec, dir);
-
-  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'character.vrm'), built.vrmBuffer);
-  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'character.glb'), built.glbBuffer);
-  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'source_high.glb'), built.sourceGlbBuffer);
-  if (externalGeometry) {
-    fs.writeFileSync(
-      resolveSafePathWithinRoot(dir, 'external_source.glb'),
-      externalGeometry.glbBuffer
-    );
-  }
-  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'spec.json'), JSON.stringify(spec, null, 2));
+  fs.writeFileSync(resolveSafePathWithinRoot(prep.dir, 'character.vrm'), prep.built.vrmBuffer);
   fs.writeFileSync(
-    resolveSafePathWithinRoot(dir, 'validation.json'),
+    resolveSafePathWithinRoot(prep.dir, 'validation.json'),
     JSON.stringify(validation, null, 2)
   );
-  fs.writeFileSync(resolveSafePathWithinRoot(dir, 'blender_build.py'), blenderScript);
-  const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
 
-  const stages = buildMeasuredPipelineStages(
+  return finalizeProjectRecord({
+    dir: prep.dir,
     spec,
-    {
+    mode,
+    targetVrmVersion,
+    productionPath: 'typescript_fallback',
+    execContext: {
       ...execContext,
-      designValidationMs: execContext.designValidationMs || designGateMs,
+      designValidationMs: execContext.designValidationMs || prep.designGateMs,
     },
-    built,
+    summary,
+    built: prep.built,
     validation,
-    { validateMs, blenderPrepMs }
-  );
+    timings: { validateMs, blenderPrepMs: prep.blenderPrepMs },
+  });
+}
 
-  const metaPath = resolveSafePathWithinRoot(dir, 'meta.json');
-  let existingRevisions: ProjectRecord['revisions'] = [];
-  let createdAt = spec.createdAt;
-  if (fs.existsSync(metaPath)) {
-    try {
-      const prev = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as ProjectRecord;
-      existingRevisions = prev.revisions || [];
-      createdAt = prev.createdAt || createdAt;
-    } catch {
-      existingRevisions = [];
+export async function executeCharacterPipeline(
+  spec: CharacterSpecification,
+  mode: GenerationMode,
+  execContext: PipelineExecutionContext,
+  summary = 'Initial character generation',
+  externalGeometry?: {
+    glbBuffer: Uint8Array;
+    parsedMesh: ParsedGlbAsset;
+  },
+  options?: {
+    skipLiveBlender?: boolean;
+    blenderOverride?: BlenderDetectionResult;
+    signal?: AbortSignal;
+  }
+): Promise<{ record: ProjectRecord; blenderOutcome?: BlenderExecutionOutcome }> {
+  const prep = prepareSpecAndBaseBuild(spec, externalGeometry);
+  const targetVrmVersion: VrmExportVersion =
+    spec.riggingRequirements.vrmVersion === '1.0' ? '1.0' : '0.0';
+
+  let blenderOutcome: BlenderExecutionOutcome | undefined;
+  let finalVrmBuffer = prep.built.vrmBuffer;
+  let productionPath: 'blender_live' | 'typescript_fallback' = 'typescript_fallback';
+
+  if (!options?.skipLiveBlender) {
+    const glbForBlender = externalGeometry ? prep.externalGlbPath : prep.sourceGlbPath;
+    blenderOutcome = await runHeadlessBlenderPipeline({
+      glbPath: glbForBlender,
+      outDir: prep.dir,
+      specJsonPath: prep.specJsonPath,
+      vrmVersion: targetVrmVersion,
+      blenderOverride: options?.blenderOverride,
+      signal: options?.signal,
+    });
+
+    if (blenderOutcome.succeeded && blenderOutcome.vrmBuffer) {
+      const blenderCheck = validateVrmBinary(blenderOutcome.vrmBuffer, targetVrmVersion);
+      if (blenderCheck.valid) {
+        finalVrmBuffer = blenderOutcome.vrmBuffer;
+        productionPath = 'blender_live';
+      } else {
+        blenderOutcome = {
+          ...blenderOutcome,
+          succeeded: false,
+          reason: `Blender exported VRM ${targetVrmVersion} failed independent TypeScript validation: ${blenderCheck.checks
+            .filter((c) => c.status === 'fail')
+            .map((c) => c.detail)
+            .join('; ')}`,
+        };
+      }
     }
   }
 
-  const record: ProjectRecord = {
-    id: spec.id,
-    name: spec.name,
-    mode,
-    spec,
-    validation,
-    estimates: built.estimates,
-    stages,
-    revisions: [
-      {
-        version: spec.version,
-        timestamp: new Date().toISOString(),
-        summary,
-        spec,
-      },
-      ...existingRevisions.slice(0, 19),
-    ],
-    vrmUrl: `/api/projects/${spec.id}/files/character.vrm?v=${spec.version}`,
-    glbUrl: `/api/projects/${spec.id}/files/character.glb?v=${spec.version}`,
-    sourceGlbUrl: `/api/projects/${spec.id}/files/source_high.glb?v=${spec.version}`,
-    blenderScriptUrl: `/api/projects/${spec.id}/files/blender_build.py?v=${spec.version}`,
-    createdAt,
-    updatedAt: new Date().toISOString(),
-  };
+  const tVal0 = performance.now();
+  const validation = validateVrmBinary(finalVrmBuffer, targetVrmVersion);
+  const validateMs = Math.max(1, Math.round(performance.now() - tVal0));
+  if (!validation.valid) {
+    throw new Error(
+      `Independent VRM ${targetVrmVersion} validation failed: ${validation.checks
+        .filter((c) => c.status === 'fail')
+        .map((c) => c.detail)
+        .join('; ')}`
+    );
+  }
 
-  fs.writeFileSync(metaPath, JSON.stringify(record, null, 2));
-  return record;
+  fs.writeFileSync(resolveSafePathWithinRoot(prep.dir, 'character.vrm'), finalVrmBuffer);
+  fs.writeFileSync(
+    resolveSafePathWithinRoot(prep.dir, 'validation.json'),
+    JSON.stringify(validation, null, 2)
+  );
+
+  const record = finalizeProjectRecord({
+    dir: prep.dir,
+    spec,
+    mode,
+    targetVrmVersion,
+    productionPath,
+    execContext: {
+      ...execContext,
+      designValidationMs: execContext.designValidationMs || prep.designGateMs,
+    },
+    summary,
+    built: prep.built,
+    validation,
+    timings: { validateMs, blenderPrepMs: prep.blenderPrepMs },
+    blenderOutcome,
+  });
+
+  return { record, blenderOutcome };
 }
 
 export function listProjects(): ProjectRecord[] {
@@ -357,7 +533,9 @@ export function seedInitialProjectsIfEmpty(): void {
     existing.length >= 3 &&
     existing.every(
       (p) =>
-        Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints) &&
+        p.vrmVersion === '0.0' &&
+        p.validation?.vrmVersion === '0.0' &&
+        Boolean(p.estimates && p.sourceGlbUrl && p.spec.qualityConfig && p.spec.constraints && p.rigReport && p.productionPath) &&
         !p.stages.some(
           (s) =>
             (s.id === 'visual_design' && s.durationMs === 14) ||
@@ -388,7 +566,7 @@ export function seedInitialProjectsIfEmpty(): void {
         },
       },
       mode: 'hybrid',
-      summary: 'High-detail Armored Fantasy Paladin with wings & cloak',
+      summary: 'High-detail Armored Fantasy Paladin with wings & cloak (VRM 0.0 Primary)',
     },
     {
       prompt:
@@ -406,7 +584,7 @@ export function seedInitialProjectsIfEmpty(): void {
         },
       },
       mode: 'local',
-      summary: 'High-detail Realistic Human Ranger showcase',
+      summary: 'High-detail Realistic Human Ranger showcase (VRM 0.0 Primary)',
     },
     {
       prompt:
@@ -424,7 +602,7 @@ export function seedInitialProjectsIfEmpty(): void {
         },
       },
       mode: 'hybrid',
-      summary: 'High-detail Stylized Fantasy Dark Elf showcase',
+      summary: 'High-detail Stylized Fantasy Dark Elf showcase (VRM 0.0 Primary)',
     },
   ];
 

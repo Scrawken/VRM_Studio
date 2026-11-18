@@ -21,6 +21,9 @@ import {
   VRM_REQUIRED_HUMANOID_BONES,
   ViewportAnimationMode,
   ViewportViewMode,
+  VrmAllowance,
+  VrmAllowedUser,
+  VrmExportVersion,
   VrmOptimizationMode,
 } from '../shared/types';
 
@@ -55,7 +58,6 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
 }) => {
   const [subTab, setSubTab] = useState<InspectorSubTab>('expressions');
 
-  // Local customization form synced on edit
   const [draftName, setDraftName] = useState(project?.spec.name || '');
   const [draftBuild, setDraftBuild] = useState<BodyBuild>(project?.spec.build || 'athletic');
   const [draftHairStyle, setDraftHairStyle] = useState<HairStyle>(
@@ -77,9 +79,21 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
   const [draftEarStyle, setDraftEarStyle] = useState(
     project?.spec.features.earStyle || 'long_elf'
   );
-
   const [draftArtStyle, setDraftArtStyle] = useState<CharacterArtStyle>(
     project?.spec.artStyle || 'semi_realistic'
+  );
+  const [draftVrmVersion, setDraftVrmVersion] = useState<VrmExportVersion>(
+    project?.spec.riggingRequirements?.vrmVersion || '0.0'
+  );
+  const [draftAuthor, setDraftAuthor] = useState(project?.spec.vrmMetadata?.author || '');
+  const [draftCommercial, setDraftCommercial] = useState<VrmAllowance>(
+    project?.spec.vrmMetadata?.commercialUsage || 'Disallow'
+  );
+  const [draftAllowedUser, setDraftAllowedUser] = useState<VrmAllowedUser>(
+    project?.spec.vrmMetadata?.allowedUserName || 'OnlyAuthor'
+  );
+  const [draftLicenseName, setDraftLicenseName] = useState(
+    project?.spec.vrmMetadata?.licenseName || 'Other'
   );
   const [draftGeometryQuality, setDraftGeometryQuality] = useState<GeometryQuality>(
     project?.spec.qualityConfig?.geometryQuality ?? DEFAULT_QUALITY_CONFIG.geometryQuality
@@ -94,7 +108,6 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
     project?.spec.qualityConfig?.customOptimization ?? { ...DEFAULT_CUSTOM_OPTIMIZATION }
   );
 
-  // Sync draft state when project ID/version changes
   React.useEffect(() => {
     if (!project) return;
     setDraftName(project.spec.name);
@@ -113,6 +126,11 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
     setDraftHasHorns(project.spec.features.hasHorns);
     setDraftEarStyle(project.spec.features.earStyle);
     setDraftArtStyle(project.spec.artStyle || 'semi_realistic');
+    setDraftVrmVersion(project.spec.riggingRequirements?.vrmVersion || '0.0');
+    setDraftAuthor(project.spec.vrmMetadata?.author || '');
+    setDraftCommercial(project.spec.vrmMetadata?.commercialUsage || 'Disallow');
+    setDraftAllowedUser(project.spec.vrmMetadata?.allowedUserName || 'OnlyAuthor');
+    setDraftLicenseName(project.spec.vrmMetadata?.licenseName || 'Other');
     setDraftGeometryQuality(project.spec.qualityConfig?.geometryQuality ?? DEFAULT_QUALITY_CONFIG.geometryQuality);
     setDraftTextureResolution(project.spec.qualityConfig?.textureResolution ?? DEFAULT_QUALITY_CONFIG.textureResolution);
     setDraftVrmOptimization(project.spec.qualityConfig?.vrmOptimization ?? DEFAULT_QUALITY_CONFIG.vrmOptimization);
@@ -122,10 +140,12 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
   if (!project) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 text-sm text-slate-400">
-        Generate or open a character in Studio to inspect its VRM rig, blendshapes, and materials.
+        Generate or import a character in Studio to inspect its VRM rig, blendshapes, and materials.
       </div>
     );
   }
+
+  const vrmVer = project.vrmVersion || project.validation.vrmVersion || '0.0';
 
   const handleApplyCustomization = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +154,14 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
       build: draftBuild,
       artStyle: draftArtStyle,
       hairStyle: draftHairStyle,
+      vrmVersion: draftVrmVersion,
+      vrmMetadata: {
+        title: draftName,
+        author: draftAuthor,
+        commercialUsage: draftCommercial,
+        allowedUserName: draftAllowedUser,
+        licenseName: draftLicenseName,
+      },
       proportions: { heightMeters: draftHeight },
       palette: {
         skinColor: draftSkin,
@@ -205,7 +233,7 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
                     Facial Morph Targets
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Real-time VRM 1.0 blendshape vertex deformation.
+                    Real-time VRM {vrmVer} blendshape vertex deformation.
                   </p>
                 </div>
                 <button
@@ -276,6 +304,11 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
                 <p className="text-xs text-slate-400 mt-0.5">
                   {project.validation.boneCount} total joints · {project.validation.springBoneJointCount} spring bone joints
                 </p>
+                {project.rigReport && (
+                  <p className="text-[11px] text-sky-300 mt-1">
+                    {project.rigReport.detail}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -315,7 +348,7 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
 
               <div className="border-t border-[#262d38] pt-3">
                 <h3 className="text-xs font-semibold text-slate-300 mb-2">
-                  Required VRM 1.0 Humanoid Bones ({VRM_REQUIRED_HUMANOID_BONES.length})
+                  Required VRM {vrmVer} Humanoid Bones ({VRM_REQUIRED_HUMANOID_BONES.length})
                 </h3>
                 <div className="grid grid-cols-2 gap-1.5">
                   {VRM_REQUIRED_HUMANOID_BONES.map((bone) => {
@@ -354,21 +387,95 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
                   Non-Destructive Customization
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Adjust silhouette, materials, and anatomy while preserving base character identity (v{project.spec.version}).
+                  Switch export format, update metadata rights, or adjust character build (v{project.spec.version}).
                 </p>
               </div>
 
-              <div>
-                <label htmlFor="cust-name" className="block text-xs text-slate-300 mb-1">
-                  Character Name
-                </label>
-                <input
-                  id="cust-name"
-                  type="text"
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  className="w-full rounded border border-[#262d38] bg-[#0b0e13] px-2.5 py-1.5 text-xs text-slate-100"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="cust-name" className="block text-xs text-slate-300 mb-1">
+                    Character Name
+                  </label>
+                  <input
+                    id="cust-name"
+                    type="text"
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    className="w-full rounded border border-[#262d38] bg-[#0b0e13] px-2.5 py-1.5 text-xs text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cust-vrm-ver" className="block text-xs text-slate-300 mb-1">
+                    Export VRM Format
+                  </label>
+                  <select
+                    id="cust-vrm-ver"
+                    value={draftVrmVersion}
+                    onChange={(e) => setDraftVrmVersion(e.target.value as VrmExportVersion)}
+                    className="w-full rounded border border-[#262d38] bg-[#0b0e13] px-2 py-1.5 text-xs text-slate-100"
+                  >
+                    <option value="0.0">VRM 0.0 (UE5 VRM4U Primary)</option>
+                    <option value="1.0">VRM 1.0 (Optional)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* VRM Metadata Rights */}
+              <div className="rounded border border-[#262d38] bg-[#0b0e13] p-3 grid grid-cols-2 gap-2.5 text-xs">
+                <div>
+                  <label htmlFor="cust-author" className="block text-[11px] text-slate-400 mb-1">
+                    Author
+                  </label>
+                  <input
+                    id="cust-author"
+                    type="text"
+                    value={draftAuthor}
+                    onChange={(e) => setDraftAuthor(e.target.value)}
+                    placeholder="Unspecified Author"
+                    className="w-full rounded border border-[#262d38] bg-[#12161f] px-2 py-1 text-xs text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cust-license" className="block text-[11px] text-slate-400 mb-1">
+                    License
+                  </label>
+                  <input
+                    id="cust-license"
+                    type="text"
+                    value={draftLicenseName}
+                    onChange={(e) => setDraftLicenseName(e.target.value)}
+                    className="w-full rounded border border-[#262d38] bg-[#12161f] px-2 py-1 text-xs text-slate-200"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cust-commercial" className="block text-[11px] text-slate-400 mb-1">
+                    Commercial Usage
+                  </label>
+                  <select
+                    id="cust-commercial"
+                    value={draftCommercial}
+                    onChange={(e) => setDraftCommercial(e.target.value as VrmAllowance)}
+                    className="w-full rounded border border-[#262d38] bg-[#12161f] px-2 py-1 text-xs text-slate-200"
+                  >
+                    <option value="Disallow">Disallow</option>
+                    <option value="Allow">Allow</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="cust-allowed-user" className="block text-[11px] text-slate-400 mb-1">
+                    Allowed User
+                  </label>
+                  <select
+                    id="cust-allowed-user"
+                    value={draftAllowedUser}
+                    onChange={(e) => setDraftAllowedUser(e.target.value as VrmAllowedUser)}
+                    className="w-full rounded border border-[#262d38] bg-[#12161f] px-2 py-1 text-xs text-slate-200"
+                  >
+                    <option value="OnlyAuthor">OnlyAuthor</option>
+                    <option value="ExplicitlyLicensedPerson">ExplicitlyLicensedPerson</option>
+                    <option value="Everyone">Everyone</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -561,55 +668,6 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
                 </div>
               </div>
 
-              {draftVrmOptimization === 'custom' && (
-                <div className="rounded border border-[#262d38] bg-[#0b0e13] p-3 flex flex-col gap-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-300">Body Retention</span>
-                    <span className="font-mono text-sky-300">
-                      {Math.round(draftCustomOpt.geometryRetention * 100)}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.35}
-                    max={1}
-                    step={0.05}
-                    value={draftCustomOpt.geometryRetention}
-                    onChange={(e) =>
-                      setDraftCustomOpt((prev) => ({
-                        ...prev,
-                        geometryRetention: Number(e.target.value),
-                      }))
-                    }
-                    className="w-full accent-sky-500"
-                  />
-                  <div className="grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={draftCustomOpt.preserveFacialDetail}
-                        onChange={(e) =>
-                          setDraftCustomOpt((prev) => ({ ...prev, preserveFacialDetail: e.target.checked }))
-                        }
-                        className="accent-sky-500"
-                      />
-                      <span>Preserve Face</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={draftCustomOpt.preserveHairDetail}
-                        onChange={(e) =>
-                          setDraftCustomOpt((prev) => ({ ...prev, preserveHairDetail: e.target.checked }))
-                        }
-                        className="accent-sky-500"
-                      />
-                      <span>Preserve Hair</span>
-                    </label>
-                  </div>
-                </div>
-              )}
-
               <button
                 type="submit"
                 disabled={isRebuilding}
@@ -619,7 +677,7 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
                   className={`w-3.5 h-3.5 ${isRebuilding ? 'animate-spin' : ''}`}
                   aria-hidden="true"
                 />
-                {isRebuilding ? 'Rebuilding VRM 1.0...' : 'Apply & Rebuild VRM'}
+                {isRebuilding ? `Rebuilding VRM ${draftVrmVersion}...` : `Apply & Rebuild VRM ${draftVrmVersion}`}
               </button>
             </form>
           )}
@@ -629,10 +687,12 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-100">
-                    Independent VRM 1.0 Audit
+                    Independent VRM {vrmVer} Audit
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Binary glTF chunk & VRMC_vrm schema verification.
+                    {project.productionPath === 'blender_live'
+                      ? 'Built via Blender VRM Add-on'
+                      : 'Built via TypeScript Synthesis Fallback'}
                   </p>
                 </div>
                 <span
@@ -663,17 +723,22 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
                   <span className="text-slate-500">Materials / Textures</span>
                   <div className="font-mono text-slate-200 tabular-nums mt-0.5">
                     {project.validation.materialCount} mats / {project.validation.textureCount} textures
-                    {project.validation.textureCount > 0 && project.estimates?.packedTexturePx
-                      ? ` (${project.estimates.packedTexturePx}px)`
-                      : ''}
                   </div>
                 </div>
                 <div>
-                  <span className="text-slate-500">Skin Weights</span>
-                  <div className="font-mono text-emerald-400 mt-0.5">
-                    {project.validation.skinWeightsValid ? 'Normalized (1.0)' : 'Invalid'}
+                  <span className="text-slate-500">BlendShapes / Springs</span>
+                  <div className="font-mono text-slate-200 tabular-nums mt-0.5">
+                    {project.validation.blendShapeGroupCount ?? project.validation.expressionCount} groups ·{' '}
+                    {project.validation.secondaryBoneGroupCount ?? 0} springs
                   </div>
                 </div>
+                {project.validation.metaSummary && (
+                  <div className="col-span-2 pt-1 border-t border-[#1e2530] flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                    <span>Author: <strong className="text-slate-200">{project.validation.metaSummary.author}</strong></span>
+                    <span>Commercial: <strong className="text-slate-200">{project.validation.metaSummary.commercialUsage}</strong></span>
+                    <span>License: <strong className="text-slate-200">{project.validation.metaSummary.licenseName}</strong></span>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -682,7 +747,7 @@ export const InspectorWorkspace: React.FC<InspectorWorkspaceProps> = ({
                   className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-[11px] font-semibold text-white"
                 >
                   <Download className="w-3 h-3" aria-hidden="true" />
-                  VRM 1.0
+                  VRM {vrmVer}
                 </a>
                 <a
                   href={`${project.sourceGlbUrl}&download=1`}
