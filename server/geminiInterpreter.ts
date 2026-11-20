@@ -19,7 +19,7 @@ function createGeminiClient(): GoogleGenAI | null {
     apiKey,
     httpOptions: {
       headers: {
-        'User-Agent': 'aistudio-build',
+        'User-Agent': 'vrm-forge-studio',
       },
     },
   });

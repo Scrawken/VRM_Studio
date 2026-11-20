@@ -14,6 +14,37 @@ export class SecurityValidationError extends Error {
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 
+function parseHostArgument(argv: string[]): string | undefined {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--host') {
+      const value = argv[i + 1]?.trim();
+      if (value && !value.startsWith('--')) return value;
+    }
+    if (arg.startsWith('--host=')) {
+      const value = arg.slice('--host='.length).trim();
+      if (value) return value;
+    }
+  }
+  return undefined;
+}
+
+/** Keep the local application on loopback unless LAN access is explicitly enabled. */
+export function resolveServerBindHost(
+  argv: string[] = process.argv,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  const configuredVrmHost = env.VRM_FORGE_HOST?.trim();
+
+  if (env.ELECTRON_RUN_AS_NODE === '1') return '127.0.0.1';
+  const requestedHost =
+    parseHostArgument(argv) || env.HOST?.trim() || configuredVrmHost || '127.0.0.1';
+  if (LOOPBACK_HOSTS.has(requestedHost)) {
+    return requestedHost === 'localhost' ? '127.0.0.1' : requestedHost;
+  }
+  return env.VRM_FORGE_ALLOW_NON_LOOPBACK === '1' ? requestedHost : '127.0.0.1';
+}
+
 export function resolveLoopbackHost(requestedHost?: string): string {
   const candidate = (requestedHost || process.env.VRM_FORGE_HOST || '127.0.0.1').trim();
   if (LOOPBACK_HOSTS.has(candidate)) {

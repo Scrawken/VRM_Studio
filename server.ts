@@ -1,11 +1,13 @@
 import 'dotenv/config';
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import express, { NextFunction, Request, Response } from 'express';
 import {
   applyCharacterEdits,
+  checkSourceLicenseViolations,
   createDefaultVrmMetadata,
   normalizeCharacterSpec,
   parseCharacterPromptFallback,
@@ -40,7 +42,7 @@ import {
 import {
   SecurityValidationError,
   isLoopbackOrigin,
-  resolveLoopbackHost,
+  resolveServerBindHost,
   resolveSafePathWithinRoot,
   sanitizeDownloadFilename,
 } from './server/security';
@@ -129,7 +131,7 @@ async function startServer() {
     res.json({
       status: 'ok',
       service: 'vrm-forge-studio',
-      host: resolveLoopbackHost(),
+      host: resolveServerBindHost(),
       timestamp: new Date().toISOString(),
     });
   });
@@ -197,7 +199,11 @@ async function startServer() {
           error: 'No generated humanoid GLB available to import into Blender.',
         });
       }
-      const outDir = resolveSafePathWithinRoot(getProjectsRoot(), '_blender_test');
+      const runId = crypto.randomUUID();
+      const outDir = resolveSafePathWithinRoot(
+        getProjectsRoot(),
+        path.join('_blender_test_runs', runId)
+      );
       fs.mkdirSync(outDir, { recursive: true });
       const reportPath = resolveSafePathWithinRoot(outDir, 'milestone2_report.json');
       try {
@@ -214,14 +220,19 @@ async function startServer() {
             glbPath,
             '--vrm-version',
             targetVrmVersion,
+            '--run-id',
+            runId,
           ],
           { timeout: 60000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
         );
         const report = fs.existsSync(reportPath)
           ? JSON.parse(fs.readFileSync(reportPath, 'utf8'))
           : null;
+        const blendFileExists = fs.existsSync(resolveSafePathWithinRoot(outDir, 'milestone2_test.blend'));
+        const validRunId = report?.run_id === runId;
+        const executedOk = Boolean(report?.status === 'ok' && validRunId && report?.python_validator_available);
         return res.json({
-          executed: Boolean(report?.status === 'ok'),
+          executed: executedOk,
           mode: 'blender_live',
           vrmVersion: targetVrmVersion,
           blenderVersion: blender.version,
@@ -234,12 +245,14 @@ async function startServer() {
           deformationMaxDelta: report?.deformation_max_delta ?? null,
           report,
           stdout,
-          blendFileExists: fs.existsSync(resolveSafePathWithinRoot(outDir, 'milestone2_test.blend')),
+          blendFileExists,
+          ...(validRunId ? {} : { error: 'Blender test report missing or mismatched run_id.' }),
         });
       } catch (err) {
         const report = fs.existsSync(reportPath)
           ? JSON.parse(fs.readFileSync(reportPath, 'utf8'))
           : null;
+        const blendFileExists = fs.existsSync(resolveSafePathWithinRoot(outDir, 'milestone2_test.blend'));
         const e = err as { stdout?: string; stderr?: string; message: string };
         return res.status(report ? 200 : 500).json({
           executed: false,
@@ -256,8 +269,10 @@ async function startServer() {
           report,
           stdout: e.stdout || e.stderr || '',
           error: report?.vrm_note || e.message,
-          blendFileExists: fs.existsSync(resolveSafePathWithinRoot(outDir, 'milestone2_test.blend')),
+          blendFileExists,
         });
+      } finally {
+        fs.rmSync(outDir, { recursive: true, force: true });
       }
     }
 
@@ -330,10 +345,11 @@ async function startServer() {
         }
 
         const q = req.query;
+        const srcMeta = parsedMesh.sourceVrmMeta;
         const rawName =
           typeof q.name === 'string' && q.name.trim()
             ? q.name.trim().slice(0, 80)
-            : parsedMesh.sourceVrmMeta?.title || 'Imported AURA Character';
+            : srcMeta?.title || 'Imported AURA Character';
         const vrmVersion = parseVrmVersionParam(q.vrmVersion) ?? '0.0';
         const heightMeters = Number(q.heightMeters);
         const validHeight =
@@ -341,16 +357,52 @@ async function startServer() {
             ? heightMeters
             : undefined;
 
-        const vrmMetadata: VrmMetadataConfig = createDefaultVrmMetadata(rawName, {
+        const attemptedOverrideMeta: Partial<VrmMetadataConfig> = {
+          ...(srcMeta || {}),
           title: rawName,
-          author: typeof q.author === 'string' ? q.author.trim() : '',
-          licenseName: typeof q.licenseName === 'string' && q.licenseName.trim() ? q.licenseName.trim() : 'Other',
-          commercialUsage: parseAllowanceParam(q.commercialUsage, 'Disallow'),
-          allowedUserName: parseAllowedUserParam(q.allowedUserName, 'OnlyAuthor'),
-          violentUsage: parseAllowanceParam(q.violentUsage, 'Disallow'),
-          sexualUsage: parseAllowanceParam(q.sexualUsage, 'Disallow'),
-          sourceAttribution: 'Imported via VRM Forge Studio Local GLB Pipeline',
-        });
+          author:
+            typeof q.author === 'string' && q.author.trim()
+              ? q.author.trim()
+              : srcMeta?.author || '',
+          licenseName:
+            typeof q.licenseName === 'string' && q.licenseName.trim()
+              ? q.licenseName.trim()
+              : srcMeta?.licenseName || 'Other',
+          commercialUsage:
+            typeof q.commercialUsage === 'string'
+              ? parseAllowanceParam(q.commercialUsage, srcMeta?.commercialUsage || 'Disallow')
+              : srcMeta?.commercialUsage || 'Disallow',
+          allowedUserName:
+            typeof q.allowedUserName === 'string'
+              ? parseAllowedUserParam(q.allowedUserName, srcMeta?.allowedUserName || 'OnlyAuthor')
+              : srcMeta?.allowedUserName || 'OnlyAuthor',
+          violentUsage:
+            typeof q.violentUsage === 'string'
+              ? parseAllowanceParam(q.violentUsage, srcMeta?.violentUsage || 'Disallow')
+              : srcMeta?.violentUsage || 'Disallow',
+          sexualUsage:
+            typeof q.sexualUsage === 'string'
+              ? parseAllowanceParam(q.sexualUsage, srcMeta?.sexualUsage || 'Disallow')
+              : srcMeta?.sexualUsage || 'Disallow',
+          sourceAttribution:
+            srcMeta?.sourceAttribution || 'Imported via VRM Forge Studio Local GLB Pipeline',
+          sourceRestrictions: srcMeta?.sourceRestrictions,
+        };
+
+        if (srcMeta?.sourceRestrictions) {
+          const licenseViolations = checkSourceLicenseViolations(
+            attemptedOverrideMeta,
+            srcMeta.sourceRestrictions
+          );
+          if (licenseViolations.length > 0) {
+            return res.status(422).json({
+              error: `Source VRM license restrictions forbid relaxing rights: ${licenseViolations.join('; ')}`,
+              violations: licenseViolations,
+            });
+          }
+        }
+
+        const vrmMetadata: VrmMetadataConfig = createDefaultVrmMetadata(rawName, attemptedOverrideMeta);
 
         const promptText = `Imported local GLB character: ${rawName}`;
         const spec = parseCharacterPromptFallback(promptText, {
@@ -521,6 +573,18 @@ async function startServer() {
       if (!existing) {
         return res.status(404).json({ error: 'Project not found' });
       }
+      if (req.body?.vrmMetadata && existing.spec.vrmMetadata?.sourceRestrictions) {
+        const licenseViolations = checkSourceLicenseViolations(
+          req.body.vrmMetadata as Partial<VrmMetadataConfig>,
+          existing.spec.vrmMetadata.sourceRestrictions
+        );
+        if (licenseViolations.length > 0) {
+          return res.status(422).json({
+            error: `Customization rejected by source VRM license restrictions: ${licenseViolations.join('; ')}`,
+            violations: licenseViolations,
+          });
+        }
+      }
       const tPatch0 = performance.now();
       const updatedSpec = applyCharacterEdits(existing.spec, req.body || {});
       const specValidation = validateCharacterSpecification(updatedSpec);
@@ -667,8 +731,17 @@ async function startServer() {
     }
   });
 
-  // Frontend Vite Dev Middleware OR Bundled Production Static Routing
-  if (process.env.NODE_ENV !== 'production') {
+  // Use bundled frontend assets for production and bundled server launches.
+  const distDir = path.resolve(process.env.VRM_FORGE_PUBLIC_DIR || path.join(process.cwd(), 'dist'));
+  const entryPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+  const isBundledServerEntry =
+    path.basename(entryPath) === 'server.cjs' &&
+    path.basename(path.dirname(entryPath)) === 'dist-server';
+  const hasBuiltFrontend = fs.existsSync(path.join(distDir, 'index.html'));
+  const serveBuiltFrontend =
+    process.env.NODE_ENV === 'production' || (isBundledServerEntry && hasBuiltFrontend);
+
+  if (!serveBuiltFrontend) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -676,14 +749,13 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = path.resolve(process.env.VRM_FORGE_PUBLIC_DIR || path.join(process.cwd(), 'dist'));
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
   }
 
-  const host = resolveLoopbackHost();
+  const host = resolveServerBindHost();
   const port = parseListenPort();
   const server = app.listen(port, host, () => {
     const addr = server.address() as AddressInfo | null;

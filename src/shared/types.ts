@@ -87,6 +87,27 @@ export type VrmExportVersion = '0.0' | '1.0';
 export type VrmAllowedUser = 'OnlyAuthor' | 'ExplicitlyLicensedPerson' | 'Everyone';
 export type VrmAllowance = 'Disallow' | 'Allow';
 
+export type Vrm0LicenseName =
+  | 'Redistribution_Prohibited'
+  | 'CC0'
+  | 'CC_BY'
+  | 'CC_BY_NC'
+  | 'CC_BY_SA'
+  | 'CC_BY_NC_SA'
+  | 'CC_BY_ND'
+  | 'CC_BY_NC_ND'
+  | 'Other';
+
+export interface VrmSourceLicenseRestrictions {
+  allowedUserName?: VrmAllowedUser;
+  violentUsage?: VrmAllowance;
+  sexualUsage?: VrmAllowance;
+  commercialUsage?: VrmAllowance;
+  allowRedistribution?: boolean;
+  modification?: 'prohibited' | 'allowModification' | 'allowModificationRedistribution';
+  licenseName?: string;
+}
+
 export interface VrmMetadataConfig {
   title: string;
   author: string;
@@ -95,6 +116,7 @@ export interface VrmMetadataConfig {
   reference: string;
   licenseName: string;
   otherLicenseUrl: string;
+  otherPermissionUrl?: string;
   allowedUserName: VrmAllowedUser;
   violentUsage: VrmAllowance;
   sexualUsage: VrmAllowance;
@@ -102,6 +124,7 @@ export interface VrmMetadataConfig {
   allowRedistribution: boolean;
   modification: 'prohibited' | 'allowModification' | 'allowModificationRedistribution';
   sourceAttribution?: string;
+  sourceRestrictions?: VrmSourceLicenseRestrictions;
 }
 
 export interface RigReport {
@@ -111,6 +134,8 @@ export interface RigReport {
   missingBones: string[];
   secondaryBoneCount: number;
   detail: string;
+  lossyConversion?: boolean;
+  warnings?: string[];
 }
 
 export interface CharacterSpecification {
@@ -244,6 +269,107 @@ export const VRM_EXPRESSION_PRESETS = [
 ] as const;
 
 export type VrmExpressionName = (typeof VRM_EXPRESSION_PRESETS)[number];
+
+export const VRM0_REQUIRED_HUMANOID_BONES = VRM_REQUIRED_HUMANOID_BONES;
+
+export const VRM0_HUMANOID_BONES = [
+  'hips',
+  'spine',
+  'chest',
+  'upperChest',
+  'neck',
+  'head',
+  'leftEye',
+  'rightEye',
+  'jaw',
+  'leftShoulder',
+  'leftUpperArm',
+  'leftLowerArm',
+  'leftHand',
+  'rightShoulder',
+  'rightUpperArm',
+  'rightLowerArm',
+  'rightHand',
+  'leftUpperLeg',
+  'leftLowerLeg',
+  'leftFoot',
+  'leftToes',
+  'rightUpperLeg',
+  'rightLowerLeg',
+  'rightFoot',
+  'rightToes',
+  'leftThumbProximal',
+  'leftThumbIntermediate',
+  'leftThumbDistal',
+  'leftIndexProximal',
+  'leftIndexIntermediate',
+  'leftIndexDistal',
+  'leftMiddleProximal',
+  'leftMiddleIntermediate',
+  'leftMiddleDistal',
+  'leftRingProximal',
+  'leftRingIntermediate',
+  'leftRingDistal',
+  'leftLittleProximal',
+  'leftLittleIntermediate',
+  'leftLittleDistal',
+  'rightThumbProximal',
+  'rightThumbIntermediate',
+  'rightThumbDistal',
+  'rightIndexProximal',
+  'rightIndexIntermediate',
+  'rightIndexDistal',
+  'rightMiddleProximal',
+  'rightMiddleIntermediate',
+  'rightMiddleDistal',
+  'rightRingProximal',
+  'rightRingIntermediate',
+  'rightRingDistal',
+  'rightLittleProximal',
+  'rightLittleIntermediate',
+  'rightLittleDistal',
+] as const;
+
+export const VRM0_BLEND_SHAPE_PRESETS = [
+  'unknown',
+  'neutral',
+  'a',
+  'i',
+  'u',
+  'e',
+  'o',
+  'blink',
+  'joy',
+  'angry',
+  'sorrow',
+  'fun',
+  'lookup',
+  'lookdown',
+  'lookleft',
+  'lookright',
+  'blink_l',
+  'blink_r',
+] as const;
+
+export const VRM0_ALLOWED_USERS = [
+  'OnlyAuthor',
+  'ExplicitlyLicensedPerson',
+  'Everyone',
+] as const;
+
+export const VRM0_ALLOWANCES = ['Allow', 'Disallow'] as const;
+
+export const VRM0_LICENSE_NAMES = [
+  'Redistribution_Prohibited',
+  'CC0',
+  'CC_BY',
+  'CC_BY_NC',
+  'CC_BY_SA',
+  'CC_BY_NC_SA',
+  'CC_BY_ND',
+  'CC_BY_NC_ND',
+  'Other',
+] as const;
 
 export interface ValidationCheck {
   id: string;
@@ -446,6 +572,8 @@ export interface ImportedPrimitiveData {
   colors?: Float32Array;
   joints?: Uint16Array;
   weights?: Float32Array;
+  joints1?: Uint16Array;
+  weights1?: Float32Array;
   indices: Uint32Array;
   morphTargets: ImportedMorphTargetData[];
 }
@@ -479,6 +607,16 @@ export interface ImportedMeshGroup {
   primitives: ImportedPrimitiveData[];
 }
 
+export interface ImportedColliderDef {
+  offset: [number, number, number];
+  radius: number;
+}
+
+export interface ImportedColliderGroup {
+  nodeName: string;
+  colliders: ImportedColliderDef[];
+}
+
 export interface ImportedSpringGroup {
   comment?: string;
   stiffiness: number;
@@ -488,6 +626,8 @@ export interface ImportedSpringGroup {
   hitRadius: number;
   centerNodeName?: string;
   boneNames: string[];
+  chainBoneNames?: string[];
+  colliderGroupIndices?: number[];
   colliderGroupNodeNames?: string[];
 }
 
@@ -507,10 +647,17 @@ export interface ParsedGlbAsset {
   hasNodeTransforms: boolean;
   hasMultiInfluenceSkin?: boolean;
   unsupportedFeatures?: string[];
+  multiSkinAudit?: {
+    skinCount: number;
+    allSkinsCompatible: boolean;
+    incompatibleSkins: number[];
+    warnings: string[];
+  };
   sourceVrmVersion?: VrmExportVersion;
   sourceVrmMeta?: Partial<VrmMetadataConfig>;
   existingVrmHumanoid?: Record<string, string>;
   existingVrmSprings?: ImportedSpringGroup[];
+  existingVrmColliderGroups?: ImportedColliderGroup[];
   boundsMin: [number, number, number];
   boundsMax: [number, number, number];
   meshes: ImportedMeshGroup[];

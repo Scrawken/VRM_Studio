@@ -1,4 +1,9 @@
 import {
+  VRM0_ALLOWANCES,
+  VRM0_ALLOWED_USERS,
+  VRM0_BLEND_SHAPE_PRESETS,
+  VRM0_HUMANOID_BONES,
+  VRM0_LICENSE_NAMES,
   VRM_REQUIRED_HUMANOID_BONES,
   ValidationCheck,
   VrmExportVersion,
@@ -11,6 +16,7 @@ interface GltfAccessor {
   componentType: number;
   count: number;
   type: string;
+  normalized?: boolean;
   min?: number[];
   max?: number[];
   sparse?: {
@@ -22,7 +28,12 @@ interface GltfAccessor {
 
 interface GltfJson {
   asset?: { version?: string; generator?: string };
-  nodes?: Array<{ name?: string; children?: number[]; mesh?: number; skin?: number }>;
+  nodes?: Array<{
+    name?: string;
+    children?: number[];
+    mesh?: number;
+    skin?: number;
+  }>;
   meshes?: Array<{
     name?: string;
     extras?: { targetNames?: string[] };
@@ -40,7 +51,8 @@ interface GltfJson {
     joints?: number[];
   }>;
   materials?: Array<{ name?: string }>;
-  textures?: Array<{ source?: number }>;
+  textures?: Array<{ source?: number; sampler?: number }>;
+  samplers?: Array<Record<string, unknown>>;
   images?: Array<{ name?: string; mimeType?: string; bufferView?: number }>;
   accessors?: GltfAccessor[];
   bufferViews?: Array<{
@@ -69,6 +81,7 @@ interface GltfJson {
       };
       firstPerson?: {
         firstPersonBone?: number;
+        meshAnnotations?: Array<{ mesh?: number; firstPersonFlag?: string }>;
       };
       blendShapeMaster?: {
         blendShapeGroups?: Array<{
@@ -91,7 +104,7 @@ interface GltfJson {
         }>;
         colliderGroups?: Array<{
           node: number;
-          colliders?: Array<{ offset?: { x: number; y: number; z: number }; radius?: number }>;
+          colliders?: Array<{ offset?: { x?: number; y?: number; z?: number }; radius?: number }>;
         }>;
       };
     };
@@ -117,7 +130,17 @@ interface GltfJson {
     };
     VRMC_springBone?: {
       specVersion?: string;
-      springs?: Array<{ name?: string; joints?: Array<{ node: number }> }>;
+      colliders?: Array<{
+        node?: number;
+        shape?: { sphere?: { offset?: number[]; radius?: number } };
+      }>;
+      colliderGroups?: Array<{ name?: string; colliders?: number[] }>;
+      springs?: Array<{
+        name?: string;
+        center?: number;
+        colliderGroups?: number[];
+        joints?: Array<{ node: number; hitRadius?: number; stiffness?: number; dragForce?: number }>;
+      }>;
     };
   };
 }
@@ -142,31 +165,120 @@ const CORE_VRM0_EXPRESSION_PRESETS = [
   'a',
 ] as const;
 
+const VRM0_BONE_SET = new Set<string>(VRM0_HUMANOID_BONES);
+const VRM0_PRESET_SET = new Set<string>(VRM0_BLEND_SHAPE_PRESETS);
+const VRM0_ALLOWED_USER_SET = new Set<string>(VRM0_ALLOWED_USERS);
+const VRM0_ALLOWANCE_SET = new Set<string>(VRM0_ALLOWANCES);
+const VRM0_LICENSE_SET = new Set<string>(VRM0_LICENSE_NAMES);
+
+const TYPE_COMPONENTS: Record<string, number> = {
+  SCALAR: 1,
+  VEC2: 2,
+  VEC3: 3,
+  VEC4: 4,
+  MAT2: 4,
+  MAT3: 9,
+  MAT4: 16,
+};
+
+function componentByteSize(componentType: number): number {
+  switch (componentType) {
+    case 5120:
+    case 5121:
+      return 1;
+    case 5122:
+    case 5123:
+      return 2;
+    case 5125:
+    case 5126:
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+function isAccessorInBounds(
+  accIdx: number | undefined,
+  accessors: GltfAccessor[],
+  bufferViews: NonNullable<GltfJson['bufferViews']>,
+  binByteLength: number
+): boolean {
+  if (accIdx === undefined || !Number.isInteger(accIdx) || accIdx < 0 || accIdx >= accessors.length) {
+    return false;
+  }
+  const acc = accessors[accIdx];
+  const comps = TYPE_COMPONENTS[acc.type];
+  const compBytes = componentByteSize(acc.componentType);
+  if (!comps || !compBytes || !Number.isInteger(acc.count) || acc.count < 0) return false;
+  if (acc.bufferView === undefined) {
+    return Boolean(acc.sparse && acc.sparse.count >= 0);
+  }
+  const bv = bufferViews[acc.bufferView];
+  if (!bv) return false;
+  const elemSize = comps * compBytes;
+  const stride = bv.byteStride && bv.byteStride >= elemSize ? bv.byteStride : elemSize;
+  const bvStart = bv.byteOffset ?? 0;
+  const bvEnd = bvStart + bv.byteLength;
+  if (bvStart < 0 || bvEnd > binByteLength) return false;
+  if (acc.count === 0) return true;
+  const accStart = bvStart + (acc.byteOffset ?? 0);
+  const accEnd = accStart + (acc.count - 1) * stride + elemSize;
+  return accStart >= bvStart && accEnd <= bvEnd && accEnd <= binByteLength;
+}
+
+function readNormalizedWeightComponents(
+  acc: GltfAccessor,
+  v: number,
+  bufferViews: NonNullable<GltfJson['bufferViews']>,
+  binChunk: Uint8Array,
+  binView: DataView
+): number | null {
+  if (acc.bufferView === undefined) return null;
+  const bv = bufferViews[acc.bufferView];
+  if (!bv) return null;
+  const compBytes = componentByteSize(acc.componentType);
+  if (!compBytes) return null;
+  const stride = bv.byteStride && bv.byteStride >= compBytes * 4 ? bv.byteStride : compBytes * 4;
+  const ptr = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0) + v * stride;
+  if (ptr < 0 || ptr + compBytes * 4 > binChunk.byteLength) return null;
+  let sum = 0;
+  for (let k = 0; k < 4; k++) {
+    const cOff = ptr + k * compBytes;
+    let w: number;
+    if (acc.componentType === 5126) {
+      w = binView.getFloat32(cOff, true);
+    } else if (acc.componentType === 5123) {
+      w = binView.getUint16(cOff, true) / 65535;
+    } else if (acc.componentType === 5121) {
+      w = binView.getUint8(cOff) / 255;
+    } else {
+      return null;
+    }
+    if (!Number.isFinite(w) || w < -0.001) return null;
+    sum += w;
+  }
+  return sum;
+}
+
 function hasNonZeroMorphDelta(
   acc: GltfAccessor | undefined,
   bufferViews: NonNullable<GltfJson['bufferViews']>,
   binChunk: Uint8Array,
   binView: DataView
 ): boolean {
-  if (!acc) return false;
-  if (acc.min && acc.max && acc.min.length >= 3 && acc.max.length >= 3) {
-    const mag =
-      Math.max(Math.abs(acc.min[0]), Math.abs(acc.max[0])) +
-      Math.max(Math.abs(acc.min[1]), Math.abs(acc.max[1])) +
-      Math.max(Math.abs(acc.min[2]), Math.abs(acc.max[2]));
-    if (mag > 0.0001) return true;
-  }
+  if (!acc || acc.type !== 'VEC3' || acc.componentType !== 5126) return false;
   if (acc.sparse && acc.sparse.count > 0 && bufferViews[acc.sparse.values.bufferView]) {
     const bv = bufferViews[acc.sparse.values.bufferView];
     const base = (bv.byteOffset ?? 0) + (acc.sparse.values.byteOffset ?? 0);
     for (let i = 0; i < acc.sparse.count; i++) {
       const p = base + i * 12;
       if (p + 12 > binChunk.byteLength) break;
-      const mag =
-        Math.abs(binView.getFloat32(p, true)) +
-        Math.abs(binView.getFloat32(p + 4, true)) +
-        Math.abs(binView.getFloat32(p + 8, true));
-      if (mag > 0.0001) return true;
+      const dx = binView.getFloat32(p, true);
+      const dy = binView.getFloat32(p + 4, true);
+      const dz = binView.getFloat32(p + 8, true);
+      if (Number.isFinite(dx) && Number.isFinite(dy) && Number.isFinite(dz)) {
+        if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) > 0.0001) return true;
+      }
     }
   }
   if (acc.bufferView !== undefined && bufferViews[acc.bufferView]) {
@@ -176,11 +288,12 @@ function hasNonZeroMorphDelta(
     for (let i = 0; i < acc.count; i++) {
       const p = base + i * stride;
       if (p + 12 > binChunk.byteLength) break;
-      const mag =
-        Math.abs(binView.getFloat32(p, true)) +
-        Math.abs(binView.getFloat32(p + 4, true)) +
-        Math.abs(binView.getFloat32(p + 8, true));
-      if (mag > 0.0001) return true;
+      const dx = binView.getFloat32(p, true);
+      const dy = binView.getFloat32(p + 4, true);
+      const dz = binView.getFloat32(p + 8, true);
+      if (Number.isFinite(dx) && Number.isFinite(dy) && Number.isFinite(dz)) {
+        if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) > 0.0001) return true;
+      }
     }
   }
   return false;
@@ -271,7 +384,6 @@ export function validateVrmBinary(
   const vrm0Ext = gltf.extensions?.VRM;
   const vrm1Ext = gltf.extensions?.VRMC_vrm;
 
-  // Determine detected VRM format & enforce strict version separation
   let detectedVersion = 'missing';
   if (vrm0Ext && vrm1Ext) {
     detectedVersion = 'ambiguous';
@@ -290,6 +402,13 @@ export function validateVrmBinary(
   } else if (expectedVersion === '1.0') {
     versionCheckPass = isVrm1;
   }
+
+  const extensionsUsed = Array.isArray(gltf.extensionsUsed) ? gltf.extensionsUsed : [];
+  const hasRequiredExtUsed = isVrm0
+    ? extensionsUsed.includes('VRM')
+    : isVrm1
+      ? extensionsUsed.includes('VRMC_vrm')
+      : false;
 
   const metaSummary: VrmValidationReport['metaSummary'] = isVrm0
     ? {
@@ -310,37 +429,142 @@ export function validateVrmBinary(
   checks.push({
     id: 'vrm_extension',
     label: expectedVersion ? `VRM ${expectedVersion} Extension` : 'VRM Extension (0.0 / 1.0)',
-    status: versionCheckPass ? 'pass' : 'fail',
-    detail: versionCheckPass
-      ? isVrm0
-        ? `VRM 0.0 (extensions.VRM, specVersion=${detectedVersion}) · Title: "${metaSummary?.title}" · Commercial: ${metaSummary?.commercialUsage}`
-        : `VRMC_vrm specVersion ${detectedVersion} · Title: "${metaSummary?.title}"`
-      : expectedVersion
+    status: versionCheckPass && hasRequiredExtUsed ? 'pass' : 'fail',
+    detail: !versionCheckPass
+      ? expectedVersion
         ? `Expected VRM ${expectedVersion}, but found "${detectedVersion}"`
-        : `Missing or ambiguous VRM extension (found "${detectedVersion}")`,
+        : `Missing or ambiguous VRM extension (found "${detectedVersion}")`
+      : !hasRequiredExtUsed
+        ? `extensionsUsed is missing required "${isVrm0 ? 'VRM' : 'VRMC_vrm'}" entry`
+        : isVrm0
+          ? `VRM 0.0 (extensions.VRM, specVersion=${detectedVersion}) · Title: "${metaSummary?.title}" · Commercial: ${metaSummary?.commercialUsage}`
+          : `VRMC_vrm specVersion ${detectedVersion} · Title: "${metaSummary?.title}"`,
+  });
+
+  // Metadata permission enum audit for VRM 0.0
+  if (isVrm0) {
+    const metaErrors: string[] = [];
+    const m0 = vrm0Ext?.meta;
+    if (!m0) {
+      metaErrors.push('VRM.meta is missing');
+    } else {
+      if (m0.allowedUserName !== undefined && !VRM0_ALLOWED_USER_SET.has(m0.allowedUserName)) {
+        metaErrors.push(`Invalid allowedUserName "${m0.allowedUserName}"`);
+      }
+      if (m0.violentUssageName !== undefined && !VRM0_ALLOWANCE_SET.has(m0.violentUssageName)) {
+        metaErrors.push(`Invalid violentUssageName "${m0.violentUssageName}"`);
+      }
+      if (m0.sexualUssageName !== undefined && !VRM0_ALLOWANCE_SET.has(m0.sexualUssageName)) {
+        metaErrors.push(`Invalid sexualUssageName "${m0.sexualUssageName}"`);
+      }
+      if (m0.commercialUssageName !== undefined && !VRM0_ALLOWANCE_SET.has(m0.commercialUssageName)) {
+        metaErrors.push(`Invalid commercialUssageName "${m0.commercialUssageName}"`);
+      }
+      if (m0.licenseName !== undefined && !VRM0_LICENSE_SET.has(m0.licenseName)) {
+        metaErrors.push(`Invalid licenseName "${m0.licenseName}"`);
+      }
+    }
+    checks.push({
+      id: 'vrm_metadata',
+      label: 'VRM 0.0 Metadata & Permission Enums',
+      status: metaErrors.length === 0 ? 'pass' : 'fail',
+      detail:
+        metaErrors.length === 0
+          ? `Valid VRM 0.0 license (${m0?.licenseName || 'Other'}, Commercial=${m0?.commercialUssageName || 'Disallow'})`
+          : metaErrors.join('; '),
+    });
+  }
+
+  // Node hierarchy bounds & acyclicity check
+  const nodes = gltf.nodes ?? [];
+  const nodeCount = nodes.length;
+  const meshes = gltf.meshes ?? [];
+  const skins = gltf.skins ?? [];
+  const hierarchyErrors: string[] = [];
+  const visitState = new Uint8Array(nodeCount);
+
+  const dfsNode = (idx: number) => {
+    if (visitState[idx] === 1) {
+      hierarchyErrors.push(`Cycle detected at node ${idx}`);
+      return;
+    }
+    if (visitState[idx] === 2) return;
+    visitState[idx] = 1;
+    const node = nodes[idx];
+    if (node.mesh !== undefined && (!Number.isInteger(node.mesh) || node.mesh < 0 || node.mesh >= meshes.length)) {
+      hierarchyErrors.push(`Node ${idx} references out-of-range mesh ${node.mesh}`);
+    }
+    if (node.skin !== undefined && (!Number.isInteger(node.skin) || node.skin < 0 || node.skin >= skins.length)) {
+      hierarchyErrors.push(`Node ${idx} references out-of-range skin ${node.skin}`);
+    }
+    for (const ch of node.children ?? []) {
+      if (!Number.isInteger(ch) || ch < 0 || ch >= nodeCount) {
+        hierarchyErrors.push(`Node ${idx} has out-of-range child ${ch}`);
+      } else {
+        dfsNode(ch);
+      }
+    }
+    visitState[idx] = 2;
+  };
+  for (let i = 0; i < nodeCount; i++) {
+    if (visitState[i] === 0) dfsNode(i);
+  }
+  checks.push({
+    id: 'node_hierarchy',
+    label: 'Scene Node Hierarchy',
+    status: nodeCount > 0 && hierarchyErrors.length === 0 ? 'pass' : 'fail',
+    detail:
+      nodeCount === 0
+        ? 'glTF contains zero nodes'
+        : hierarchyErrors.length === 0
+          ? `${nodeCount} acyclic scene nodes verified`
+          : hierarchyErrors.slice(0, 3).join('; '),
   });
 
   // Humanoid bone mapping validation
-  const nodeCount = gltf.nodes?.length ?? 0;
   const boneMap = new Map<string, number>();
-  let invalidHumanoidFormat = false;
+  const humanoidErrors: string[] = [];
 
   if (isVrm0) {
     const rawBones = vrm0Ext?.humanoid?.humanBones;
     if (!Array.isArray(rawBones)) {
-      invalidHumanoidFormat = true;
+      humanoidErrors.push('VRM 0.0 humanoid.humanBones must be an array');
     } else {
+      const seenNodes = new Map<number, string>();
       for (const entry of rawBones) {
-        if (entry && typeof entry.bone === 'string' && typeof entry.node === 'number') {
-          boneMap.set(entry.bone, entry.node);
+        if (!entry || typeof entry.bone !== 'string' || !Number.isInteger(entry.node)) {
+          humanoidErrors.push('Malformed humanBones entry');
+          continue;
         }
+        if (!VRM0_BONE_SET.has(entry.bone)) {
+          humanoidErrors.push(`Non-conformant VRM 0.0 bone name "${entry.bone}"`);
+          continue;
+        }
+        if (boneMap.has(entry.bone)) {
+          humanoidErrors.push(`Duplicate humanoid bone "${entry.bone}"`);
+          continue;
+        }
+        if (seenNodes.has(entry.node)) {
+          humanoidErrors.push(
+            `Node ${entry.node} mapped to multiple bones ("${seenNodes.get(entry.node)}" and "${entry.bone}")`
+          );
+          continue;
+        }
+        seenNodes.set(entry.node, entry.bone);
+        boneMap.set(entry.bone, entry.node);
       }
     }
   } else if (isVrm1) {
     const rawBones = vrm1Ext?.humanoid?.humanBones ?? {};
+    const seenNodes = new Map<number, string>();
     for (const [bName, ref] of Object.entries(rawBones)) {
-      if (ref && typeof ref.node === 'number') {
-        boneMap.set(bName, ref.node);
+      if (ref && Number.isInteger(ref.node)) {
+        if (seenNodes.has(ref.node)) {
+          humanoidErrors.push(`Node ${ref.node} mapped to multiple bones ("${seenNodes.get(ref.node)}" and "${bName}")`);
+        } else {
+          seenNodes.set(ref.node, bName);
+          boneMap.set(bName, ref.node);
+        }
       }
     }
   }
@@ -354,8 +578,15 @@ export function validateVrmBinary(
 
   if (isVrm0 && vrm0Ext?.firstPerson?.firstPersonBone !== undefined) {
     const fpIdx = vrm0Ext.firstPerson.firstPersonBone;
-    if (typeof fpIdx !== 'number' || fpIdx < 0 || fpIdx >= nodeCount) {
-      invalidBoneNodes.push('firstPersonBone');
+    if (!Number.isInteger(fpIdx) || fpIdx < -1 || fpIdx >= nodeCount) {
+      invalidBoneNodes.push(`firstPersonBone(${fpIdx})`);
+    }
+  }
+  if (isVrm0 && Array.isArray(vrm0Ext?.firstPerson?.meshAnnotations)) {
+    for (const ma of vrm0Ext.firstPerson.meshAnnotations) {
+      if (ma.mesh === undefined || !Number.isInteger(ma.mesh) || ma.mesh < 0 || ma.mesh >= meshes.length) {
+        humanoidErrors.push(`firstPerson.meshAnnotations references invalid mesh ${String(ma.mesh)}`);
+      }
     }
   }
 
@@ -363,20 +594,20 @@ export function validateVrmBinary(
     id: 'humanoid_bones',
     label: 'VRM Humanoid Bone Mapping',
     status:
-      !invalidHumanoidFormat && missingRequiredBones.length === 0 && invalidBoneNodes.length === 0
+      humanoidErrors.length === 0 && missingRequiredBones.length === 0 && invalidBoneNodes.length === 0
         ? 'pass'
         : 'fail',
-    detail: invalidHumanoidFormat
-      ? 'VRM 0.0 humanoid.humanBones must be an array of { bone, node } entries'
-      : missingRequiredBones.length === 0 && invalidBoneNodes.length === 0
-        ? `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${Math.max(0, mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length)} optional/finger bones mapped`
+    detail:
+      humanoidErrors.length > 0
+        ? humanoidErrors.slice(0, 3).join('; ')
         : invalidBoneNodes.length > 0
           ? `Invalid node indices for bones: ${invalidBoneNodes.join(', ')}`
-          : `Missing required bones: ${missingRequiredBones.join(', ')}`,
+          : missingRequiredBones.length > 0
+            ? `Missing required bones: ${missingRequiredBones.join(', ')}`
+            : `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${Math.max(0, mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length)} optional/finger bones mapped`,
   });
 
-  // Mesh Geometry, Skinning & Weight Normalization
-  const meshes = gltf.meshes ?? [];
+  // Mesh Geometry, Accessor Bounds, Skinning & 4/8-Influence Weight Normalization
   const accessors = gltf.accessors ?? [];
   const bufferViews = gltf.bufferViews ?? [];
   let primitiveCount = 0;
@@ -384,6 +615,10 @@ export function validateVrmBinary(
   let triangleCount = 0;
   let skinWeightsValid = true;
   let weightCheckDetail = 'Verified normalized vertex weights across primitives';
+  let geometryError: string | null = null;
+
+  const skin0 = skins[0];
+  const boneCount = skin0?.joints?.length ?? 0;
 
   for (const mesh of meshes) {
     for (const prim of mesh.primitives ?? []) {
@@ -396,8 +631,23 @@ export function validateVrmBinary(
         weightCheckDetail = 'Primitive missing POSITION, JOINTS_0, or WEIGHTS_0 attribute';
         continue;
       }
+      if (!isAccessorInBounds(posIdx, accessors, bufferViews, binChunk.byteLength)) {
+        geometryError = `POSITION accessor ${posIdx} is out of BIN bounds`;
+        continue;
+      }
+      if (prim.indices !== undefined && !isAccessorInBounds(prim.indices, accessors, bufferViews, binChunk.byteLength)) {
+        geometryError = `Indices accessor ${prim.indices} is out of BIN bounds`;
+        continue;
+      }
+
       const posAcc = accessors[posIdx];
       const wAcc = accessors[wIdx];
+      const jAcc = accessors[jIdx];
+      const w1Idx = prim.attributes?.WEIGHTS_1;
+      const j1Idx = prim.attributes?.JOINTS_1;
+      const w1Acc = w1Idx !== undefined ? accessors[w1Idx] : undefined;
+      const j1Acc = j1Idx !== undefined ? accessors[j1Idx] : undefined;
+
       vertexCount += posAcc?.count ?? 0;
 
       if (prim.indices !== undefined && accessors[prim.indices]) {
@@ -406,61 +656,131 @@ export function validateVrmBinary(
         triangleCount += Math.floor(posAcc.count / 3);
       }
 
-      if (wAcc && wAcc.bufferView !== undefined && bufferViews[wAcc.bufferView]) {
-        const bv = bufferViews[wAcc.bufferView];
-        const compBytes = wAcc.componentType === 5126 ? 4 : wAcc.componentType === 5123 ? 2 : 1;
-        const stride = bv.byteStride && bv.byteStride >= compBytes * 4 ? bv.byteStride : compBytes * 4;
-        const base = (bv.byteOffset ?? 0) + (wAcc.byteOffset ?? 0);
+      if (
+        !isAccessorInBounds(wIdx, accessors, bufferViews, binChunk.byteLength) ||
+        !isAccessorInBounds(jIdx, accessors, bufferViews, binChunk.byteLength)
+      ) {
+        skinWeightsValid = false;
+        weightCheckDetail = 'JOINTS_0 or WEIGHTS_0 accessor exceeds BIN buffer length';
+        continue;
+      }
+      if ((w1Idx !== undefined || j1Idx !== undefined) && (w1Idx === undefined || j1Idx === undefined)) {
+        skinWeightsValid = false;
+        weightCheckDetail = 'Primitive defines only one of JOINTS_1 / WEIGHTS_1';
+        continue;
+      }
+      if (
+        w1Idx !== undefined &&
+        j1Idx !== undefined &&
+        (!isAccessorInBounds(w1Idx, accessors, bufferViews, binChunk.byteLength) ||
+          !isAccessorInBounds(j1Idx, accessors, bufferViews, binChunk.byteLength))
+      ) {
+        skinWeightsValid = false;
+        weightCheckDetail = 'JOINTS_1 or WEIGHTS_1 accessor exceeds BIN buffer length';
+        continue;
+      }
 
-        for (let v = 0; v < wAcc.count; v++) {
+      // Check JOINTS_0 (and JOINTS_1) indices < boneCount
+      const checkJointAcc = (acc: GltfAccessor, label: string): boolean => {
+        if (acc.bufferView === undefined || !bufferViews[acc.bufferView]) return false;
+        const bv = bufferViews[acc.bufferView];
+        const compBytes = componentByteSize(acc.componentType);
+        const stride = bv.byteStride && bv.byteStride >= compBytes * 4 ? bv.byteStride : compBytes * 4;
+        const base = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+        for (let v = 0; v < acc.count; v++) {
           const ptr = base + v * stride;
-          if (ptr + compBytes * 4 > binChunk.byteLength) {
-            skinWeightsValid = false;
-            weightCheckDetail = `WEIGHTS_0 accessor exceeds BIN buffer length at vertex ${v}`;
-            break;
-          }
-          let sum = 0;
           for (let k = 0; k < 4; k++) {
             const cOff = ptr + k * compBytes;
-            if (wAcc.componentType === 5126) {
-              sum += binView.getFloat32(cOff, true);
-            } else if (wAcc.componentType === 5123) {
-              sum += binView.getUint16(cOff, true) / 65535;
-            } else {
-              sum += binView.getUint8(cOff) / 255;
+            const jVal =
+              acc.componentType === 5123
+                ? binView.getUint16(cOff, true)
+                : acc.componentType === 5121
+                  ? binView.getUint8(cOff)
+                  : -1;
+            if (jVal < 0 || (boneCount > 0 && jVal >= boneCount)) {
+              skinWeightsValid = false;
+              weightCheckDetail = `${label} index ${jVal} out of skin joint bounds (${boneCount}) at vertex ${v}`;
+              return false;
             }
           }
-          if (!Number.isFinite(sum) || Math.abs(sum - 1.0) > 0.025) {
+        }
+        return true;
+      };
+
+      if (!checkJointAcc(jAcc, 'JOINTS_0')) continue;
+      if (j1Acc && !checkJointAcc(j1Acc, 'JOINTS_1')) continue;
+
+      for (let v = 0; v < wAcc.count; v++) {
+        const sum0 = readNormalizedWeightComponents(wAcc, v, bufferViews, binChunk, binView);
+        if (sum0 === null) {
+          skinWeightsValid = false;
+          weightCheckDetail = `Invalid WEIGHTS_0 data at vertex ${v}`;
+          break;
+        }
+        let sumTotal = sum0;
+        if (w1Acc) {
+          const sum1 = readNormalizedWeightComponents(w1Acc, v, bufferViews, binChunk, binView);
+          if (sum1 === null) {
             skinWeightsValid = false;
-            weightCheckDetail = `Unnormalized skin weights detected at vertex ${v} (sum=${sum.toFixed(3)})`;
+            weightCheckDetail = `Invalid WEIGHTS_1 data at vertex ${v}`;
             break;
           }
+          sumTotal += sum1;
+        }
+        if (!Number.isFinite(sumTotal) || Math.abs(sumTotal - 1.0) > 0.025) {
+          skinWeightsValid = false;
+          weightCheckDetail = `Unnormalized skin weights detected at vertex ${v} (sum=${sumTotal.toFixed(3)})`;
+          break;
         }
       }
     }
   }
 
-  const skins = gltf.skins ?? [];
-  const boneCount = skins[0]?.joints?.length ?? 0;
-  const hasIbm =
-    skins.length > 0 &&
-    skins[0].inverseBindMatrices !== undefined &&
-    (accessors[skins[0].inverseBindMatrices]?.count ?? 0) >= boneCount;
+  let ibmValid = false;
+  let ibmFailReason = 'Missing or undersized skin inverseBindMatrices';
+  if (skin0 && boneCount > 0) {
+    const jointsInBounds = (skin0.joints ?? []).every(
+      (jNode) => Number.isInteger(jNode) && jNode >= 0 && jNode < nodeCount
+    );
+    const ibmAccIdx = skin0.inverseBindMatrices;
+    const ibmAcc = ibmAccIdx !== undefined ? accessors[ibmAccIdx] : undefined;
+    if (!jointsInBounds) {
+      ibmFailReason = 'Skin joints contain out-of-range node index';
+    } else if (
+      ibmAcc &&
+      ibmAcc.type === 'MAT4' &&
+      ibmAcc.componentType === 5126 &&
+      ibmAcc.count >= boneCount &&
+      isAccessorInBounds(ibmAccIdx, accessors, bufferViews, binChunk.byteLength)
+    ) {
+      const bv = bufferViews[ibmAcc.bufferView!];
+      const base = (bv.byteOffset ?? 0) + (ibmAcc.byteOffset ?? 0);
+      let allFinite = true;
+      for (let f = 0; f < boneCount * 16; f++) {
+        if (!Number.isFinite(binView.getFloat32(base + f * 4, true))) {
+          allFinite = false;
+          break;
+        }
+      }
+      ibmValid = allFinite;
+      if (!allFinite) ibmFailReason = 'Skin inverseBindMatrices contains non-finite values';
+    }
+  }
 
   checks.push({
     id: 'geometry_topology',
     label: 'Mesh & Topology Integrity',
-    status: vertexCount > 0 && triangleCount > 0 ? 'pass' : 'fail',
-    detail: `${vertexCount.toLocaleString()} vertices · ${triangleCount.toLocaleString()} triangles across ${primitiveCount} primitives`,
+    status: !geometryError && vertexCount > 0 && triangleCount > 0 ? 'pass' : 'fail',
+    detail:
+      geometryError ||
+      `${vertexCount.toLocaleString()} vertices · ${triangleCount.toLocaleString()} triangles across ${primitiveCount} primitives`,
   });
 
   checks.push({
     id: 'skinning_weights',
     label: 'Armature Skinning & Weights',
-    status: skinWeightsValid && hasIbm && boneCount > 0 ? 'pass' : 'fail',
-    detail: hasIbm
-      ? `${boneCount} skin joints · ${weightCheckDetail}`
-      : 'Missing or undersized skin inverseBindMatrices',
+    status: skinWeightsValid && ibmValid && boneCount > 0 ? 'pass' : 'fail',
+    detail: ibmValid ? `${boneCount} skin joints · ${weightCheckDetail}` : ibmFailReason,
   });
 
   // Expression / BlendShape Validation (VRM 0.0 vs VRM 1.0)
@@ -468,6 +788,8 @@ export function validateVrmBinary(
   let expressionCount = 0;
   let blendShapeGroupCount = 0;
   let invalidBindCount = 0;
+  let invalidPresetCount = 0;
+  let emptyBoundGroupCount = 0;
   let exprDetail = '';
   let exprStatus: 'pass' | 'warn' | 'fail' = 'fail';
 
@@ -478,9 +800,13 @@ export function validateVrmBinary(
     const seenPresets = new Set<string>();
 
     for (const grp of groups) {
-      const presetKey = (grp.presetName && grp.presetName !== 'unknown'
-        ? grp.presetName
-        : grp.name || 'unknown'
+      if (grp.presetName !== undefined && !VRM0_PRESET_SET.has(grp.presetName)) {
+        invalidPresetCount++;
+      }
+      const presetKey = (
+        grp.presetName && grp.presetName !== 'unknown'
+          ? grp.presetName
+          : grp.name || 'unknown'
       ).toLowerCase();
       seenPresets.add(presetKey);
       const binds = grp.binds ?? [];
@@ -488,22 +814,43 @@ export function validateVrmBinary(
 
       let hasDelta = false;
       for (const b of binds) {
-        const targetMesh = meshes[b.mesh];
-        if (!targetMesh || b.mesh < 0 || b.mesh >= meshes.length) {
+        if (
+          !b ||
+          !Number.isInteger(b.mesh) ||
+          b.mesh < 0 ||
+          b.mesh >= meshes.length ||
+          !Number.isInteger(b.index) ||
+          b.index < 0 ||
+          typeof b.weight !== 'number' ||
+          !Number.isFinite(b.weight) ||
+          b.weight < 0 ||
+          b.weight > 100
+        ) {
           invalidBindCount++;
           continue;
         }
+        const targetMesh = meshes[b.mesh];
+        let matchedTargetSlot = false;
         for (const prim of targetMesh.primitives ?? []) {
           const targetEntry = prim.targets?.[b.index];
-          const posAccIdx = targetEntry?.POSITION;
-          if (posAccIdx !== undefined && hasNonZeroMorphDelta(accessors[posAccIdx], bufferViews, binChunk, binView)) {
+          if (!targetEntry) continue;
+          matchedTargetSlot = true;
+          const posAccIdx = targetEntry.POSITION;
+          if (
+            posAccIdx !== undefined &&
+            isAccessorInBounds(posAccIdx, accessors, bufferViews, binChunk.byteLength) &&
+            hasNonZeroMorphDelta(accessors[posAccIdx], bufferViews, binChunk, binView)
+          ) {
             hasDelta = true;
-            break;
           }
         }
-        if (hasDelta) break;
+        if (!matchedTargetSlot) {
+          invalidBindCount++;
+        }
       }
-      if (hasDelta && !nonEmptyExpressions.includes(presetKey)) {
+      if (!hasDelta) {
+        emptyBoundGroupCount++;
+      } else if (!nonEmptyExpressions.includes(presetKey)) {
         nonEmptyExpressions.push(presetKey);
       }
     }
@@ -512,18 +859,23 @@ export function validateVrmBinary(
       (p) => !nonEmptyExpressions.includes(p)
     );
     const hasNeutral0 = seenPresets.has('neutral');
+    const hasExprError = invalidPresetCount > 0 || invalidBindCount > 0 || emptyBoundGroupCount > 0;
     exprStatus =
-      invalidBindCount > 0 || nonEmptyExpressions.length === 0
+      hasExprError || nonEmptyExpressions.length === 0
         ? 'fail'
         : missingCore0.length === 0 && hasNeutral0
           ? 'pass'
           : 'warn';
     exprDetail =
-      invalidBindCount > 0
-        ? `${invalidBindCount} invalid VRM 0.0 blendShapeMaster mesh/target binds`
-        : missingCore0.length === 0
-          ? `${nonEmptyExpressions.length} non-empty VRM 0.0 blendShapeGroups (${blendShapeGroupCount} total incl. neutral)`
-          : `${nonEmptyExpressions.length} non-empty VRM 0.0 groups · missing core: ${missingCore0.join(', ')}`;
+      invalidPresetCount > 0
+        ? `${invalidPresetCount} invalid VRM 0.0 blendShapeGroup presetName values (must match official lowercase enum)`
+        : invalidBindCount > 0
+          ? `${invalidBindCount} invalid VRM 0.0 blendShapeMaster mesh/target binds`
+          : emptyBoundGroupCount > 0
+            ? `${emptyBoundGroupCount} blendShapeGroups bind to empty/zero morph targets`
+            : missingCore0.length === 0
+              ? `${nonEmptyExpressions.length} non-empty VRM 0.0 blendShapeGroups (${blendShapeGroupCount} total incl. neutral)`
+              : `${nonEmptyExpressions.length} non-empty VRM 0.0 groups · missing core: ${missingCore0.join(', ')}`;
   } else {
     const presets = vrm1Ext?.expressions?.preset ?? {};
     const expressionNames = Object.keys(presets);
@@ -536,19 +888,37 @@ export function validateVrmBinary(
       if (binds.length === 0) continue;
       let hasDelta = false;
       for (const bind of binds) {
-        const targetNode = gltf.nodes?.[bind.node];
-        const targetMesh = targetNode?.mesh !== undefined ? meshes[targetNode.mesh] : meshes[0];
-        for (const prim of targetMesh?.primitives ?? []) {
+        const targetNode = nodes[bind.node];
+        if (
+          !targetNode ||
+          targetNode.mesh === undefined ||
+          !meshes[targetNode.mesh] ||
+          !Number.isInteger(bind.index) ||
+          bind.index < 0
+        ) {
+          invalidBindCount++;
+          continue;
+        }
+        const targetMesh = meshes[targetNode.mesh];
+        let matchedTargetSlot = false;
+        for (const prim of targetMesh.primitives ?? []) {
           const targetEntry = prim.targets?.[bind.index];
-          const posAccIdx = targetEntry?.POSITION;
-          if (posAccIdx !== undefined && hasNonZeroMorphDelta(accessors[posAccIdx], bufferViews, binChunk, binView)) {
+          if (!targetEntry) continue;
+          matchedTargetSlot = true;
+          const posAccIdx = targetEntry.POSITION;
+          if (
+            posAccIdx !== undefined &&
+            isAccessorInBounds(posAccIdx, accessors, bufferViews, binChunk.byteLength) &&
+            hasNonZeroMorphDelta(accessors[posAccIdx], bufferViews, binChunk, binView)
+          ) {
             hasDelta = true;
-            break;
           }
         }
-        if (hasDelta) break;
+        if (!matchedTargetSlot) invalidBindCount++;
       }
-      if (hasDelta) {
+      if (!hasDelta) {
+        emptyBoundGroupCount++;
+      } else {
         nonEmptyExpressions.push(exprName);
       }
     }
@@ -557,16 +927,21 @@ export function validateVrmBinary(
       (name) => !nonEmptyExpressions.includes(name)
     );
     const hasNeutralPreset = 'neutral' in presets;
+    const hasExprError = invalidBindCount > 0 || emptyBoundGroupCount > 0;
     exprStatus =
-      nonEmptyExpressions.length === 0
+      hasExprError || nonEmptyExpressions.length === 0
         ? 'fail'
         : missingCore1.length === 0 && hasNeutralPreset
           ? 'pass'
           : 'warn';
     exprDetail =
-      missingCore1.length === 0
-        ? `${nonEmptyExpressions.length} non-empty facial morph expressions (${expressionNames.length} presets incl. neutral & core set)`
-        : `${nonEmptyExpressions.length} non-empty expressions · missing core presets: ${missingCore1.join(', ')}`;
+      invalidBindCount > 0
+        ? `${invalidBindCount} invalid VRM 1.0 morphTargetBinds references`
+        : emptyBoundGroupCount > 0
+          ? `${emptyBoundGroupCount} VRM 1.0 expressions bind to empty/zero morph targets`
+          : missingCore1.length === 0
+            ? `${nonEmptyExpressions.length} non-empty facial morph expressions (${expressionNames.length} presets incl. neutral & core set)`
+            : `${nonEmptyExpressions.length} non-empty expressions · missing core presets: ${missingCore1.join(', ')}`;
   }
 
   checks.push({
@@ -585,13 +960,21 @@ export function validateVrmBinary(
 
   let brokenRefs = 0;
   for (const tex of textures) {
-    if (tex.source !== undefined && (tex.source < 0 || tex.source >= imageCount)) {
+    if (tex.source !== undefined && (!Number.isInteger(tex.source) || tex.source < 0 || tex.source >= imageCount)) {
       brokenRefs++;
     }
   }
   for (const img of images) {
-    if (img.bufferView !== undefined && (img.bufferView < 0 || img.bufferView >= bufferViews.length)) {
-      brokenRefs++;
+    if (img.bufferView !== undefined) {
+      if (!Number.isInteger(img.bufferView) || img.bufferView < 0 || img.bufferView >= bufferViews.length) {
+        brokenRefs++;
+      } else {
+        const bv = bufferViews[img.bufferView];
+        const start = bv.byteOffset ?? 0;
+        if (start < 0 || start + bv.byteLength > binChunk.byteLength) {
+          brokenRefs++;
+        }
+      }
     }
   }
 
@@ -602,17 +985,21 @@ export function validateVrmBinary(
     detail:
       brokenRefs > 0
         ? `${brokenRefs} invalid texture/image buffer references`
-        : textureCount > 0
-          ? `${materialCount} PBR materials · ${textureCount} textures · ${imageCount} embedded images`
-          : `${materialCount} PBR materials (factor-based, 0 embedded textures)`,
+        : materialCount === 0
+          ? 'glTF contains zero PBR materials'
+          : textureCount > 0
+            ? `${materialCount} PBR materials · ${textureCount} textures · ${imageCount} embedded images`
+            : `${materialCount} PBR materials (factor-based, 0 embedded textures)`,
   });
 
-  // Secondary Animation / Spring Bone Physics
+  // Secondary Animation / Spring Bone Physics & Colliders
+  const humanoidNodeSet = new Set<number>(boneMap.values());
   let springBoneJointCount = 0;
   let secondaryBoneGroupCount = 0;
   let colliderGroupCount = 0;
   let springStatus: 'pass' | 'warn' | 'fail' = 'warn';
   let springDetail = '';
+  const springErrors: string[] = [];
 
   if (isVrm0) {
     const boneGroups = vrm0Ext?.secondaryAnimation?.boneGroups ?? [];
@@ -620,44 +1007,115 @@ export function validateVrmBinary(
     secondaryBoneGroupCount = boneGroups.length;
     colliderGroupCount = colliderGroups.length;
 
-    let badSpringRefs = 0;
-    for (const bg of boneGroups) {
-      if ((bg.stiffiness ?? 0) < 0 || (bg.hitRadius ?? 0) < 0) badSpringRefs++;
+    for (let gIdx = 0; gIdx < colliderGroups.length; gIdx++) {
+      const cg = colliderGroups[gIdx];
+      if (!Number.isInteger(cg.node) || cg.node < 0 || cg.node >= nodeCount) {
+        springErrors.push(`colliderGroups[${gIdx}] references invalid node ${cg.node}`);
+      }
+      for (let cIdx = 0; cIdx < (cg.colliders ?? []).length; cIdx++) {
+        const col = cg.colliders![cIdx];
+        const off = col?.offset;
+        if (
+          !off ||
+          typeof off.x !== 'number' ||
+          typeof off.y !== 'number' ||
+          typeof off.z !== 'number' ||
+          !Number.isFinite(off.x) ||
+          !Number.isFinite(off.y) ||
+          !Number.isFinite(off.z)
+        ) {
+          springErrors.push(`colliderGroups[${gIdx}].colliders[${cIdx}] has invalid offset`);
+        }
+        if (typeof col?.radius !== 'number' || !Number.isFinite(col.radius) || col.radius < 0) {
+          springErrors.push(`colliderGroups[${gIdx}].colliders[${cIdx}] has negative or invalid radius`);
+        }
+      }
+    }
+
+    for (let bIdx = 0; bIdx < boneGroups.length; bIdx++) {
+      const bg = boneGroups[bIdx];
+      if ((bg.stiffiness ?? 0) < 0 || (bg.hitRadius ?? 0) < 0 || (bg.dragForce ?? 0) < 0) {
+        springErrors.push(`boneGroups[${bIdx}] has negative physics parameter`);
+      }
+      if (bg.center !== undefined && (!Number.isInteger(bg.center) || bg.center < -1 || bg.center >= nodeCount)) {
+        springErrors.push(`boneGroups[${bIdx}] has out-of-range center node ${bg.center}`);
+      }
       for (const bNode of bg.bones ?? []) {
-        if (typeof bNode !== 'number' || bNode < 0 || bNode >= nodeCount) {
-          badSpringRefs++;
+        if (!Number.isInteger(bNode) || bNode < 0 || bNode >= nodeCount) {
+          springErrors.push(`boneGroups[${bIdx}] references out-of-range node ${bNode}`);
+        } else if (humanoidNodeSet.has(bNode)) {
+          springErrors.push(`boneGroups[${bIdx}] illegally binds mapped humanoid bone node ${bNode}`);
         } else {
           springBoneJointCount++;
         }
       }
       for (const cgIdx of bg.colliderGroups ?? []) {
-        if (typeof cgIdx !== 'number' || cgIdx < 0 || cgIdx >= colliderGroups.length) {
-          badSpringRefs++;
+        if (!Number.isInteger(cgIdx) || cgIdx < 0 || cgIdx >= colliderGroups.length) {
+          springErrors.push(`boneGroups[${bIdx}] references out-of-range colliderGroup ${cgIdx}`);
         }
-      }
-    }
-    for (const cg of colliderGroups) {
-      if (typeof cg.node !== 'number' || cg.node < 0 || cg.node >= nodeCount) {
-        badSpringRefs++;
       }
     }
 
     springStatus =
-      badSpringRefs > 0
+      springErrors.length > 0
         ? 'fail'
         : springBoneJointCount > 0 || secondaryBoneGroupCount === 0
           ? 'pass'
           : 'warn';
     springDetail =
-      badSpringRefs > 0
-        ? `${badSpringRefs} invalid VRM 0.0 secondaryAnimation node or colliderGroup references`
+      springErrors.length > 0
+        ? springErrors.slice(0, 3).join('; ')
         : `${secondaryBoneGroupCount} boneGroups (${springBoneJointCount} physics roots) · ${colliderGroupCount} colliderGroups`;
   } else {
-    const springs = gltf.extensions?.VRMC_springBone?.springs ?? [];
+    const sb = gltf.extensions?.VRMC_springBone;
+    const springs = sb?.springs ?? [];
+    const colliders1 = sb?.colliders ?? [];
+    const colliderGroups1 = sb?.colliderGroups ?? [];
     secondaryBoneGroupCount = springs.length;
-    springBoneJointCount = springs.reduce((acc, s) => acc + (s.joints?.length ?? 0), 0);
-    springStatus = springBoneJointCount > 0 ? 'pass' : 'warn';
-    springDetail = `${springs.length} spring chains · ${springBoneJointCount} physics joints`;
+    colliderGroupCount = colliderGroups1.length;
+
+    for (let cIdx = 0; cIdx < colliders1.length; cIdx++) {
+      const col = colliders1[cIdx];
+      if (col.node === undefined || !Number.isInteger(col.node) || col.node < 0 || col.node >= nodeCount) {
+        springErrors.push(`VRMC_springBone.colliders[${cIdx}] invalid node`);
+      }
+      const sp = col.shape?.sphere;
+      if (sp) {
+        if (typeof sp.radius !== 'number' || !Number.isFinite(sp.radius) || sp.radius < 0) {
+          springErrors.push(`VRMC_springBone.colliders[${cIdx}] negative/invalid radius`);
+        }
+        if (!Array.isArray(sp.offset) || sp.offset.length < 3 || !sp.offset.every(Number.isFinite)) {
+          springErrors.push(`VRMC_springBone.colliders[${cIdx}] invalid offset`);
+        }
+      }
+    }
+    for (let sIdx = 0; sIdx < springs.length; sIdx++) {
+      const sp = springs[sIdx];
+      for (const cgIdx of sp.colliderGroups ?? []) {
+        if (!Number.isInteger(cgIdx) || cgIdx < 0 || cgIdx >= colliderGroups1.length) {
+          springErrors.push(`VRMC_springBone.springs[${sIdx}] out-of-range colliderGroup ${cgIdx}`);
+        }
+      }
+      for (const j of sp.joints ?? []) {
+        if (!Number.isInteger(j.node) || j.node < 0 || j.node >= nodeCount) {
+          springErrors.push(`VRMC_springBone.springs[${sIdx}] out-of-range node ${j.node}`);
+        } else if (humanoidNodeSet.has(j.node)) {
+          springErrors.push(`VRMC_springBone.springs[${sIdx}] binds humanoid node ${j.node}`);
+        } else {
+          springBoneJointCount++;
+        }
+      }
+    }
+    springStatus =
+      springErrors.length > 0
+        ? 'fail'
+        : springBoneJointCount > 0 || springs.length === 0
+          ? 'pass'
+          : 'warn';
+    springDetail =
+      springErrors.length > 0
+        ? springErrors.slice(0, 3).join('; ')
+        : `${springs.length} spring chains · ${springBoneJointCount} physics joints · ${colliderGroups1.length} colliderGroups`;
   }
 
   checks.push({

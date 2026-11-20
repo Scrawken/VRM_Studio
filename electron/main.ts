@@ -59,6 +59,11 @@ function pollBackendHealth(port: number, timeoutMs = 15000): Promise<void> {
 async function startExpressBackend(): Promise<string> {
   const devExternalUrl = process.env.VRM_FORGE_DEV_URL;
   if (!app.isPackaged && devExternalUrl) {
+    const parsedUrl = new URL(devExternalUrl);
+    const localHosts = new Set(['127.0.0.1', 'localhost', '[::1]']);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol) || !localHosts.has(parsedUrl.hostname)) {
+      throw new Error('VRM_FORGE_DEV_URL must point to a local loopback address.');
+    }
     return devExternalUrl;
   }
 

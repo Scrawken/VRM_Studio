@@ -1,55 +1,62 @@
-# VRM Forge Studio — Architecture, Installation & Windows Desktop Guide
+# VRM Forge Studio — Local Architecture & Windows Setup
 
 ## 1. Architecture Overview
 
-VRM Forge Studio implements a modular, desktop-first AI Text-to-VRM 1.0 generation workstation:
+VRM Forge Studio runs locally as a Node.js application, with an optional Electron desktop shell. VRM 0.0 is the primary compatibility target; VRM 1.0 is also available.
 
-- **Frontend (`src/`)**: React 19, TypeScript, Tailwind CSS v4, Three.js, and `@pixiv/three-vrm` (`VRMLoaderPlugin`), providing real-time 3D inspection, skeletal & vertex weight visualization, 18-expression morph target testing, animation playback, and character customization.
-- **VRM 1.0 Binary Engine (`src/shared/`)**: Zero-dependency binary glTF 2.0 + `VRMC_vrm` 1.0 + `VRMC_springBone` synthesizer, pure TypeScript procedural PNG PBR texture encoder, and an independent binary VRM 1.0 validator.
-- **Node/Express Runtime (`server.ts`, `server/`)**: Full-stack development & web runtime hosting `/api/*` routes, `@google/genai` (`gemini-4-hydrogen`) structured character interpretation, local disk project storage (`./projects/`), and Blender/hardware probing.
-- **Windows Desktop Shell (`electron/`)**: Electron main & preload processes managing native Windows folder dialogs, launching the Python FastAPI backend (`backend/app.py`), and opening `.blend` files directly in Blender.
-- **Python & Blender Automation (`backend/`, `blender_scripts/`)**: FastAPI service, subprocess Blender runner (`--background --python`), and `bpy` scripts generating humanoid armatures, skin weights, shape keys, `.blend` files, and VRM Add-on exports.
+- **Frontend (`src/`)**: React, TypeScript, Three.js, and `@pixiv/three-vrm` provide the local studio interface and VRM preview.
+- **VRM pipeline (`src/shared/`)**: TypeScript builds and validates binary glTF/VRM, characters, morph targets, textures, and humanoid rigs.
+- **Local Node/Express runtime (`server.ts`, `server/`)**: Serves the UI and `/api/*` routes, stores browser-mode projects locally, and detects Blender and hardware. The development command uses Vite middleware; the built command serves `dist/`.
+- **Windows desktop shell (`electron/`)**: Electron starts a bundled Express child process on loopback, opens the local UI, handles folder dialogs, and can open `.blend` files in Blender.
+- **Python and Blender tools (`backend/`, `blender_scripts/`)**: Python contains the binary validator, subprocess helper, tests, and Blender scripts.
 
 ---
 
 ## 2. Operating Modes & Provider Matrix
 
-| Mode | AI Interpretation | 3D Geometry & Rigging | Cloud Dependency | Cost Model |
-| :--- | :--- | :--- | :--- | :--- |
-| **Hybrid (Recommended)** | Gemini 4 Hydrogen (fallback: Local Semantic Parser) | Procedural VRM Engine + Local Blender `bpy` | Interpretation only | Gemini API free/paid tier; Blender/VRM free |
-| **Local (Offline)** | Local Semantic Parser or Ollama (`qwen2.5:7b` / `llama3.2:3b`) | Procedural VRM Engine + Local Blender `bpy` | None (100% offline) | Free |
-| **Cloud-Assisted** | Gemini 4 Hydrogen | Modular Cloud 3D Adapter (e.g. Tripo AI) + Local Blender cleanup | Interpretation + optional 3D | Gemini + commercial 3D credits (`TRIPO_API_KEY`) |
+| Mode | Interpretation | Geometry & Rigging | Network use |
+| :--- | :--- | :--- | :--- |
+| **Local** | Local semantic parser; optional Ollama | Local procedural VRM engine; optional Blender | None required |
+| **Hybrid** | Gemini, with local parser fallback | Local procedural engine and optional Blender | Gemini requests when configured |
+| **External geometry** | Selected interpreter | Tripo/Meshy adapter with local import and rigging | Provider requests and downloads |
 
 ---
 
 ## 3. Running Locally & Windows Desktop Packaging
 
-### Web / Node.js Development (Port 3000)
+### Browser development (port 3000)
 ```bash
 npm install
 npm run dev
 ```
+Open `http://127.0.0.1:3000`. Copy `.env.example` to `.env` if you want to configure optional providers. The server binds to loopback by default.
 
-### Python FastAPI Backend & Tests
+### Built local server
 ```bash
-cd backend
-python -m unittest discover -p "test_*.py" -v
-pip install -r requirements.txt
-uvicorn app:app --host 127.0.0.1 --port 8765
+npm run build
+npm start
 ```
+This builds the frontend and bundled Express server, then serves them locally.
 
-### Blender Milestone 2 Verification (Windows / Linux / macOS)
-1. Install **Blender 3.6 LTS or 4.x** (`https://www.blender.org/download/`).
-2. Install the official **VRM Add-on for Blender** (`https://vrm-addon-for-blender.info/`) for native `.vrm` export inside Blender.
-3. Run the automated Milestone 2 test directly:
+### Electron desktop app
+```bash
+npm install
+npm --prefix electron install
+npm run desktop
+```
+Electron starts its own local server process and stores projects in its per-user application data directory.
+
+### Blender
+Install Blender 4.2 and VRM Add-on for Blender to use the local headless Blender export path. To invoke the repository's Blender script manually:
 ```bash
 blender --background --python blender_scripts/test_milestone2_blender.py -- --out-dir ./projects/_blender_test
 ```
+This command has not been run as part of the documentation update; verify it on the target Windows installation.
 
-### Windows Electron Installer (`.exe`)
+### Windows installer
 ```bash
-cd electron
 npm install
+npm --prefix electron install
 npm run package:win
 ```
 
@@ -57,6 +64,6 @@ npm run package:win
 
 ## 4. Security & Privacy Boundaries
 
-- Private API keys (`GEMINI_API_KEY`, `TRIPO_API_KEY`) remain strictly server-side (`process.env`) and are never exposed to the browser bundle.
+- Optional API keys (`GEMINI_API_KEY`, `TRIPO_API_KEY`, `MESHY_API_KEY`) are read by the local server and are not placed in the browser bundle. Configuring a provider causes requests to leave the machine.
 - Character descriptions never execute `eval` or arbitrary script snippets; Blender Python scripts are generated deterministically from validated `CharacterSpecification` JSON.
-- All generated `.vrm`, `.glb`, `.json`, and `.py` project artifacts are stored locally under `./projects/<character_id>/`.
+- Browser-mode project artifacts are stored locally under `./projects/<character_id>/`; Electron projects use the per-user application data directory.

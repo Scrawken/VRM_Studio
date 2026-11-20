@@ -15,6 +15,7 @@ character_blender.vrm + character_blender.blend, validates output against
 backend/vrm_validator.py with strict version enforcement, and writes blender_report.json.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -28,6 +29,38 @@ REQUIRED_VRM_BONES = [
     "leftUpperLeg", "leftLowerLeg", "leftFoot",
     "rightUpperLeg", "rightLowerLeg", "rightFoot",
 ]
+
+VRM0_HUMANOID_BONES = {
+    "hips", "spine", "chest", "upperChest", "neck", "head", "leftEye", "rightEye", "jaw",
+    "leftShoulder", "leftUpperArm", "leftLowerArm", "leftHand",
+    "rightShoulder", "rightUpperArm", "rightLowerArm", "rightHand",
+    "leftUpperLeg", "leftLowerLeg", "leftFoot", "leftToes",
+    "rightUpperLeg", "rightLowerLeg", "rightFoot", "rightToes",
+    "leftThumbProximal", "leftThumbIntermediate", "leftThumbDistal",
+    "leftIndexProximal", "leftIndexIntermediate", "leftIndexDistal",
+    "leftMiddleProximal", "leftMiddleIntermediate", "leftMiddleDistal",
+    "leftRingProximal", "leftRingIntermediate", "leftRingDistal",
+    "leftLittleProximal", "leftLittleIntermediate", "leftLittleDistal",
+    "rightThumbProximal", "rightThumbIntermediate", "rightThumbDistal",
+    "rightIndexProximal", "rightIndexIntermediate", "rightIndexDistal",
+    "rightMiddleProximal", "rightMiddleIntermediate", "rightMiddleDistal",
+    "rightRingProximal", "rightRingIntermediate", "rightRingDistal",
+    "rightLittleProximal", "rightLittleIntermediate", "rightLittleDistal",
+}
+
+VRM1_TO_VRM0_BONES = {
+    "leftThumbMetacarpal": "leftThumbProximal",
+    "leftThumbProximal": "leftThumbIntermediate",
+    "rightThumbMetacarpal": "rightThumbProximal",
+    "rightThumbProximal": "rightThumbIntermediate",
+}
+
+VRM0_BLEND_SHAPE_PRESETS = {
+    "unknown", "neutral", "a", "i", "u", "e", "o", "blink",
+    "joy", "angry", "sorrow", "fun",
+    "lookup", "lookdown", "lookleft", "lookright",
+    "blink_l", "blink_r",
+}
 
 CANONICAL_BONE_ALIASES = {
     "hips": ["hips", "j_bip_c_hips", "mixamorig:hips", "pelvis", "root"],
@@ -96,6 +129,7 @@ VRM1_TO_VRM0_PRESETS = {
     "sorrow": "sorrow",
     "relaxed": "fun",
     "fun": "fun",
+    "surprised": "unknown",
     "blink": "blink",
     "blinkleft": "blink_l",
     "blink_l": "blink_l",
@@ -295,8 +329,16 @@ def _assign_bone_ref(prop_obj, target_bone_name):
         prop_obj.bone_name = target_bone_name
 
 
-def _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version: str, spec_meta: dict):
+def _configure_vrm_extension(
+    arm_obj,
+    mesh_objs,
+    bone_map,
+    vrm_version: str,
+    spec_meta: dict,
+    blender_context: dict = None,
+):
     ext = arm_obj.data.vrm_addon_extension
+    blender_context = blender_context or {}
     title = spec_meta.get("title") or spec_meta.get("name") or "Generated VRM Avatar"
     author = spec_meta.get("author") or "Unspecified Author"
     allowed_user = spec_meta.get("allowedUserName") or "OnlyAuthor"
@@ -311,6 +353,14 @@ def _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version: str, spe
         meta0.title = title
         meta0.author = author
         meta0.version = str(spec_meta.get("version") or "1.0")
+        if hasattr(meta0, "contact_information"):
+            meta0.contact_information = str(spec_meta.get("contactInformation") or "")
+        if hasattr(meta0, "reference"):
+            meta0.reference = str(spec_meta.get("reference") or "")
+        if hasattr(meta0, "other_license_url"):
+            meta0.other_license_url = str(spec_meta.get("otherLicenseUrl") or "")
+        if hasattr(meta0, "other_permission_url"):
+            meta0.other_permission_url = str(spec_meta.get("otherPermissionUrl") or "")
         meta0.license_name = license_name
         meta0.allowed_user_name = allowed_user
         meta0.violent_ussage_name = violent
@@ -318,18 +368,27 @@ def _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version: str, spe
         meta0.commercial_ussage_name = commercial
 
         hum0 = ext.vrm0.humanoid
+        seen_vrm0_bones = set()
+        seen_real_bones = set()
         for canonical, real_bone in bone_map.items():
-            snake = re.sub(r"([A-Z])", lambda m: "_" + m.group(1).lower(), canonical)
-            entry = next((hb for hb in hum0.human_bones if getattr(hb, "bone", "") in (canonical, snake)), None)
+            vrm0_bone = VRM1_TO_VRM0_BONES.get(canonical, canonical)
+            if vrm0_bone not in VRM0_HUMANOID_BONES:
+                continue
+            if vrm0_bone in seen_vrm0_bones or real_bone in seen_real_bones:
+                continue
+            seen_vrm0_bones.add(vrm0_bone)
+            seen_real_bones.add(real_bone)
+            entry = next((hb for hb in hum0.human_bones if getattr(hb, "bone", "") == vrm0_bone), None)
             if entry is None:
                 entry = hum0.human_bones.add()
-                entry.bone = snake if hasattr(entry, "bone") else canonical
+                if hasattr(entry, "bone"):
+                    entry.bone = vrm0_bone
             _assign_bone_ref(entry, real_bone)
 
         if hasattr(ext.vrm0, "first_person") and "head" in bone_map:
             _assign_bone_ref(ext.vrm0.first_person.first_person_bone, bone_map["head"])
 
-        # Map mesh shape keys to VRM 0.0 blendShapeGroups
+        # Map mesh shape keys to VRM 0.0 blendShapeGroups using official lowercase enums & 0..100 weights
         if hasattr(ext.vrm0, "blend_shape_master"):
             bsg = ext.vrm0.blend_shape_master.blend_shape_groups
             seen = set()
@@ -341,6 +400,8 @@ def _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version: str, spe
                     if kb.name == "Basis":
                         continue
                     preset = VRM1_TO_VRM0_PRESETS.get(kb.name.lower(), "unknown")
+                    if preset not in VRM0_BLEND_SHAPE_PRESETS:
+                        preset = "unknown"
                     key = (preset, kb.name.lower())
                     if key in seen:
                         continue
@@ -352,27 +413,65 @@ def _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version: str, spe
                     if hasattr(bind, "mesh"):
                         bind.mesh.mesh_object_name = m_obj.name
                     bind.index = kb.name
-                    bind.weight = 1.0
+                    bind.weight = 100
 
-        # Secondary springs only for genuine hair/cloak/J_Sec_ root bones
+        # Secondary springs & colliders: preserve source physics cleanly, excluding humanoid bones
         mapped_real_bones = set(bone_map.values())
-        sec_roots = []
-        for b in arm_obj.data.bones:
-            if b.name in mapped_real_bones:
-                continue
-            if re.match(r"^(j_sec_|hair|cloak|cape|skirt|ribbon|tail|ear)", b.name, re.I):
-                if b.parent is None or b.parent.name in mapped_real_bones:
-                    sec_roots.append(b.name)
-        if sec_roots and hasattr(ext.vrm0, "secondary_animation"):
-            bg = ext.vrm0.secondary_animation.bone_groups.add()
-            bg.comment = "SecondaryHairCloakSpring"
-            bg.stiffiness = 0.6
-            bg.gravity_power = 0.25
-            bg.drag_force = 0.4
-            bg.hit_radius = 0.025
-            for rbone in sec_roots:
-                bref = bg.bones.add()
-                _assign_bone_ref(bref, rbone)
+        arm_bone_names = {b.name for b in arm_obj.data.bones}
+        if hasattr(ext.vrm0, "secondary_animation"):
+            sec_anim = ext.vrm0.secondary_animation
+            preserved_cgs = blender_context.get("preservedVrmColliderGroups") or []
+            preserved_sgs = blender_context.get("preservedVrmSprings") or []
+
+            for cg_def in preserved_cgs:
+                node_name = cg_def.get("nodeName")
+                if not node_name or node_name not in arm_bone_names:
+                    continue
+                cg = sec_anim.collider_groups.add()
+                _assign_bone_ref(cg, node_name)
+                for col_def in cg_def.get("colliders", []):
+                    col = cg.colliders.add()
+                    off = col_def.get("offset", [0.0, 0.0, 0.0])
+                    if hasattr(col, "offset"):
+                        col.offset = (float(off[0]), float(off[1]), float(off[2]))
+                    if hasattr(col, "radius"):
+                        col.radius = max(0.0, float(col_def.get("radius", 0.05)))
+
+            if preserved_sgs:
+                for sg_def in preserved_sgs:
+                    root_bones = [
+                        bn for bn in sg_def.get("boneNames", [])
+                        if bn in arm_bone_names and bn not in mapped_real_bones
+                    ]
+                    if not root_bones:
+                        continue
+                    bg = sec_anim.bone_groups.add()
+                    bg.comment = str(sg_def.get("comment") or "PreservedSpring")
+                    bg.stiffiness = max(0.0, float(sg_def.get("stiffiness", 0.6)))
+                    bg.gravity_power = float(sg_def.get("gravityPower", 0.25))
+                    bg.drag_force = max(0.0, float(sg_def.get("dragForce", 0.4)))
+                    bg.hit_radius = max(0.0, float(sg_def.get("hitRadius", 0.025)))
+                    for rbone in root_bones:
+                        bref = bg.bones.add()
+                        _assign_bone_ref(bref, rbone)
+            else:
+                sec_roots = []
+                for b in arm_obj.data.bones:
+                    if b.name in mapped_real_bones:
+                        continue
+                    if re.match(r"^(j_sec_|hair|cloak|cape|skirt|ribbon|tail|ear)", b.name, re.I):
+                        if b.parent is None or b.parent.name in mapped_real_bones:
+                            sec_roots.append(b.name)
+                if sec_roots:
+                    bg = sec_anim.bone_groups.add()
+                    bg.comment = "SecondaryHairCloakSpring"
+                    bg.stiffiness = 0.6
+                    bg.gravity_power = 0.25
+                    bg.drag_force = 0.4
+                    bg.hit_radius = 0.025
+                    for rbone in sec_roots:
+                        bref = bg.bones.add()
+                        _assign_bone_ref(bref, rbone)
     else:
         ext.spec_version = "1.0"
         ext.vrm1.meta.vrm_name = title
@@ -467,11 +566,13 @@ def run_production_pipeline(
     report_filename: str = "blender_report.json",
     vrm_filename: str = "character_blender.vrm",
     blend_filename: str = "character_blender.blend",
+    run_id: str = "",
 ) -> dict:
     if not glb_path or not os.path.exists(glb_path):
         raise FileNotFoundError(f"Humanoid GLB input required (--glb-path). Not found: {glb_path}")
 
     spec_meta = {}
+    blender_context = {}
     if spec_json_path and os.path.exists(spec_json_path):
         try:
             with open(spec_json_path, "r", encoding="utf-8") as sf:
@@ -481,6 +582,13 @@ def run_production_pipeline(
                     spec_meta["title"] = spec_data["name"]
         except Exception:
             spec_meta = {}
+        ctx_path = Path(spec_json_path).with_name("blender_context.json")
+        if ctx_path.exists():
+            try:
+                with open(ctx_path, "r", encoding="utf-8") as cf:
+                    blender_context = json.load(cf)
+            except Exception:
+                blender_context = {}
 
     os.makedirs(out_dir, exist_ok=True)
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -528,21 +636,35 @@ def run_production_pipeline(
     vrm_reload_report = None
     reloaded_material_count = 0
     reloaded_texture_count = 0
+    output_vrm_sha256 = None
+    output_vrm_size = 0
+    python_validator_available = False
     vrm_note = None
 
     if vrm_addon_installed:
         try:
-            _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version, spec_meta)
+            _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version, spec_meta, blender_context)
             bpy.ops.export_scene.vrm(filepath=vrm_path)
             vrm_export_success = os.path.exists(vrm_path) and os.path.getsize(vrm_path) > 0
 
             if vrm_export_success:
+                with open(vrm_path, "rb") as vf:
+                    vrm_bytes = vf.read()
+                output_vrm_size = len(vrm_bytes)
+                output_vrm_sha256 = hashlib.sha256(vrm_bytes).hexdigest()
+
                 validator_fn = _load_vrm_validator()
-                binary_valid = True
-                if validator_fn:
-                    with open(vrm_path, "rb") as vf:
-                        vrm_reload_report = validator_fn(vf.read(), expected_version=vrm_version)
-                        binary_valid = bool(vrm_reload_report.get("valid"))
+                if validator_fn is None:
+                    binary_valid = False
+                    python_validator_available = False
+                    vrm_note = "Independent Python vrm_validator module is unavailable; binary conformance cannot be verified."
+                else:
+                    python_validator_available = True
+                    vrm_reload_report = validator_fn(vrm_bytes, expected_version=vrm_version)
+                    binary_valid = bool(vrm_reload_report.get("valid"))
+                    if not binary_valid:
+                        errs = vrm_reload_report.get("errors") or []
+                        vrm_note = f"Independent VRM {vrm_version} validator failed: {'; '.join(errs) or vrm_reload_report.get('error', 'schema violation')}"
 
                 bpy.ops.wm.read_factory_settings(use_empty=True)
                 bpy.ops.import_scene.gltf(filepath=vrm_path)
@@ -571,6 +693,7 @@ def run_production_pipeline(
 
     report = {
         "status": "ok" if ok else "fail",
+        "run_id": run_id,
         "vrm_version": vrm_version,
         "source_glb": glb_path,
         "blender_version": bpy.app.version_string,
@@ -582,6 +705,9 @@ def run_production_pipeline(
         "texture_preserved": texture_preserved,
         "vrm_export_success": vrm_export_success,
         "vrm_reload_success": vrm_reload_success,
+        "python_validator_available": python_validator_available,
+        "output_vrm_sha256": output_vrm_sha256,
+        "output_vrm_size": output_vrm_size,
         "input_materials": input_materials,
         "input_textures": input_textures,
         "reloaded_material_count": reloaded_material_count,
@@ -618,6 +744,7 @@ if __name__ == "__main__":
     glb_input = ""
     vrm_ver = "0.0"
     spec_path = ""
+    run_id_arg = ""
     if "--" in sys.argv:
         args = sys.argv[sys.argv.index("--") + 1 :]
         if "--out-dir" in args:
@@ -628,6 +755,14 @@ if __name__ == "__main__":
             vrm_ver = args[args.index("--vrm-version") + 1]
         if "--spec-json" in args:
             spec_path = args[args.index("--spec-json") + 1]
-    result = run_production_pipeline(output, glb_input, vrm_version=vrm_ver, spec_json_path=spec_path)
+        if "--run-id" in args:
+            run_id_arg = args[args.index("--run-id") + 1]
+    result = run_production_pipeline(
+        output,
+        glb_input,
+        vrm_version=vrm_ver,
+        spec_json_path=spec_path,
+        run_id=run_id_arg,
+    )
     if result.get("status") != "ok":
         sys.exit(1)

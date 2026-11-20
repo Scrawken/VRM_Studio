@@ -18,18 +18,26 @@ import {
   resolvePackedTextureSize,
   textureResolutionToTargetPx,
 } from './pngEncoder';
-import { createDefaultVrmMetadata } from './characterParser';
+import {
+  clampMetadataToSourceRestrictions,
+  createDefaultVrmMetadata,
+} from './characterParser';
 import {
   CharacterSpecification,
   ExportEstimates,
   ImportedPrimitiveData,
   ParsedGlbAsset,
   RigReport,
+  VRM0_BLEND_SHAPE_PRESETS,
+  VRM0_HUMANOID_BONES,
   VRM_EXPRESSION_PRESETS,
   VRM_REQUIRED_HUMANOID_BONES,
   VrmExportVersion,
   VrmMetadataConfig,
 } from './types';
+
+const VRM0_BONE_SET = new Set<string>(VRM0_HUMANOID_BONES);
+const VRM0_PRESET_SET = new Set<string>(VRM0_BLEND_SHAPE_PRESETS);
 
 const VRM1_TO_VRM0_PRESET: Record<string, string> = {
   neutral: 'neutral',
@@ -37,6 +45,7 @@ const VRM1_TO_VRM0_PRESET: Record<string, string> = {
   angry: 'angry',
   sad: 'sorrow',
   relaxed: 'fun',
+  surprised: 'unknown',
   blink: 'blink',
   blinkLeft: 'blink_l',
   blinkRight: 'blink_r',
@@ -57,6 +66,7 @@ const VRM0_DISPLAY_NAMES: Record<string, string> = {
   angry: 'Angry',
   sorrow: 'Sorrow',
   fun: 'Fun',
+  unknown: 'Surprised',
   blink: 'Blink',
   blink_l: 'Blink_L',
   blink_r: 'Blink_R',
@@ -75,18 +85,31 @@ function resolveEffectiveVrmMetadata(
   spec: CharacterSpecification,
   sourceMeta?: Partial<VrmMetadataConfig>
 ): VrmMetadataConfig {
-  const base = createDefaultVrmMetadata(spec.name, spec.vrmMetadata);
-  const srcAttr = sourceMeta?.sourceAttribution || base.sourceAttribution;
-  return {
-    ...base,
-    title: base.title || sourceMeta?.title || spec.name,
-    author: base.author || '',
-    commercialUsage: base.commercialUsage || 'Disallow',
-    allowedUserName: base.allowedUserName || 'OnlyAuthor',
-    violentUsage: base.violentUsage || 'Disallow',
-    sexualUsage: base.sexualUsage || 'Disallow',
-    sourceAttribution: srcAttr,
+  const mergedInput: Partial<VrmMetadataConfig> = {
+    ...(sourceMeta || {}),
+    ...(spec.vrmMetadata || {}),
+    author: spec.vrmMetadata?.author || sourceMeta?.author || '',
+    version: spec.vrmMetadata?.version || sourceMeta?.version || '1.0',
+    contactInformation: spec.vrmMetadata?.contactInformation || sourceMeta?.contactInformation || '',
+    reference: spec.vrmMetadata?.reference || sourceMeta?.reference || '',
+    licenseName: spec.vrmMetadata?.licenseName || sourceMeta?.licenseName || 'Other',
+    otherLicenseUrl: spec.vrmMetadata?.otherLicenseUrl || sourceMeta?.otherLicenseUrl || '',
+    otherPermissionUrl: spec.vrmMetadata?.otherPermissionUrl || sourceMeta?.otherPermissionUrl || '',
+    allowedUserName: spec.vrmMetadata?.allowedUserName || sourceMeta?.allowedUserName || 'OnlyAuthor',
+    violentUsage: spec.vrmMetadata?.violentUsage || sourceMeta?.violentUsage || 'Disallow',
+    sexualUsage: spec.vrmMetadata?.sexualUsage || sourceMeta?.sexualUsage || 'Disallow',
+    commercialUsage: spec.vrmMetadata?.commercialUsage || sourceMeta?.commercialUsage || 'Disallow',
+    allowRedistribution:
+      spec.vrmMetadata?.allowRedistribution ?? sourceMeta?.allowRedistribution ?? false,
+    modification: spec.vrmMetadata?.modification || sourceMeta?.modification || 'prohibited',
+    sourceAttribution:
+      spec.vrmMetadata?.sourceAttribution ||
+      sourceMeta?.sourceAttribution ||
+      'Created with VRM Forge Studio',
+    sourceRestrictions: spec.vrmMetadata?.sourceRestrictions ?? sourceMeta?.sourceRestrictions,
   };
+  const base = createDefaultVrmMetadata(spec.name, mergedInput);
+  return clampMetadataToSourceRestrictions(base, mergedInput.sourceRestrictions);
 }
 
 function buildVrm0MetaBlock(meta: VrmMetadataConfig): Record<string, unknown> {
@@ -100,7 +123,7 @@ function buildVrm0MetaBlock(meta: VrmMetadataConfig): Record<string, unknown> {
     violentUssageName: meta.violentUsage,
     sexualUssageName: meta.sexualUsage,
     commercialUssageName: meta.commercialUsage,
-    otherPermissionUrl: '',
+    otherPermissionUrl: meta.otherPermissionUrl || '',
     licenseName: meta.licenseName || 'Other',
     otherLicenseUrl: meta.otherLicenseUrl || '',
   };
@@ -163,11 +186,14 @@ function buildVrm0Extension(options: {
     rightThumbProximal: 'rightThumbIntermediate',
   };
   const seenVrm0Bones = new Set<string>();
+  const seenVrm0Nodes = new Set<number>();
   const humanBonesArr: Array<{ bone: string; node: number; useDefaultValues: boolean }> = [];
   for (const [bone, ref] of Object.entries(options.humanBones)) {
     const vrm0Bone = VRM1_TO_VRM0_BONE_NAME[bone] ?? bone;
-    if (seenVrm0Bones.has(vrm0Bone)) continue;
+    if (!VRM0_BONE_SET.has(vrm0Bone)) continue;
+    if (seenVrm0Bones.has(vrm0Bone) || seenVrm0Nodes.has(ref.node)) continue;
     seenVrm0Bones.add(vrm0Bone);
+    seenVrm0Nodes.add(ref.node);
     humanBonesArr.push({
       bone: vrm0Bone,
       node: ref.node,
@@ -187,8 +213,8 @@ function buildVrm0Extension(options: {
 
   for (const [vrm1Name, binds] of Object.entries(options.expressionPresetBinds)) {
     if (vrm1Name === 'neutral' || !binds || binds.length === 0) continue;
-    const preset0 = VRM1_TO_VRM0_PRESET[vrm1Name];
-    if (!preset0) continue;
+    const rawPreset0 = VRM1_TO_VRM0_PRESET[vrm1Name] ?? 'unknown';
+    const preset0 = VRM0_PRESET_SET.has(rawPreset0) ? rawPreset0 : 'unknown';
     const vrm0Binds: Array<{ mesh: number; index: number; weight: number }> = [];
     for (const b of binds) {
       const meshIdx = nodeToMesh.get(b.node);
@@ -202,7 +228,7 @@ function buildVrm0Extension(options: {
     }
     if (vrm0Binds.length > 0) {
       blendShapeGroups.push({
-        name: VRM0_DISPLAY_NAMES[preset0] || preset0,
+        name: VRM0_DISPLAY_NAMES[preset0] || (preset0 === 'unknown' ? vrm1Name : preset0),
         presetName: preset0,
         binds: vrm0Binds,
         isBinary: preset0 === 'blink' || preset0 === 'blink_l' || preset0 === 'blink_r',
@@ -1394,6 +1420,16 @@ export function buildRiggedVrmFromExternalMesh(
         )
       : null;
 
+  const rigWarnings: string[] = [...(externalAsset.unsupportedFeatures ?? [])];
+  if (externalAsset.multiSkinAudit && !externalAsset.multiSkinAudit.allSkinsCompatible) {
+    for (const w of externalAsset.multiSkinAudit.warnings) {
+      if (!rigWarnings.includes(w)) rigWarnings.push(w);
+    }
+  }
+  const hasLossyMultiSkin = Boolean(
+    externalAsset.multiSkinAudit && !externalAsset.multiSkinAudit.allSkinsCompatible
+  );
+
   const preserveExistingRig = Boolean(skinMapping && skinMapping.allRequiredPresent && primarySkin);
   const rigReport: RigReport = preserveExistingRig && skinMapping && primarySkin
     ? {
@@ -1402,6 +1438,8 @@ export function buildRiggedVrmFromExternalMesh(
         mappedCount: Object.keys(skinMapping.humanBoneToJointIndex).length,
         missingBones: [],
         secondaryBoneCount: skinMapping.secondaryJointIndices.length,
+        lossyConversion: hasLossyMultiSkin || undefined,
+        warnings: rigWarnings.length > 0 ? rigWarnings : undefined,
         detail: `Preserved existing skeleton (${primarySkin.joints.length} joints) via ${skinMapping.mappingSource} mapping with ${skinMapping.secondaryJointIndices.length} secondary/accessory bones`,
       }
     : primarySkin
@@ -1411,6 +1449,8 @@ export function buildRiggedVrmFromExternalMesh(
           mappedCount: 55,
           missingBones: skinMapping?.missingRequired ?? [...VRM_REQUIRED_HUMANOID_BONES],
           secondaryBoneCount: 10,
+          lossyConversion: true,
+          warnings: rigWarnings.length > 0 ? rigWarnings : undefined,
           detail: `Replaced incomplete/unskinned source rig (missing: ${(skinMapping?.missingRequired ?? []).join(', ') || 'skinning weights'}) with silhouette-fitted humanoid armature`,
         }
       : {
@@ -1419,6 +1459,7 @@ export function buildRiggedVrmFromExternalMesh(
           mappedCount: 55,
           missingBones: [],
           secondaryBoneCount: 10,
+          warnings: rigWarnings.length > 0 ? rigWarnings : undefined,
           detail: 'Fitted 65-bone humanoid armature & Laplacian-smoothed capsule skin weights onto unrigged GLB',
         };
 
@@ -1445,10 +1486,12 @@ export function buildRiggedVrmFromExternalMesh(
   let ibmBytes: Float32Array;
   let skeletonRootLocalIdx = 0;
 
-  // Per-primitive joints/weights arrays
+  // Per-primitive joints/weights arrays (supporting up to 8 influences via JOINTS_1/WEIGHTS_1)
   const primPositions: Float32Array[] = [];
   const primJoints: Uint16Array[] = [];
   const primWeights: Float32Array[] = [];
+  const primJoints1: Array<Uint16Array | undefined> = [];
+  const primWeights1: Array<Float32Array | undefined> = [];
   let maxWeightSumError = 0;
   let jointDeformations = [];
   let weightedVerticesTotal = 0;
@@ -1556,6 +1599,11 @@ export function buildRiggedVrmFromExternalMesh(
       const posOut = new Float32Array(vc * 3);
       const jOut = new Uint16Array(vc * 4);
       const wOut = new Float32Array(vc * 4);
+      const hasEightInf = Boolean(
+        p.joints1 && p.weights1 && p.joints1.length >= vc * 4 && p.weights1.length >= vc * 4
+      );
+      const j1Out = hasEightInf ? new Uint16Array(vc * 4) : undefined;
+      const w1Out = hasEightInf ? new Float32Array(vc * 4) : undefined;
       for (let i = 0; i < vc; i++) {
         const px = (p.positions[i * 3] + offsetX) * scale;
         const py = (p.positions[i * 3 + 1] + offsetY) * scale;
@@ -1571,13 +1619,36 @@ export function buildRiggedVrmFromExternalMesh(
         const rawW1 = Math.max(0, p.weights![i * 4 + 1]);
         const rawW2 = Math.max(0, p.weights![i * 4 + 2]);
         const rawW3 = Math.max(0, p.weights![i * 4 + 3]);
-        const sum = rawW0 + rawW1 + rawW2 + rawW3 || 1;
+
+        let rawW4 = 0, rawW5 = 0, rawW6 = 0, rawW7 = 0;
+        let j4 = 0, j5 = 0, j6 = 0, j7 = 0;
+        if (hasEightInf && j1Out && w1Out) {
+          j4 = Math.min(jointNodes.length - 1, p.joints1![i * 4]);
+          j5 = Math.min(jointNodes.length - 1, p.joints1![i * 4 + 1]);
+          j6 = Math.min(jointNodes.length - 1, p.joints1![i * 4 + 2]);
+          j7 = Math.min(jointNodes.length - 1, p.joints1![i * 4 + 3]);
+          rawW4 = Math.max(0, p.weights1![i * 4]);
+          rawW5 = Math.max(0, p.weights1![i * 4 + 1]);
+          rawW6 = Math.max(0, p.weights1![i * 4 + 2]);
+          rawW7 = Math.max(0, p.weights1![i * 4 + 3]);
+        }
+
+        const sum = rawW0 + rawW1 + rawW2 + rawW3 + rawW4 + rawW5 + rawW6 + rawW7 || 1;
         jOut[i * 4] = j0; jOut[i * 4 + 1] = j1; jOut[i * 4 + 2] = j2; jOut[i * 4 + 3] = j3;
         wOut[i * 4] = rawW0 / sum;
         wOut[i * 4 + 1] = rawW1 / sum;
         wOut[i * 4 + 2] = rawW2 / sum;
         wOut[i * 4 + 3] = rawW3 / sum;
-        const err = Math.abs(wOut[i * 4] + wOut[i * 4 + 1] + wOut[i * 4 + 2] + wOut[i * 4 + 3] - 1.0);
+        let totalSum = wOut[i * 4] + wOut[i * 4 + 1] + wOut[i * 4 + 2] + wOut[i * 4 + 3];
+        if (hasEightInf && j1Out && w1Out) {
+          j1Out[i * 4] = j4; j1Out[i * 4 + 1] = j5; j1Out[i * 4 + 2] = j6; j1Out[i * 4 + 3] = j7;
+          w1Out[i * 4] = rawW4 / sum;
+          w1Out[i * 4 + 1] = rawW5 / sum;
+          w1Out[i * 4 + 2] = rawW6 / sum;
+          w1Out[i * 4 + 3] = rawW7 / sum;
+          totalSum += w1Out[i * 4] + w1Out[i * 4 + 1] + w1Out[i * 4 + 2] + w1Out[i * 4 + 3];
+        }
+        const err = Math.abs(totalSum - 1.0);
         if (err > maxWeightSumError) maxWeightSumError = err;
         weightedVerticesTotal++;
         concatJ.push(j0, j1, j2, j3);
@@ -1586,6 +1657,8 @@ export function buildRiggedVrmFromExternalMesh(
       primPositions.push(posOut);
       primJoints.push(jOut);
       primWeights.push(wOut);
+      primJoints1.push(j1Out);
+      primWeights1.push(w1Out);
     }
 
     jointDeformations = auditJointDeformations(
@@ -1942,6 +2015,28 @@ export function buildRiggedVrmFromExternalMesh(
       accessors.push({ bufferView: wBv, componentType: 5126, count: vertCount, type: 'VEC4' });
       primAttributes.WEIGHTS_0 = wAcc;
 
+      const j1Src = primJoints1[pIdx];
+      const w1Src = primWeights1[pIdx];
+      if (j1Src && w1Src) {
+        if (useUint16Joints) {
+          const j1Bv = pushBufferSlice(new Uint8Array(j1Src.buffer.slice(0)), 34962);
+          const j1Acc = accessors.length;
+          accessors.push({ bufferView: j1Bv, componentType: 5123, count: vertCount, type: 'VEC4' });
+          primAttributes.JOINTS_1 = j1Acc;
+        } else {
+          const j1Bytes = new Uint8Array(vertCount * 4);
+          for (let i = 0; i < vertCount * 4; i++) j1Bytes[i] = j1Src[i];
+          const j1Bv = pushBufferSlice(j1Bytes, 34962);
+          const j1Acc = accessors.length;
+          accessors.push({ bufferView: j1Bv, componentType: 5121, count: vertCount, type: 'VEC4' });
+          primAttributes.JOINTS_1 = j1Acc;
+        }
+        const w1Bv = pushBufferSlice(new Uint8Array(w1Src.buffer.slice(0)), 34962);
+        const w1Acc = accessors.length;
+        accessors.push({ bufferView: w1Bv, componentType: 5126, count: vertCount, type: 'VEC4' });
+        primAttributes.WEIGHTS_1 = w1Acc;
+      }
+
       const indexArr = new Uint32Array(srcPrim.indices);
       const indexBv = pushBufferSlice(new Uint8Array(indexArr.buffer), 34963);
       const indexAcc = accessors.length;
@@ -1974,7 +2069,7 @@ export function buildRiggedVrmFromExternalMesh(
             mMax[1] = Math.max(mMax[1], deltas[i + 1]);
             mMax[2] = Math.max(mMax[2], deltas[i + 2]);
           }
-          const mBv = pushBufferSlice(new Uint8Array(deltas.buffer), 34962);
+          const mBv = pushBufferSlice(new Uint8Array(deltas.buffer.slice(0)), 34962);
           const mAcc = accessors.length;
           accessors.push({
             bufferView: mBv,
@@ -1984,7 +2079,26 @@ export function buildRiggedVrmFromExternalMesh(
             min: mMin,
             max: mMax,
           });
-          targetsArray.push({ POSITION: mAcc });
+          const targetObj: Record<string, number> = { POSITION: mAcc };
+          if (m.normalDeltas && m.normalDeltas.length >= vertCount * 3) {
+            const nDeltas = rotateY180 ? new Float32Array(m.normalDeltas) : m.normalDeltas;
+            if (rotateY180) {
+              for (let i = 0; i < nDeltas.length; i += 3) {
+                nDeltas[i] = negZeroClean(nDeltas[i]);
+                nDeltas[i + 2] = negZeroClean(nDeltas[i + 2]);
+              }
+            }
+            const nBv = pushBufferSlice(new Uint8Array(nDeltas.buffer.slice(0)), 34962);
+            const nAcc = accessors.length;
+            accessors.push({
+              bufferView: nBv,
+              componentType: 5126,
+              count: vertCount,
+              type: 'VEC3',
+            });
+            targetObj.NORMAL = nAcc;
+          }
+          targetsArray.push(targetObj);
         }
         primEntry.targets = targetsArray;
       }
@@ -2108,23 +2222,116 @@ export function buildRiggedVrmFromExternalMesh(
 
   const jointIdxByName = new Map<string, number>();
   jointNodes.forEach((b, i) => jointIdxByName.set(b.name, i + 1));
+  const mappedNodeSet = new Set<number>(Object.values(humanBones).map((r) => r.node));
 
-  // Derive genuine secondary springs:
-  // 1) Preserve existing VRM secondaryAnimation springs if present in compatible external source
-  // 2) Or detect J_Sec_* / hair* / cloak* / skirt* / ribbon* root bones cleanly (never bind springs to limbs)
+  const childrenByLocalJoint = new Map<number, number[]>();
+  jointNodes.forEach((b, i) => {
+    if (b.parent >= 0) {
+      const ch = childrenByLocalJoint.get(b.parent) ?? [];
+      ch.push(i);
+      childrenByLocalJoint.set(b.parent, ch);
+    }
+  });
+  const collectChainNodes = (rootGlftNodeIdx: number): number[] => {
+    const out: number[] = [];
+    const queue = [rootGlftNodeIdx - 1];
+    const visited = new Set<number>();
+    while (queue.length > 0) {
+      const localIdx = queue.shift()!;
+      if (visited.has(localIdx) || localIdx < 0 || localIdx >= jointNodes.length) continue;
+      visited.add(localIdx);
+      const gltfNode = localIdx + 1;
+      if (!mappedNodeSet.has(gltfNode)) {
+        out.push(gltfNode);
+      }
+      for (const ch of childrenByLocalJoint.get(localIdx) ?? []) {
+        queue.push(ch);
+      }
+    }
+    return out;
+  };
+
+  // Derive genuine secondary colliders & springs:
+  // 1) Preserve imported VRM colliderGroups & boneGroups cleanly (excluding humanoid bones)
+  // 2) Or generate sensible head/chest colliders + detect J_Sec_* / hair* / cloak* roots
   const vrm0ColliderGroups: Array<{
     node: number;
     colliders: Array<{ offset: { x: number; y: number; z: number }; radius: number }>;
-  }> = [
-    {
-      node: humanBones.head?.node ?? 1,
-      colliders: [{ offset: { x: 0, y: 0.06 * spec.proportions.headScale, z: 0 }, radius: 0.085 }],
-    },
-    {
-      node: humanBones.upperChest?.node ?? humanBones.chest?.node ?? 1,
-      colliders: [{ offset: { x: 0, y: 0.03, z: 0 }, radius: 0.10 }],
-    },
-  ];
+  }> = [];
+  const vrm1Colliders: Array<{
+    node: number;
+    shape: { sphere: { offset: [number, number, number]; radius: number } };
+  }> = [];
+  const vrm1ColliderGroups: Array<{ name: string; colliders: number[] }> = [];
+
+  if (externalAsset.existingVrmColliderGroups && externalAsset.existingVrmColliderGroups.length > 0) {
+    externalAsset.existingVrmColliderGroups.forEach((cg, idx) => {
+      const targetNode = jointIdxByName.get(cg.nodeName);
+      if (targetNode === undefined) {
+        rigWarnings.push(`Skipped imported collider group on unresolved node "${cg.nodeName}".`);
+        return;
+      }
+      const mappedCols = cg.colliders
+        .filter((c) => Number.isFinite(c.radius) && c.radius >= 0)
+        .map((c) => {
+          const ox = rotateVrmY180 ? negZeroClean(c.offset[0]) : c.offset[0];
+          const oy = c.offset[1];
+          const oz = rotateVrmY180 ? negZeroClean(c.offset[2]) : c.offset[2];
+          return {
+            offset: { x: ox, y: oy, z: oz },
+            radius: Math.max(0, c.radius),
+          };
+        });
+      vrm0ColliderGroups.push({ node: targetNode, colliders: mappedCols });
+
+      const v1Indices: number[] = [];
+      for (const mc of mappedCols) {
+        v1Indices.push(vrm1Colliders.length);
+        vrm1Colliders.push({
+          node: targetNode,
+          shape: {
+            sphere: {
+              offset: [mc.offset.x, mc.offset.y, mc.offset.z],
+              radius: mc.radius,
+            },
+          },
+        });
+      }
+      vrm1ColliderGroups.push({
+        name: `${cg.nodeName}_ColliderGroup_${idx}`,
+        colliders: v1Indices,
+      });
+    });
+  }
+
+  if (vrm0ColliderGroups.length === 0) {
+    const defaultDefs = [
+      {
+        node: humanBones.head?.node ?? 1,
+        offset: [0, 0.06 * spec.proportions.headScale, 0] as [number, number, number],
+        radius: 0.085,
+        name: 'HeadCollider',
+      },
+      {
+        node: humanBones.upperChest?.node ?? humanBones.chest?.node ?? 1,
+        offset: [0, 0.03, 0] as [number, number, number],
+        radius: 0.1,
+        name: 'ChestCollider',
+      },
+    ];
+    for (const d of defaultDefs) {
+      vrm0ColliderGroups.push({
+        node: d.node,
+        colliders: [{ offset: { x: d.offset[0], y: d.offset[1], z: d.offset[2] }, radius: d.radius }],
+      });
+      const cIdx = vrm1Colliders.length;
+      vrm1Colliders.push({
+        node: d.node,
+        shape: { sphere: { offset: d.offset, radius: d.radius } },
+      });
+      vrm1ColliderGroups.push({ name: d.name, colliders: [cIdx] });
+    }
+  }
 
   const vrm0BoneGroups: Array<{
     comment?: string;
@@ -2137,46 +2344,96 @@ export function buildRiggedVrmFromExternalMesh(
     bones: number[];
     colliderGroups: number[];
   }> = [];
-  const vrm1Springs: Array<{ name: string; joints: Array<Record<string, unknown>> }> = [];
+  const vrm1Springs: Array<{
+    name: string;
+    center?: number;
+    colliderGroups?: number[];
+    joints: Array<Record<string, unknown>>;
+  }> = [];
   let springJointCount = 0;
 
   if (externalAsset.existingVrmSprings && externalAsset.existingVrmSprings.length > 0) {
     for (const sp of externalAsset.existingVrmSprings) {
-      const rootNodes = sp.boneNames
-        .map((bn) => jointIdxByName.get(bn))
-        .filter((n): n is number => n !== undefined);
+      const rootNodes: number[] = [];
+      for (const bn of sp.boneNames) {
+        const nodeIdx = jointIdxByName.get(bn);
+        if (nodeIdx === undefined) continue;
+        if (mappedNodeSet.has(nodeIdx)) {
+          rigWarnings.push(
+            `Removed humanoid bone "${bn}" from secondary spring group "${sp.comment || 'Spring'}".`
+          );
+          continue;
+        }
+        if (!rootNodes.includes(nodeIdx)) rootNodes.push(nodeIdx);
+      }
       if (rootNodes.length === 0) continue;
       springJointCount += rootNodes.length;
       const centerNode = sp.centerNodeName ? (jointIdxByName.get(sp.centerNodeName) ?? -1) : -1;
       const gDir = rotateVrmY180
         ? [negZeroClean(sp.gravityDir[0]), sp.gravityDir[1], negZeroClean(sp.gravityDir[2])]
         : sp.gravityDir;
+
+      const resolvedCgIndices = (sp.colliderGroupIndices ?? [])
+        .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < vrm0ColliderGroups.length);
+      const effectiveCgIndices =
+        resolvedCgIndices.length > 0
+          ? resolvedCgIndices
+          : sp.colliderGroupNodeNames && sp.colliderGroupNodeNames.length > 0
+            ? sp.colliderGroupNodeNames
+                .map((nName) => {
+                  const nIdx = jointIdxByName.get(nName);
+                  return nIdx !== undefined
+                    ? vrm0ColliderGroups.findIndex((cg) => cg.node === nIdx)
+                    : -1;
+                })
+                .filter((idx) => idx >= 0)
+            : vrm0ColliderGroups.map((_, i) => i).slice(0, 2);
+
       vrm0BoneGroups.push({
         comment: sp.comment || 'PreservedSpring',
-        stiffiness: sp.stiffiness,
+        stiffiness: Math.max(0, sp.stiffiness),
         gravityPower: sp.gravityPower,
         gravityDir: { x: gDir[0], y: gDir[1], z: gDir[2] },
-        dragForce: sp.dragForce,
+        dragForce: Math.max(0, sp.dragForce),
         center: centerNode,
-        hitRadius: sp.hitRadius,
+        hitRadius: Math.max(0, sp.hitRadius),
         bones: rootNodes,
-        colliderGroups: [0, 1],
+        colliderGroups: effectiveCgIndices,
       });
+
+      const chainNodes: number[] = [];
+      if (sp.chainBoneNames && sp.chainBoneNames.length > 0) {
+        for (const cbn of sp.chainBoneNames) {
+          const nIdx = jointIdxByName.get(cbn);
+          if (nIdx !== undefined && !mappedNodeSet.has(nIdx) && !chainNodes.includes(nIdx)) {
+            chainNodes.push(nIdx);
+          }
+        }
+      } else {
+        for (const rn of rootNodes) {
+          for (const cn of collectChainNodes(rn)) {
+            if (!chainNodes.includes(cn)) chainNodes.push(cn);
+          }
+        }
+      }
+      const effectiveChain = chainNodes.length > 0 ? chainNodes : rootNodes;
+
       vrm1Springs.push({
         name: sp.comment || 'PreservedSpring',
-        joints: rootNodes.map((node) => ({
+        ...(centerNode >= 0 ? { center: centerNode } : {}),
+        ...(effectiveCgIndices.length > 0 ? { colliderGroups: effectiveCgIndices } : {}),
+        joints: effectiveChain.map((node) => ({
           node,
-          hitRadius: sp.hitRadius,
-          stiffness: sp.stiffiness,
+          hitRadius: Math.max(0, sp.hitRadius),
+          stiffness: Math.max(0, sp.stiffiness),
           gravityPower: sp.gravityPower,
           gravityDir: gDir,
-          dragForce: sp.dragForce,
+          dragForce: Math.max(0, sp.dragForce),
         })),
       });
     }
   } else {
     // Detect genuine secondary chains by bone naming (J_Sec_*, hair*, cloak*, skirt*, tail*)
-    const mappedNodeSet = new Set(Object.values(humanBones).map((r) => r.node));
     const secRoots = jointNodes
       .map((b, idx) => ({ bone: b, nodeIdx: idx + 1 }))
       .filter(({ bone, nodeIdx }) => {
@@ -2190,6 +2447,7 @@ export function buildRiggedVrmFromExternalMesh(
     if (secRoots.length > 0) {
       const rootIndices = secRoots.map((s) => s.nodeIdx);
       springJointCount += rootIndices.length;
+      const defaultCgIndices = vrm0ColliderGroups.map((_, i) => i).slice(0, 2);
       vrm0BoneGroups.push({
         comment: 'SecondaryHairCloakSpring',
         stiffiness: 0.6,
@@ -2199,10 +2457,11 @@ export function buildRiggedVrmFromExternalMesh(
         center: -1,
         hitRadius: 0.025,
         bones: rootIndices,
-        colliderGroups: [0, 1],
+        colliderGroups: defaultCgIndices,
       });
       vrm1Springs.push({
         name: 'ExternalSecondarySpring',
+        colliderGroups: defaultCgIndices,
         joints: rootIndices.map((node) => ({
           node,
           hitRadius: 0.025,
@@ -2213,6 +2472,10 @@ export function buildRiggedVrmFromExternalMesh(
         })),
       });
     }
+  }
+
+  if (rigWarnings.length > 0) {
+    rigReport.warnings = rigWarnings;
   }
 
   const meshNodesMap = flatPrims.map((_, idx) => ({
@@ -2260,6 +2523,8 @@ export function buildRiggedVrmFromExternalMesh(
               ? {
                   VRMC_springBone: {
                     specVersion: '1.0',
+                    colliders: vrm1Colliders,
+                    colliderGroups: vrm1ColliderGroups,
                     springs: vrm1Springs,
                   },
                 }

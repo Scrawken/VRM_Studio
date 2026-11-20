@@ -48,6 +48,7 @@ def run_humanoid_blender_verification(
     out_dir: str,
     glb_path: str,
     vrm_version: str = "0.0",
+    run_id: str = "",
 ) -> dict:
     # Explicit API references for static & runtime verification
     _ = (
@@ -65,9 +66,11 @@ def run_humanoid_blender_verification(
         report_filename="milestone2_report.json",
         vrm_filename="verified_export.vrm",
         blend_filename="milestone2_test.blend",
+        run_id=run_id,
     )
     # Enforce independent verification gates explicitly
     vrm_path = report.get("vrm_path")
+    validator_ok = False
     if vrm_path and os.path.exists(vrm_path):
         validator_fn = _load_vrm_validator()
         if validator_fn:
@@ -76,14 +79,22 @@ def run_humanoid_blender_verification(
             with open(vrm_path, "rb") as vf:
                 check = validate_vrm_bytes(vf.read(), expected_version=vrm_version)
                 report["vrm_reload_report"] = check
+                validator_ok = bool(check.get("valid"))
+        else:
+            report["vrm_note"] = "Independent Python vrm_validator could not be imported."
     ok = bool(
-        report.get("rigging_success")
+        validator_ok
+        and report.get("python_validator_available")
+        and report.get("rigging_success")
         and report.get("material_preserved")
         and report.get("texture_preserved")
         and report.get("vrm_export_success")
         and report.get("vrm_reload_success")
     )
     report["status"] = "ok" if ok else "fail"
+    report_path = os.path.join(out_dir, "milestone2_report.json")
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2)
     print("MILESTONE2_REPORT:" + json.dumps(report))
     return report
 
@@ -92,6 +103,7 @@ if __name__ == "__main__":
     output = "./output"
     glb_input = ""
     vrm_ver = "0.0"
+    run_id_arg = ""
     if "--" in sys.argv:
         args = sys.argv[sys.argv.index("--") + 1 :]
         if "--out-dir" in args:
@@ -100,6 +112,8 @@ if __name__ == "__main__":
             glb_input = args[args.index("--glb-path") + 1]
         if "--vrm-version" in args:
             vrm_ver = args[args.index("--vrm-version") + 1]
-    result = run_humanoid_blender_verification(output, glb_input, vrm_version=vrm_ver)
+        if "--run-id" in args:
+            run_id_arg = args[args.index("--run-id") + 1]
+    result = run_humanoid_blender_verification(output, glb_input, vrm_version=vrm_ver, run_id=run_id_arg)
     if result.get("status") != "ok":
         sys.exit(1)

@@ -9,15 +9,146 @@ import {
   HairStyle,
   OutfitStyle,
   QualityConfig,
+  VrmAllowance,
+  VrmAllowedUser,
   VrmExportVersion,
   VrmMetadataConfig,
+  VrmSourceLicenseRestrictions,
 } from './types';
+
+const ALLOWED_USER_RANK: Record<VrmAllowedUser, number> = {
+  OnlyAuthor: 0,
+  ExplicitlyLicensedPerson: 1,
+  Everyone: 2,
+};
+
+const MODIFICATION_RANK: Record<VrmMetadataConfig['modification'], number> = {
+  prohibited: 0,
+  allowModification: 1,
+  allowModificationRedistribution: 2,
+};
+
+const LICENSE_RESTRICTIVENESS: Record<string, number> = {
+  Redistribution_Prohibited: 0,
+  Other: 1,
+  CC_BY_NC_ND: 2,
+  CC_BY_ND: 3,
+  CC_BY_NC_SA: 4,
+  CC_BY_NC: 5,
+  CC_BY_SA: 6,
+  CC_BY: 7,
+  CC0: 8,
+};
+
+export function checkSourceLicenseViolations(
+  attempted: Partial<VrmMetadataConfig>,
+  restrictions?: VrmSourceLicenseRestrictions
+): string[] {
+  if (!restrictions) return [];
+  const violations: string[] = [];
+
+  if (
+    restrictions.allowedUserName &&
+    attempted.allowedUserName &&
+    ALLOWED_USER_RANK[attempted.allowedUserName] > ALLOWED_USER_RANK[restrictions.allowedUserName]
+  ) {
+    violations.push(
+      `Source VRM license restricts allowedUserName to "${restrictions.allowedUserName}" (cannot relax to "${attempted.allowedUserName}").`
+    );
+  }
+  if (restrictions.commercialUsage === 'Disallow' && attempted.commercialUsage === 'Allow') {
+    violations.push('Source VRM license prohibits commercial usage (commercialUsage="Disallow").');
+  }
+  if (restrictions.violentUsage === 'Disallow' && attempted.violentUsage === 'Allow') {
+    violations.push('Source VRM license prohibits violent usage (violentUsage="Disallow").');
+  }
+  if (restrictions.sexualUsage === 'Disallow' && attempted.sexualUsage === 'Allow') {
+    violations.push('Source VRM license prohibits sexual usage (sexualUsage="Disallow").');
+  }
+  if (restrictions.allowRedistribution === false && attempted.allowRedistribution === true) {
+    violations.push('Source VRM license prohibits redistribution (allowRedistribution=false).');
+  }
+  if (
+    restrictions.modification &&
+    attempted.modification &&
+    MODIFICATION_RANK[attempted.modification] > MODIFICATION_RANK[restrictions.modification]
+  ) {
+    violations.push(
+      `Source VRM license restricts modification to "${restrictions.modification}" (cannot relax to "${attempted.modification}").`
+    );
+  }
+  if (restrictions.licenseName && attempted.licenseName) {
+    const srcRank = LICENSE_RESTRICTIVENESS[restrictions.licenseName] ?? 1;
+    const newRank = LICENSE_RESTRICTIVENESS[attempted.licenseName] ?? 1;
+    if (
+      (restrictions.licenseName === 'Redistribution_Prohibited' &&
+        attempted.licenseName !== 'Redistribution_Prohibited') ||
+      (srcRank < newRank && newRank >= 2)
+    ) {
+      violations.push(
+        `Source VRM license "${restrictions.licenseName}" cannot be weakened to "${attempted.licenseName}".`
+      );
+    }
+  }
+  return violations;
+}
+
+export function clampMetadataToSourceRestrictions(
+  meta: VrmMetadataConfig,
+  restrictions?: VrmSourceLicenseRestrictions
+): VrmMetadataConfig {
+  const effectiveRestrictions = restrictions ?? meta.sourceRestrictions;
+  if (!effectiveRestrictions) return meta;
+  const clamped: VrmMetadataConfig = {
+    ...meta,
+    sourceRestrictions: effectiveRestrictions,
+  };
+
+  if (
+    effectiveRestrictions.allowedUserName &&
+    ALLOWED_USER_RANK[clamped.allowedUserName] >
+      ALLOWED_USER_RANK[effectiveRestrictions.allowedUserName]
+  ) {
+    clamped.allowedUserName = effectiveRestrictions.allowedUserName;
+  }
+  if (effectiveRestrictions.commercialUsage === 'Disallow') {
+    clamped.commercialUsage = 'Disallow';
+  }
+  if (effectiveRestrictions.violentUsage === 'Disallow') {
+    clamped.violentUsage = 'Disallow';
+  }
+  if (effectiveRestrictions.sexualUsage === 'Disallow') {
+    clamped.sexualUsage = 'Disallow';
+  }
+  if (effectiveRestrictions.allowRedistribution === false) {
+    clamped.allowRedistribution = false;
+  }
+  if (
+    effectiveRestrictions.modification &&
+    MODIFICATION_RANK[clamped.modification] >
+      MODIFICATION_RANK[effectiveRestrictions.modification]
+  ) {
+    clamped.modification = effectiveRestrictions.modification;
+  }
+  if (effectiveRestrictions.licenseName) {
+    const srcRank = LICENSE_RESTRICTIVENESS[effectiveRestrictions.licenseName] ?? 1;
+    const curRank = LICENSE_RESTRICTIVENESS[clamped.licenseName] ?? 1;
+    if (
+      (effectiveRestrictions.licenseName === 'Redistribution_Prohibited' &&
+        clamped.licenseName !== 'Redistribution_Prohibited') ||
+      (srcRank < curRank && curRank >= 2)
+    ) {
+      clamped.licenseName = effectiveRestrictions.licenseName;
+    }
+  }
+  return clamped;
+}
 
 export function createDefaultVrmMetadata(
   title: string,
   overrides?: Partial<VrmMetadataConfig>
 ): VrmMetadataConfig {
-  return {
+  const base: VrmMetadataConfig = {
     title: (overrides?.title ?? title).trim() || 'Generated Avatar',
     author: (overrides?.author ?? '').trim(),
     version: (overrides?.version ?? '1.0').trim() || '1.0',
@@ -25,6 +156,7 @@ export function createDefaultVrmMetadata(
     reference: (overrides?.reference ?? '').trim(),
     licenseName: (overrides?.licenseName ?? 'Other').trim() || 'Other',
     otherLicenseUrl: (overrides?.otherLicenseUrl ?? '').trim(),
+    otherPermissionUrl: (overrides?.otherPermissionUrl ?? '').trim() || undefined,
     allowedUserName: overrides?.allowedUserName ?? 'OnlyAuthor',
     violentUsage: overrides?.violentUsage ?? 'Disallow',
     sexualUsage: overrides?.sexualUsage ?? 'Disallow',
@@ -32,7 +164,9 @@ export function createDefaultVrmMetadata(
     allowRedistribution: overrides?.allowRedistribution ?? false,
     modification: overrides?.modification ?? 'prohibited',
     sourceAttribution: overrides?.sourceAttribution?.trim() || undefined,
+    sourceRestrictions: overrides?.sourceRestrictions,
   };
+  return clampMetadataToSourceRestrictions(base, overrides?.sourceRestrictions);
 }
 
 function matchFirstColor(text: string, patterns: Array<[RegExp, string]>): string | null {
@@ -632,6 +766,16 @@ export function validateCharacterSpecification(
     }
   }
 
+  // 6. Enforce non-relaxation of source license restrictions if imported from restricted VRM
+  if (spec.vrmMetadata?.sourceRestrictions) {
+    checkedConstraints++;
+    const licenseViolations = checkSourceLicenseViolations(
+      spec.vrmMetadata,
+      spec.vrmMetadata.sourceRestrictions
+    );
+    violations.push(...licenseViolations);
+  }
+
   return {
     valid: violations.length === 0,
     violations,
@@ -655,6 +799,7 @@ export function applyCharacterEdits(
     vrmMetadata?: Partial<VrmMetadataConfig>;
   }
 ): CharacterSpecification {
+  const sourceRestrictions = spec.vrmMetadata?.sourceRestrictions;
   const merged: CharacterSpecification = {
     ...spec,
     name: patch.name?.trim() || spec.name,
@@ -693,6 +838,7 @@ export function applyCharacterEdits(
       {
         ...(spec.vrmMetadata || {}),
         ...(patch.vrmMetadata || {}),
+        ...(sourceRestrictions ? { sourceRestrictions } : {}),
       }
     ),
     updatedAt: new Date().toISOString(),

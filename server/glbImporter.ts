@@ -1,4 +1,6 @@
 import {
+  ImportedColliderDef,
+  ImportedColliderGroup,
   ImportedImageData,
   ImportedMaterialData,
   ImportedMeshGroup,
@@ -11,11 +13,16 @@ import {
   ImportedTextureData,
   ImportedTextureInfo,
   ParsedGlbAsset,
+  VrmAllowance,
+  VrmAllowedUser,
   VrmExportVersion,
   VrmMetadataConfig,
+  VrmSourceLicenseRestrictions,
 } from '../src/shared/types';
 
 export type {
+  ImportedColliderDef,
+  ImportedColliderGroup,
   ImportedImageData,
   ImportedMaterialData,
   ImportedMeshGroup,
@@ -24,6 +31,7 @@ export type {
   ImportedSamplerData,
   ImportedSkinData,
   ImportedSkinJointData,
+  ImportedSpringGroup,
   ImportedTextureData,
   ImportedTextureInfo,
   ParsedGlbAsset,
@@ -323,7 +331,13 @@ function transformPointMat4(m: number[], x: number, y: number, z: number): [numb
 }
 
 function transformVectorMat4(m: number[], x: number, y: number, z: number): [number, number, number] {
-  // Exact inverse-transpose 3x3 is required only for non-uniform scale; invert upper-left 3x3 cleanly
+  const [nx, ny, nz] = transformNormalUnnormalizedMat4(m, x, y, z);
+  const len = Math.hypot(nx, ny, nz) || 1;
+  return [nx / len, ny / len, nz / len];
+}
+
+function transformNormalUnnormalizedMat4(m: number[], x: number, y: number, z: number): [number, number, number] {
+  // Exact inverse-transpose 3x3 cofactor transformation: (M^-1)^T * v = cofactor(M) * v / det(M)
   const a00 = m[0], a01 = m[4], a02 = m[8];
   const a10 = m[1], a11 = m[5], a12 = m[9];
   const a20 = m[2], a21 = m[6], a22 = m[10];
@@ -331,11 +345,7 @@ function transformVectorMat4(m: number[], x: number, y: number, z: number): [num
     a00 * (a11 * a22 - a12 * a21) -
     a01 * (a10 * a22 - a12 * a20) +
     a02 * (a10 * a21 - a11 * a20);
-  let nx = a00 * x + a01 * y + a02 * z;
-  let ny = a10 * x + a11 * y + a12 * z;
-  let nz = a20 * x + a21 * y + a22 * z;
-  if (Math.abs(det) > 1e-9) {
-    // Co-factor matrix = det * inv^T
+  if (Math.abs(det) > 1e-12) {
     const c00 = a11 * a22 - a12 * a21;
     const c01 = -(a10 * a22 - a12 * a20);
     const c02 = a10 * a21 - a11 * a20;
@@ -345,13 +355,39 @@ function transformVectorMat4(m: number[], x: number, y: number, z: number): [num
     const c20 = a01 * a12 - a02 * a11;
     const c21 = -(a00 * a12 - a02 * a10);
     const c22 = a00 * a11 - a01 * a10;
-    const sign = det < 0 ? -1 : 1;
-    nx = (c00 * x + c01 * y + c02 * z) * sign;
-    ny = (c10 * x + c11 * y + c12 * z) * sign;
-    nz = (c20 * x + c21 * y + c22 * z) * sign;
+    const invDet = 1 / det;
+    return [
+      (c00 * x + c01 * y + c02 * z) * invDet,
+      (c10 * x + c11 * y + c12 * z) * invDet,
+      (c20 * x + c21 * y + c22 * z) * invDet,
+    ];
   }
-  const len = Math.hypot(nx, ny, nz) || 1;
-  return [nx / len, ny / len, nz / len];
+  return [
+    a00 * x + a01 * y + a02 * z,
+    a10 * x + a11 * y + a12 * z,
+    a20 * x + a21 * y + a22 * z,
+  ];
+}
+
+function transformMorphNormalDelta(
+  m: number[],
+  baseNormal: [number, number, number],
+  dx: number,
+  dy: number,
+  dz: number
+): [number, number, number] {
+  const deltaLen = Math.hypot(dx, dy, dz);
+  if (deltaLen < 1e-7) return [0, 0, 0];
+  const [n0x, n0y, n0z] = transformVectorMat4(m, baseNormal[0], baseNormal[1], baseNormal[2]);
+  const [m1x, m1y, m1z] = transformNormalUnnormalizedMat4(
+    m,
+    baseNormal[0] + dx,
+    baseNormal[1] + dy,
+    baseNormal[2] + dz
+  );
+  const m1Len = Math.hypot(m1x, m1y, m1z);
+  if (m1Len < 1e-9) return [0, 0, 0];
+  return [m1x / m1Len - n0x, m1y / m1Len - n0y, m1z / m1Len - n0z];
 }
 
 function computeSmoothNormals(positions: Float32Array, indices: Uint32Array): Float32Array {
@@ -486,8 +522,46 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
           copyrightInformation?: string;
           contactInformation?: string;
           references?: string[];
+          licenseUrl?: string;
+          avatarPermission?: string;
+          allowExcessivelyViolentUsage?: boolean;
+          allowExcessivelySexualUsage?: boolean;
+          commercialUsage?: string;
+          allowRedistribution?: boolean;
+          modification?: string;
         };
         humanoid?: { humanBones?: Record<string, { node?: number }> };
+      };
+      VRMC_springBone?: {
+        specVersion?: string;
+        colliders?: Array<{
+          node?: number;
+          shape?: {
+            sphere?: { offset?: [number, number, number]; radius?: number };
+            capsule?: {
+              offset?: [number, number, number];
+              radius?: number;
+              tail?: [number, number, number];
+            };
+          };
+        }>;
+        colliderGroups?: Array<{
+          name?: string;
+          colliders?: number[];
+        }>;
+        springs?: Array<{
+          name?: string;
+          center?: number;
+          colliderGroups?: number[];
+          joints?: Array<{
+            node?: number;
+            hitRadius?: number;
+            stiffness?: number;
+            gravityPower?: number;
+            gravityDir?: [number, number, number];
+            dragForce?: number;
+          }>;
+        }>;
       };
       VRM?: {
         specVersion?: string;
@@ -497,6 +571,13 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
           version?: string;
           contactInformation?: string;
           reference?: string;
+          licenseName?: string;
+          otherLicenseUrl?: string;
+          otherPermissionUrl?: string;
+          allowedUserName?: string;
+          violentUssageName?: string;
+          sexualUssageName?: string;
+          commercialUssageName?: string;
         };
         humanoid?: {
           humanBones?: Array<{ bone?: string; node?: number }>;
@@ -515,6 +596,10 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
           }>;
           colliderGroups?: Array<{
             node?: number;
+            colliders?: Array<{
+              offset?: { x?: number; y?: number; z?: number };
+              radius?: number;
+            }>;
           }>;
         };
       };
@@ -716,14 +801,29 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
     };
   });
 
-  // Extract VRM 0.0 (`extensions.VRM`) or VRM 1.0 (`extensions.VRMC_vrm`) humanoid mapping, attribution & spring chains
+  // Extract VRM 0.0 (`extensions.VRM`) or VRM 1.0 (`extensions.VRMC_vrm`) humanoid mapping, metadata, license restrictions & spring chains
   let existingVrmHumanoid: Record<string, string> | undefined;
   let sourceVrmVersion: VrmExportVersion | undefined;
   let sourceVrmMeta: Partial<VrmMetadataConfig> | undefined;
   let existingVrmSprings: ImportedSpringGroup[] | undefined;
+  let existingVrmColliderGroups: ImportedColliderGroup[] | undefined;
 
   const vrm0Ext = gltfJson.extensions?.VRM;
   const vrm1Ext = gltfJson.extensions?.VRMC_vrm;
+  const vrm1SpringExt = gltfJson.extensions?.VRMC_springBone;
+
+  const toVrmAllowedUser = (raw?: string): VrmAllowedUser | undefined => {
+    if (raw === 'OnlyAuthor' || raw === 'ExplicitlyLicensedPerson' || raw === 'Everyone') return raw;
+    if (raw === 'onlyAuthor') return 'OnlyAuthor';
+    if (raw === 'onlySeparatelyLicensedPerson') return 'ExplicitlyLicensedPerson';
+    if (raw === 'everyone') return 'Everyone';
+    return undefined;
+  };
+  const toAllowance = (raw?: string | boolean): VrmAllowance | undefined => {
+    if (raw === 'Allow' || raw === true) return 'Allow';
+    if (raw === 'Disallow' || raw === false) return 'Disallow';
+    return undefined;
+  };
 
   if (vrm0Ext && typeof vrm0Ext === 'object') {
     sourceVrmVersion = '0.0';
@@ -736,23 +836,78 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
       }
     }
     if (vrm0Ext.meta) {
+      const m0 = vrm0Ext.meta;
+      const allowedUserName = toVrmAllowedUser(m0.allowedUserName) ?? 'OnlyAuthor';
+      const violentUsage = toAllowance(m0.violentUssageName) ?? 'Disallow';
+      const sexualUsage = toAllowance(m0.sexualUssageName) ?? 'Disallow';
+      const commercialUsage = toAllowance(m0.commercialUssageName) ?? 'Disallow';
+      const licenseName = typeof m0.licenseName === 'string' && m0.licenseName.trim() ? m0.licenseName.trim() : 'Other';
+      const allowRedistribution =
+        licenseName === 'Redistribution_Prohibited' || licenseName === 'Other' ? false : true;
+      const modification: VrmMetadataConfig['modification'] =
+        licenseName === 'Redistribution_Prohibited' || licenseName.endsWith('_ND')
+          ? 'prohibited'
+          : licenseName === 'Other'
+            ? 'allowModification'
+            : 'allowModificationRedistribution';
+      const sourceRestrictions: VrmSourceLicenseRestrictions = {
+        ...(m0.allowedUserName ? { allowedUserName } : {}),
+        ...(m0.violentUssageName ? { violentUsage } : {}),
+        ...(m0.sexualUssageName ? { sexualUsage } : {}),
+        ...(m0.commercialUssageName ? { commercialUsage } : {}),
+        ...(licenseName === 'Redistribution_Prohibited' ? { allowRedistribution: false } : {}),
+        ...(m0.licenseName ? { licenseName } : {}),
+      };
       sourceVrmMeta = {
-        title: vrm0Ext.meta.title,
-        author: vrm0Ext.meta.author,
-        version: vrm0Ext.meta.version,
-        contactInformation: vrm0Ext.meta.contactInformation,
-        reference: vrm0Ext.meta.reference,
-        sourceAttribution: [vrm0Ext.meta.author, vrm0Ext.meta.reference].filter(Boolean).join(' · ') || undefined,
+        title: m0.title,
+        author: m0.author,
+        version: m0.version,
+        contactInformation: m0.contactInformation,
+        reference: m0.reference,
+        licenseName,
+        otherLicenseUrl: m0.otherLicenseUrl,
+        otherPermissionUrl: m0.otherPermissionUrl,
+        allowedUserName,
+        violentUsage,
+        sexualUsage,
+        commercialUsage,
+        allowRedistribution,
+        modification,
+        sourceAttribution: [m0.author, m0.reference].filter(Boolean).join(' · ') || undefined,
+        sourceRestrictions,
       };
     }
+    const cgGroups = vrm0Ext.secondaryAnimation?.colliderGroups || [];
+    if (cgGroups.length > 0) {
+      existingVrmColliderGroups = cgGroups
+        .map((cg) => {
+          const cgNode = typeof cg.node === 'number' ? gltfNodes[cg.node] : undefined;
+          if (!cgNode || typeof cg.node !== 'number') return null;
+          const colliders: ImportedColliderDef[] = (cg.colliders || []).map((col) => ({
+            offset: [
+              Number.isFinite(col?.offset?.x) ? Number(col!.offset!.x) : 0,
+              Number.isFinite(col?.offset?.y) ? Number(col!.offset!.y) : 0,
+              Number.isFinite(col?.offset?.z) ? Number(col!.offset!.z) : 0,
+            ],
+            radius: Number.isFinite(col?.radius) ? Math.max(0, Number(col!.radius)) : 0.05,
+          }));
+          return {
+            nodeName: cgNode.name || `node_${cg.node}`,
+            colliders,
+          };
+        })
+        .filter((cg): cg is ImportedColliderGroup => Boolean(cg));
+    }
     if (Array.isArray(vrm0Ext.secondaryAnimation?.boneGroups)) {
-      const cgGroups = vrm0Ext.secondaryAnimation?.colliderGroups || [];
       existingVrmSprings = vrm0Ext.secondaryAnimation!.boneGroups
         .map((bg) => {
           const boneNames = (bg.bones || [])
             .map((nodeIdx) => (gltfNodes[nodeIdx] ? gltfNodes[nodeIdx].name || `node_${nodeIdx}` : null))
             .filter((n): n is string => Boolean(n));
-          const colliderGroupNodeNames = (bg.colliderGroups || [])
+          const colliderGroupIndices = (bg.colliderGroups || []).filter(
+            (cgIdx): cgIdx is number => typeof cgIdx === 'number' && cgIdx >= 0 && cgIdx < cgGroups.length
+          );
+          const colliderGroupNodeNames = colliderGroupIndices
             .map((cgIdx) => {
               const cgNodeIdx = cgGroups[cgIdx]?.node;
               return cgNodeIdx !== undefined && gltfNodes[cgNodeIdx]
@@ -776,6 +931,7 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
                 ? gltfNodes[bg.center].name || `node_${bg.center}`
                 : undefined,
             boneNames,
+            colliderGroupIndices,
             colliderGroupNodeNames,
           };
         })
@@ -793,13 +949,123 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
       }
     }
     if (vrm1Ext.meta) {
-      sourceVrmMeta = {
-        title: vrm1Ext.meta.name,
-        author: Array.isArray(vrm1Ext.meta.authors) ? vrm1Ext.meta.authors.join(', ') : undefined,
-        version: vrm1Ext.meta.version,
-        contactInformation: vrm1Ext.meta.contactInformation,
-        reference: Array.isArray(vrm1Ext.meta.references) ? vrm1Ext.meta.references[0] : undefined,
+      const m1 = vrm1Ext.meta;
+      const allowedUserName = toVrmAllowedUser(m1.avatarPermission) ?? 'OnlyAuthor';
+      const violentUsage = toAllowance(m1.allowExcessivelyViolentUsage) ?? 'Disallow';
+      const sexualUsage = toAllowance(m1.allowExcessivelySexualUsage) ?? 'Disallow';
+      const commercialUsage: VrmAllowance =
+        m1.commercialUsage === 'corporation' || m1.commercialUsage === 'personalProfit'
+          ? 'Allow'
+          : 'Disallow';
+      const allowRedistribution = typeof m1.allowRedistribution === 'boolean' ? m1.allowRedistribution : false;
+      const modification: VrmMetadataConfig['modification'] =
+        m1.modification === 'allowModification' || m1.modification === 'allowModificationRedistribution'
+          ? m1.modification
+          : 'prohibited';
+      const sourceRestrictions: VrmSourceLicenseRestrictions = {
+        ...(m1.avatarPermission ? { allowedUserName } : {}),
+        ...(typeof m1.allowExcessivelyViolentUsage === 'boolean' ? { violentUsage } : {}),
+        ...(typeof m1.allowExcessivelySexualUsage === 'boolean' ? { sexualUsage } : {}),
+        ...(m1.commercialUsage ? { commercialUsage } : {}),
+        ...(typeof m1.allowRedistribution === 'boolean' ? { allowRedistribution } : {}),
+        ...(m1.modification ? { modification } : {}),
       };
+      sourceVrmMeta = {
+        title: m1.name,
+        author: Array.isArray(m1.authors) ? m1.authors.join(', ') : undefined,
+        version: m1.version,
+        contactInformation: m1.contactInformation,
+        reference: Array.isArray(m1.references) ? m1.references[0] : undefined,
+        licenseName: 'Other',
+        otherLicenseUrl: m1.licenseUrl,
+        allowedUserName,
+        violentUsage,
+        sexualUsage,
+        commercialUsage,
+        allowRedistribution,
+        modification,
+        sourceAttribution:
+          [Array.isArray(m1.authors) ? m1.authors.join(', ') : undefined, m1.copyrightInformation]
+            .filter(Boolean)
+            .join(' · ') || undefined,
+        sourceRestrictions,
+      };
+    }
+
+    if (vrm1SpringExt && typeof vrm1SpringExt === 'object') {
+      const flatColliders = vrm1SpringExt.colliders || [];
+      const cgList = vrm1SpringExt.colliderGroups || [];
+      if (cgList.length > 0 && flatColliders.length > 0) {
+        const mappedGroups: ImportedColliderGroup[] = [];
+        cgList.forEach((cg) => {
+          const colIndices = cg.colliders || [];
+          const byNode = new Map<number, ImportedColliderDef[]>();
+          for (const ci of colIndices) {
+            const c = flatColliders[ci];
+            if (!c || typeof c.node !== 'number' || !gltfNodes[c.node]) continue;
+            const sph = c.shape?.sphere;
+            const cap = c.shape?.capsule;
+            const off = sph?.offset ?? cap?.offset ?? [0, 0, 0];
+            const rad = sph?.radius ?? cap?.radius ?? 0.05;
+            const list = byNode.get(c.node) ?? [];
+            list.push({
+              offset: [Number(off[0] ?? 0), Number(off[1] ?? 0), Number(off[2] ?? 0)],
+              radius: Math.max(0, Number(rad ?? 0.05)),
+            });
+            byNode.set(c.node, list);
+          }
+          for (const [nodeIdx, cols] of byNode.entries()) {
+            mappedGroups.push({
+              nodeName: gltfNodes[nodeIdx].name || `node_${nodeIdx}`,
+              colliders: cols,
+            });
+          }
+        });
+        if (mappedGroups.length > 0) {
+          existingVrmColliderGroups = mappedGroups;
+        }
+      }
+
+      if (Array.isArray(vrm1SpringExt.springs)) {
+        existingVrmSprings = vrm1SpringExt.springs
+          .map((sp): ImportedSpringGroup | null => {
+            const joints = (sp.joints || []).filter(
+              (j) => typeof j.node === 'number' && gltfNodes[j.node]
+            );
+            if (joints.length === 0) return null;
+            const chainBoneNames = joints.map((j) => gltfNodes[j.node!].name || `node_${j.node}`);
+            const j0 = joints[0];
+            const cgIndices = (sp.colliderGroups || []).filter(
+              (idx): idx is number =>
+                typeof idx === 'number' &&
+                idx >= 0 &&
+                idx < (existingVrmColliderGroups?.length ?? 0)
+            );
+            return {
+              comment: sp.name,
+              stiffiness: typeof j0.stiffness === 'number' ? j0.stiffness : 0.65,
+              gravityPower: typeof j0.gravityPower === 'number' ? j0.gravityPower : 0.25,
+              gravityDir: [
+                j0.gravityDir?.[0] ?? 0,
+                j0.gravityDir?.[1] ?? -1,
+                j0.gravityDir?.[2] ?? 0,
+              ] as [number, number, number],
+              dragForce: typeof j0.dragForce === 'number' ? j0.dragForce : 0.4,
+              hitRadius: typeof j0.hitRadius === 'number' ? j0.hitRadius : 0.025,
+              centerNodeName:
+                typeof sp.center === 'number' && sp.center >= 0 && gltfNodes[sp.center]
+                  ? gltfNodes[sp.center].name || `node_${sp.center}`
+                  : undefined,
+              boneNames: [chainBoneNames[0]],
+              chainBoneNames,
+              colliderGroupIndices: cgIndices,
+              colliderGroupNodeNames: cgIndices
+                .map((idx) => existingVrmColliderGroups?.[idx]?.nodeName)
+                .filter((n): n is string => Boolean(n)),
+            };
+          })
+          .filter((s): s is ImportedSpringGroup => Boolean(s));
+      }
     }
   }
 
@@ -897,13 +1163,34 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
 
       if (prim.attributes?.JOINTS_1 !== undefined || prim.attributes?.WEIGHTS_1 !== undefined) {
         hasMultiInfluenceSkin = true;
-        unsupportedFeatures.add('JOINTS_1/WEIGHTS_1 (8-bone skinning influences truncated to top 4)');
       }
 
       const hasJointsAttr =
         prim.attributes?.JOINTS_0 !== undefined && prim.attributes?.WEIGHTS_0 !== undefined;
+      const hasJoints1Attr =
+        prim.attributes?.JOINTS_1 !== undefined && prim.attributes?.WEIGHTS_1 !== undefined;
       let joints: Uint16Array | undefined;
       let weights: Float32Array | undefined;
+      let joints1: Uint16Array | undefined;
+      let weights1: Float32Array | undefined;
+
+      // Multi-skin remapping: if primitive binds to a secondary compatible skin, remap joint indices onto skins[0]
+      const activeSkinIdx = inst.skinIndex ?? 0;
+      const primarySkinObj = skins[0];
+      const activeSkinObj = skins[activeSkinIdx];
+      let jointRemap: number[] | null = null;
+      if (activeSkinIdx > 0 && primarySkinObj && activeSkinObj) {
+        const primaryByNode = new Map<number, number>();
+        const primaryByName = new Map<string, number>();
+        primarySkinObj.joints.forEach((pj, jIdx) => {
+          primaryByNode.set(pj.jointNodeIndex, jIdx);
+          primaryByName.set(pj.name, jIdx);
+        });
+        jointRemap = activeSkinObj.joints.map(
+          (sj) => primaryByNode.get(sj.jointNodeIndex) ?? primaryByName.get(sj.name) ?? -1
+        );
+      }
+
       if (hasJointsAttr) {
         const rawJoints = readAccessorUint16Array(
           binChunk,
@@ -917,25 +1204,78 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
           bufferViews,
           prim.attributes!.WEIGHTS_0
         );
+        const rawJoints1 = hasJoints1Attr
+          ? readAccessorUint16Array(binChunk, accessors, bufferViews, prim.attributes!.JOINTS_1)
+          : undefined;
+        const rawWeights1 = hasJoints1Attr
+          ? readAccessorArray(binChunk, accessors, bufferViews, prim.attributes!.WEIGHTS_1)
+          : undefined;
+
         if (rawJoints.length >= vertCount * 4 && rawWeights.length >= vertCount * 4) {
-          joints = rawJoints.subarray(0, vertCount * 4);
+          joints = new Uint16Array(rawJoints.subarray(0, vertCount * 4));
           weights = new Float32Array(vertCount * 4);
+          const useSecondSet = Boolean(
+            rawJoints1 &&
+              rawWeights1 &&
+              rawJoints1.length >= vertCount * 4 &&
+              rawWeights1.length >= vertCount * 4
+          );
+          if (useSecondSet) {
+            joints1 = new Uint16Array(rawJoints1!.subarray(0, vertCount * 4));
+            weights1 = new Float32Array(vertCount * 4);
+          }
+
+          const mapJoint = (rawJ: number) => {
+            if (!jointRemap) return rawJ;
+            const mapped = jointRemap[rawJ];
+            return mapped !== undefined && mapped >= 0 ? mapped : 0;
+          };
+
           for (let i = 0; i < vertCount; i++) {
             const w0 = Math.max(0, rawWeights[i * 4]);
             const w1 = Math.max(0, rawWeights[i * 4 + 1]);
             const w2 = Math.max(0, rawWeights[i * 4 + 2]);
             const w3 = Math.max(0, rawWeights[i * 4 + 3]);
-            const sum = w0 + w1 + w2 + w3;
+            joints[i * 4] = mapJoint(joints[i * 4]);
+            joints[i * 4 + 1] = mapJoint(joints[i * 4 + 1]);
+            joints[i * 4 + 2] = mapJoint(joints[i * 4 + 2]);
+            joints[i * 4 + 3] = mapJoint(joints[i * 4 + 3]);
+
+            let w4 = 0, w5 = 0, w6 = 0, w7 = 0;
+            if (useSecondSet && rawWeights1 && joints1) {
+              w4 = Math.max(0, rawWeights1[i * 4]);
+              w5 = Math.max(0, rawWeights1[i * 4 + 1]);
+              w6 = Math.max(0, rawWeights1[i * 4 + 2]);
+              w7 = Math.max(0, rawWeights1[i * 4 + 3]);
+              joints1[i * 4] = mapJoint(joints1[i * 4]);
+              joints1[i * 4 + 1] = mapJoint(joints1[i * 4 + 1]);
+              joints1[i * 4 + 2] = mapJoint(joints1[i * 4 + 2]);
+              joints1[i * 4 + 3] = mapJoint(joints1[i * 4 + 3]);
+            }
+
+            const sum = w0 + w1 + w2 + w3 + w4 + w5 + w6 + w7;
             if (sum > 1e-6) {
               weights[i * 4] = w0 / sum;
               weights[i * 4 + 1] = w1 / sum;
               weights[i * 4 + 2] = w2 / sum;
               weights[i * 4 + 3] = w3 / sum;
+              if (weights1) {
+                weights1[i * 4] = w4 / sum;
+                weights1[i * 4 + 1] = w5 / sum;
+                weights1[i * 4 + 2] = w6 / sum;
+                weights1[i * 4 + 3] = w7 / sum;
+              }
             } else {
               weights[i * 4] = 1;
               weights[i * 4 + 1] = 0;
               weights[i * 4 + 2] = 0;
               weights[i * 4 + 3] = 0;
+              if (weights1) {
+                weights1[i * 4] = 0;
+                weights1[i * 4 + 1] = 0;
+                weights1[i * 4 + 2] = 0;
+                weights1[i * 4 + 3] = 0;
+              }
             }
           }
           hasExistingSkin = true;
@@ -1059,18 +1399,23 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
               if (applyWorldTransform) {
                 tNormals = new Float32Array(vertCount * 3);
                 for (let i = 0; i < vertCount; i++) {
-                  const [nx, ny, nz] = transformVectorMat4(
+                  const baseNorm: [number, number, number] =
+                    rawNorm.length >= vertCount * 3
+                      ? [rawNorm[i * 3], rawNorm[i * 3 + 1], rawNorm[i * 3 + 2]]
+                      : [0, 1, 0];
+                  const [dnx, dny, dnz] = transformMorphNormalDelta(
                     worldMat,
+                    baseNorm,
                     rawTN[i * 3],
                     rawTN[i * 3 + 1],
                     rawTN[i * 3 + 2]
                   );
-                  tNormals[i * 3] = nx;
-                  tNormals[i * 3 + 1] = ny;
-                  tNormals[i * 3 + 2] = nz;
+                  tNormals[i * 3] = dnx;
+                  tNormals[i * 3 + 1] = dny;
+                  tNormals[i * 3 + 2] = dnz;
                 }
               } else {
-                tNormals = rawTN.subarray(0, vertCount * 3);
+                tNormals = new Float32Array(rawTN.subarray(0, vertCount * 3));
               }
             }
           }
@@ -1101,6 +1446,8 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
         colors,
         joints,
         weights,
+        joints1,
+        weights1,
         indices,
         morphTargets,
       });
@@ -1123,6 +1470,33 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
     return emptyResult('GLB has no valid triangulated mesh geometry.');
   }
 
+  // 5. Audit multiple skins / disjoint armatures so incompatible skeletons are flagged explicitly rather than silently dropped
+  let multiSkinAudit: ParsedGlbAsset['multiSkinAudit'];
+  if (skins.length > 1) {
+    const primaryNodes = new Set(skins[0].joints.map((j) => j.jointNodeIndex));
+    const primaryNames = new Set(skins[0].joints.map((j) => j.name));
+    const incompatibleSkins: number[] = [];
+    const warnings: string[] = [];
+    for (let sIdx = 1; sIdx < skins.length; sIdx++) {
+      const missingJoints = skins[sIdx].joints.filter(
+        (j) => !primaryNodes.has(j.jointNodeIndex) && !primaryNames.has(j.name)
+      );
+      if (missingJoints.length > 0) {
+        incompatibleSkins.push(sIdx);
+        warnings.push(
+          `Skin[${sIdx}] ("${skins[sIdx].name}") defines ${missingJoints.length} joint(s) not present in primary Skin[0]; cross-armature weights cannot merge without lossy rebinding.`
+        );
+        unsupportedFeatures.add(warnings[warnings.length - 1]);
+      }
+    }
+    multiSkinAudit = {
+      skinCount: skins.length,
+      allSkinsCompatible: incompatibleSkins.length === 0,
+      incompatibleSkins,
+      warnings,
+    };
+  }
+
   return {
     valid: true,
     meshCount: importedMeshes.length,
@@ -1138,10 +1512,12 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
     hasNodeTransforms,
     hasMultiInfluenceSkin,
     unsupportedFeatures: unsupportedFeatures.size > 0 ? Array.from(unsupportedFeatures) : undefined,
+    multiSkinAudit,
     sourceVrmVersion,
     sourceVrmMeta,
     existingVrmHumanoid,
     existingVrmSprings,
+    existingVrmColliderGroups,
     boundsMin: [minX, minY, minZ],
     boundsMax: [maxX, maxY, maxZ],
     meshes: importedMeshes,

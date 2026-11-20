@@ -871,13 +871,13 @@ export function buildOrPreserveMorphTargetsForExternalPrimitive(
   headScale: number,
   faceForwardSign: 1 | -1
 ): {
-  targets: Array<{ name: string; deltas: Float32Array; wasPreserved: boolean }>;
+  targets: Array<{ name: string; deltas: Float32Array; normalDeltas?: Float32Array; wasPreserved: boolean }>;
   presetToTargetIndex: Record<string, number>;
   preservedCount: number;
   synthesizedCount: number;
 } {
   const vertCount = Math.floor(positions.length / 3);
-  const targets: Array<{ name: string; deltas: Float32Array; wasPreserved: boolean }> = [];
+  const targets: Array<{ name: string; deltas: Float32Array; normalDeltas?: Float32Array; wasPreserved: boolean }> = [];
   const presetToTargetIndex: Record<string, number> = {};
 
   let preservedCount = 0;
@@ -890,8 +890,17 @@ export function buildOrPreserveMorphTargetsForExternalPrimitive(
     for (let i = 0; i < vertCount * 3; i++) {
       scaledDeltas[i] = m.positions[i] * morphDeltaScale;
     }
+    const normalDeltas =
+      m.normals && m.normals.length >= vertCount * 3
+        ? new Float32Array(m.normals.subarray(0, vertCount * 3))
+        : undefined;
     const tIdx = targets.length;
-    targets.push({ name: m.name, deltas: scaledDeltas, wasPreserved: true });
+    targets.push({
+      name: m.name,
+      deltas: scaledDeltas,
+      ...(normalDeltas ? { normalDeltas } : {}),
+      wasPreserved: true,
+    });
     const matchedPreset = matchMorphTargetToPreset(m.name);
     if (matchedPreset && morphTargetMagnitude(scaledDeltas) > 1e-4) {
       presetToTargetIndex[matchedPreset] = tIdx;

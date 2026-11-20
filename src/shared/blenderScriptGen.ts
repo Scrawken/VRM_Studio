@@ -448,19 +448,38 @@ def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None, vrm_vers
                 meta0.title = VRM_META_DEFAULTS.get("title", CHAR_SPEC["name"])
                 meta0.author = VRM_META_DEFAULTS.get("author", "") or "Unspecified Author"
                 meta0.version = VRM_META_DEFAULTS.get("version", "1.0")
+                if hasattr(meta0, "contact_information"):
+                    meta0.contact_information = VRM_META_DEFAULTS.get("contactInformation", "")
+                if hasattr(meta0, "reference"):
+                    meta0.reference = VRM_META_DEFAULTS.get("reference", "")
+                if hasattr(meta0, "other_license_url"):
+                    meta0.other_license_url = VRM_META_DEFAULTS.get("otherLicenseUrl", "")
+                if hasattr(meta0, "other_permission_url"):
+                    meta0.other_permission_url = VRM_META_DEFAULTS.get("otherPermissionUrl", "")
                 meta0.license_name = VRM_META_DEFAULTS.get("licenseName", "Other")
                 meta0.allowed_user_name = VRM_META_DEFAULTS.get("allowedUserName", "OnlyAuthor")
                 meta0.violent_ussage_name = VRM_META_DEFAULTS.get("violentUsage", "Disallow")
                 meta0.sexual_ussage_name = VRM_META_DEFAULTS.get("sexualUsage", "Disallow")
                 meta0.commercial_ussage_name = VRM_META_DEFAULTS.get("commercialUsage", "Disallow")
 
+                vrm0_thumb_map = {
+                    "leftThumbMetacarpal": "leftThumbProximal",
+                    "leftThumbProximal": "leftThumbIntermediate",
+                    "rightThumbMetacarpal": "rightThumbProximal",
+                    "rightThumbProximal": "rightThumbIntermediate",
+                }
                 hum0 = ext.vrm0.humanoid
+                seen_vrm0_bones = set()
                 for canonical, real_bone in bone_map.items():
-                    snake = re.sub(r"([A-Z])", lambda m: "_" + m.group(1).lower(), canonical)
-                    entry = next((hb for hb in hum0.human_bones if getattr(hb, "bone", "") in (canonical, snake)), None)
+                    vrm0_bone = vrm0_thumb_map.get(canonical, canonical)
+                    if vrm0_bone in seen_vrm0_bones:
+                        continue
+                    seen_vrm0_bones.add(vrm0_bone)
+                    entry = next((hb for hb in hum0.human_bones if getattr(hb, "bone", "") == vrm0_bone), None)
                     if entry is None:
                         entry = hum0.human_bones.add()
-                        entry.bone = snake if hasattr(entry, "bone") else canonical
+                        if hasattr(entry, "bone"):
+                            entry.bone = vrm0_bone
                     _assign_bone_ref(entry, real_bone)
 
                 if hasattr(ext.vrm0, "first_person") and "head" in bone_map:

@@ -311,6 +311,26 @@ function prepareSpecAndBaseBuild(
   if (externalGeometry) {
     fs.writeFileSync(externalGlbPath, externalGeometry.glbBuffer);
   }
+  const blenderContextPath = resolveSafePathWithinRoot(dir, 'blender_context.json');
+  if (
+    externalGeometry &&
+    ((externalGeometry.parsedMesh.existingVrmColliderGroups?.length ?? 0) > 0 ||
+      (externalGeometry.parsedMesh.existingVrmSprings?.length ?? 0) > 0)
+  ) {
+    fs.writeFileSync(
+      blenderContextPath,
+      JSON.stringify(
+        {
+          preservedVrmColliderGroups: externalGeometry.parsedMesh.existingVrmColliderGroups ?? [],
+          preservedVrmSprings: externalGeometry.parsedMesh.existingVrmSprings ?? [],
+        },
+        null,
+        2
+      )
+    );
+  } else if (fs.existsSync(blenderContextPath)) {
+    fs.rmSync(blenderContextPath, { force: true });
+  }
   fs.writeFileSync(specJsonPath, JSON.stringify(spec, null, 2));
   fs.writeFileSync(resolveSafePathWithinRoot(dir, 'blender_build.py'), blenderScript);
   const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
