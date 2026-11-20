@@ -111,6 +111,49 @@ export function configureBlenderExecutablePath(
   }
 }
 
+// Repo-relative portable installs: <repo>/_tools/blender-*/[<nested>/]blender(.exe). 4.2 (the acceptance
+// target) sorts first, then newer versions first. Only ever lists a regular file named blender(.exe).
+function findRepoToolsRoot(): string {
+  // cwd and up to three ancestors, so a git worktree under <repo>/_staging/<name> finds <repo>/_tools.
+  let dir = process.cwd();
+  for (let i = 0; i < 4; i += 1) {
+    const candidate = path.join(dir, '_tools');
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path.join(process.cwd(), '_tools');
+}
+
+export function getRepoToolBlenderPaths(toolsRoot = findRepoToolsRoot()): string[] {
+  const exeName = os.platform() === 'win32' ? 'blender.exe' : 'blender';
+  const found: string[] = [];
+  try {
+    for (const entry of fs.readdirSync(toolsRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^blender-/i.test(entry.name)) continue;
+      const dir = path.join(toolsRoot, entry.name);
+      const direct = path.join(dir, exeName);
+      if (fs.existsSync(direct)) found.push(direct);
+      for (const sub of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (sub.isDirectory()) {
+          const nested = path.join(dir, sub.name, exeName);
+          if (fs.existsSync(nested)) found.push(nested);
+        }
+      }
+    }
+  } catch {
+    return [];
+  }
+  const rank = (p: string): number => {
+    const m = /blender-(\d+)\.(\d+)/i.exec(p);
+    if (!m) return -1;
+    const v = Number(m[1]) * 100 + Number(m[2]);
+    return v === 402 ? Number.MAX_SAFE_INTEGER : v;
+  };
+  return found.sort((a, b) => rank(b) - rank(a));
+}
+
 function getCandidateBlenderPaths(): string[] {
   const candidates: string[] = [];
   const saved = getSavedBlenderExecutablePath();
@@ -125,6 +168,14 @@ function getCandidateBlenderPaths(): string[] {
     if (check.valid && check.normalizedPath) {
       candidates.push(check.normalizedPath);
     }
+  }
+
+  for (const toolPath of getRepoToolBlenderPaths()) {
+    const check = validateBlenderExecutablePath(toolPath, {
+      allowCustomFolderIfVerified: true,
+      requireExistingFile: true,
+    });
+    if (check.valid && check.normalizedPath) candidates.push(check.normalizedPath);
   }
 
   const platform = os.platform();

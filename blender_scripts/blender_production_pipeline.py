@@ -515,7 +515,7 @@ def _export_springs_vrm0(arm_obj, ext, bone_map, blender_context, info):
                 if b.parent is None or b.parent.name in mapped_real_bones:
                     sec_roots.append(b.name)
         if sec_roots:
-            make_group({}, sec_roots, "SecondaryHairCloakSpring")
+            make_group({"gravityDir": [0.0, -1.0, 0.0]}, sec_roots, "SecondaryHairCloakSpring")
             info["springs_created"] += 1
 
 
@@ -591,9 +591,16 @@ def _configure_vrm_extension(
             _export_springs_vrm0(arm_obj, ext, bone_map, blender_context, export_info)
     else:
         human_bones = ext.vrm1.humanoid.human_bones
+        unassigned = []
         for canonical, real_bone in bone_map.items():
-            if hasattr(human_bones, canonical):
-                _assign_bone_ref(getattr(human_bones, canonical), real_bone)
+            # The add-on's VRM 1.0 human bone properties are snake_case (left_upper_leg), not camelCase.
+            attr = re.sub(r"(?<!^)(?=[A-Z])", "_", canonical).lower()
+            if hasattr(human_bones, attr):
+                _assign_bone_ref(getattr(human_bones, attr), real_bone)
+            else:
+                unassigned.append(canonical)
+        if unassigned:
+            export_info["vrm1_unassigned_bones"] = unassigned
         export_info["spring_warnings"] = [
             "VRM 1.0: source VRM 0.0 springs/colliders are not exported by the Blender path"
         ]

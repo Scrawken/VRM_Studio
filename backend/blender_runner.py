@@ -38,11 +38,44 @@ def is_trusted_blender_executable(candidate: str) -> bool:
     return True
 
 
+def repo_tool_blender_paths(tools_root: Optional[Path] = None) -> List[str]:
+    """Portable installs under <repo>/_tools/blender-*/[<nested>/]blender(.exe); 4.2 first, then newest."""
+    if tools_root is None:
+        # <repo>/_tools, also found from a git worktree under <repo>/_staging/<name> (up to 3 ancestors).
+        tools_root = Path(__file__).resolve().parent.parent / "_tools"
+        for anc in list(Path(__file__).resolve().parents)[1:4]:
+            if (anc / "_tools").is_dir():
+                tools_root = anc / "_tools"
+                break
+    root = tools_root
+    exe = "blender.exe" if platform.system() == "Windows" else "blender"
+    found: List[Path] = []
+    try:
+        for d in root.iterdir():
+            if not d.is_dir() or not d.name.lower().startswith("blender-"):
+                continue
+            found.append(d / exe)
+            found.extend(sub / exe for sub in d.iterdir() if sub.is_dir())
+    except OSError:
+        return []
+
+    def rank(p: Path) -> int:
+        m = re.search(r"blender-(\d+)\.(\d+)", str(p), re.I)
+        if not m:
+            return -1
+        v = int(m.group(1)) * 100 + int(m.group(2))
+        return 10**9 if v == 402 else v
+
+    return [str(p) for p in sorted((p for p in found if p.is_file()), key=rank, reverse=True)]
+
+
 def candidate_blender_paths() -> List[str]:
     candidates: List[str] = []
     env_path = os.environ.get("BLENDER_EXECUTABLE", "").strip()
     if env_path and is_trusted_blender_executable(env_path):
         candidates.append(env_path)
+
+    candidates.extend(repo_tool_blender_paths())
 
     system = platform.system()
     if system == "Windows":
