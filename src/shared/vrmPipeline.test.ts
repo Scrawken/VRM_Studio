@@ -43,6 +43,8 @@ import {
   executeCharacterPipeline,
 } from '../../server/projectStore';
 import { runHeadlessBlenderPipeline } from '../../server/blenderExecutor';
+import { resolvePythonInterpreter } from '../../server/pythonInterpreter';
+import { detectBlenderInstallation } from '../../server/systemProbe';
 
 registerPngCompressor((raw) => new Uint8Array(zlib.deflateSync(raw, { level: 6 })));
 
@@ -1381,6 +1383,10 @@ test('glbImporter decodes glTF 2.0 sparse POSITION morph target accessors', () =
 
 test('Honest pipeline telemetry: blender-bpy-bridge reports unavailable when binary absent and executeCharacterPipeline marks typescript_fallback', async () => {
   const prevDir = process.env.VRM_FORGE_PROJECTS_DIR;
+  const prevDisable = process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY;
+  // Hermetic: force detection to report Blender absent regardless of what is installed here.
+  process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY = '1';
+  assert.equal(detectBlenderInstallation().installed, false);
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vrm-studio-test-'));
   process.env.VRM_FORGE_PROJECTS_DIR = tmpDir;
 
@@ -1423,7 +1429,36 @@ test('Honest pipeline telemetry: blender-bpy-bridge reports unavailable when bin
   } finally {
     if (prevDir !== undefined) process.env.VRM_FORGE_PROJECTS_DIR = prevDir;
     else delete process.env.VRM_FORGE_PROJECTS_DIR;
+    if (prevDisable !== undefined) process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY = prevDisable;
+    else delete process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY;
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('Blender detection: disable switch reports absent; with discovery on and a real binary it reports present', () => {
+  const prevDisable = process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY;
+  const prevExec = process.env.BLENDER_EXECUTABLE;
+  try {
+    process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY = '1';
+    process.env.BLENDER_EXECUTABLE = path.join(os.tmpdir(), 'definitely-not-here', 'blender.exe');
+    const off = detectBlenderInstallation();
+    assert.equal(off.installed, false);
+    assert.equal(off.searchedPaths.length, 0, 'disabled discovery must not search any path');
+
+    delete process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY;
+    const exe = process.env.VRM_FORGE_TEST_BLENDER_EXECUTABLE;
+    if (!exe || !fs.existsSync(exe)) {
+      return; // present-branch needs a real binary: set VRM_FORGE_TEST_BLENDER_EXECUTABLE to run it
+    }
+    process.env.BLENDER_EXECUTABLE = exe;
+    const on = detectBlenderInstallation();
+    assert.equal(on.installed, true, on.statusMessage);
+    assert.ok(on.version);
+  } finally {
+    if (prevDisable !== undefined) process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY = prevDisable;
+    else delete process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY;
+    if (prevExec !== undefined) process.env.BLENDER_EXECUTABLE = prevExec;
+    else delete process.env.BLENDER_EXECUTABLE;
   }
 });
 
@@ -1448,7 +1483,8 @@ test('Priority 4 & Milestone 3: blenderScriptGen (VRM 0.0 + py_compile), blender
   const tmpPy = path.join(os.tmpdir(), `vrm_gen_check_${Date.now()}.py`);
   fs.writeFileSync(tmpPy, py, 'utf8');
   try {
-    execFileSync('python3', ['-m', 'py_compile', tmpPy], { stdio: 'pipe' });
+    const py = resolvePythonInterpreter();
+    execFileSync(py.command, [...py.prefixArgs, '-m', 'py_compile', tmpPy], { stdio: 'pipe' });
   } finally {
     fs.rmSync(tmpPy, { force: true });
   }

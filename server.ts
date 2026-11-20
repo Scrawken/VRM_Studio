@@ -53,6 +53,7 @@ import {
   listProviderStatuses,
   probeHardwareCapabilities,
 } from './server/systemProbe';
+import { resolvePythonInterpreter } from './server/pythonInterpreter';
 
 const DEFAULT_PORT = 3000;
 
@@ -285,10 +286,10 @@ async function startServer() {
 
     // Honest reporting when Blender binary is absent: run Python validator unit suite cleanly
     try {
-      const pyExec = process.platform === 'win32' ? 'python' : 'python3';
+      const py = resolvePythonInterpreter();
       const pyTestOut = execFileSync(
-        pyExec,
-        ['-m', 'unittest', 'discover', '-s', backendDir, '-p', 'test_*.py', '-v'],
+        py.command,
+        [...py.prefixArgs, '-m', 'unittest', 'discover', '-s', backendDir, '-p', 'test_*.py', '-v'],
         { timeout: 10000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
       );
       return res.json({

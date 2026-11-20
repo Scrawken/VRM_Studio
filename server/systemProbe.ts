@@ -227,7 +227,10 @@ function probeBlenderVrmAddon(executablePath: string): boolean {
 
 export function detectBlenderInstallation(): BlenderDetectionResult {
   const platform = `${os.platform()} ${os.arch()}`;
-  const candidates = getCandidateBlenderPaths();
+  // Test/CI switch: VRM_FORGE_DISABLE_BLENDER_DISCOVERY=1 reports Blender as absent and skips every
+  // search (saved path, BLENDER_EXECUTABLE, Program Files, repo _tools).
+  const discoveryDisabled = process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY === '1';
+  const candidates = discoveryDisabled ? [] : getCandidateBlenderPaths();
   const searchedPaths: string[] = [];
 
   for (const candidate of candidates) {
