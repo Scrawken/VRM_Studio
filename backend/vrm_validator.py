@@ -137,6 +137,169 @@ def _has_nonzero_morph_delta(
     return False
 
 
+def _morph_target_has_delta(
+    target: Dict[str, Any],
+    accessors: List[Dict[str, Any]],
+    buffer_views: List[Dict[str, Any]],
+    bin_bytes: bytes,
+) -> bool:
+    """A morph target is non-empty when POSITION, NORMAL or TANGENT carries a non-zero delta."""
+    for attr in ("POSITION", "NORMAL", "TANGENT"):
+        acc_idx = target.get(attr)
+        if _is_accessor_in_bounds(acc_idx, accessors, buffer_views, len(bin_bytes)):
+            if _has_nonzero_morph_delta(accessors[acc_idx], buffer_views, bin_bytes):
+                return True
+    return False
+
+
+VRM0_FIRST_PERSON_FLAGS: Set[str] = {"Auto", "Both", "ThirdPersonOnly", "FirstPersonOnly"}
+VRM0_LOOK_AT_TYPES: Set[str] = {"None", "Bone", "BlendShape"}
+
+
+def _is_num(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _is_int(v: Any) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _validate_vrm0_extras(vrm0: Dict[str, Any], texture_count: int) -> List[str]:
+    errs: List[str] = []
+    meta = vrm0.get("meta")
+    if isinstance(meta, dict):
+        for key in ("title", "version", "author", "contactInformation", "reference", "otherPermissionUrl", "otherLicenseUrl"):
+            if key in meta and not isinstance(meta[key], str):
+                errs.append(f"meta.{key} must be a string")
+        if "texture" in meta:
+            tex = meta["texture"]
+            if not _is_int(tex) or tex < -1 or tex >= texture_count:
+                errs.append(f"meta.texture {tex} is not -1 or a valid texture index")
+
+    fp = vrm0.get("firstPerson")
+    if isinstance(fp, dict):
+        if "lookAtTypeName" in fp and fp["lookAtTypeName"] not in VRM0_LOOK_AT_TYPES:
+            errs.append(f"Invalid firstPerson.lookAtTypeName {fp['lookAtTypeName']}")
+        anns = fp.get("meshAnnotations")
+        if isinstance(anns, list):
+            for ma in anns:
+                if isinstance(ma, dict) and "firstPersonFlag" in ma and ma["firstPersonFlag"] not in VRM0_FIRST_PERSON_FLAGS:
+                    errs.append(f"Invalid firstPersonFlag {ma['firstPersonFlag']}")
+
+    bsm = vrm0.get("blendShapeMaster")
+    groups = bsm.get("blendShapeGroups") if isinstance(bsm, dict) else None
+    if isinstance(groups, list):
+        seen: Set[str] = set()
+        for i, g in enumerate(groups):
+            if not isinstance(g, dict):
+                errs.append(f"blendShapeGroups[{i}] is not an object")
+                continue
+            if "isBinary" in g and not isinstance(g["isBinary"], bool):
+                errs.append(f"blendShapeGroups[{i}].isBinary must be boolean")
+            pn = g.get("presetName")
+            if isinstance(pn, str) and pn != "unknown":
+                if pn in seen:
+                    errs.append(f"Duplicate blendShapeGroup presetName {pn}")
+                seen.add(pn)
+            if "materialValues" in g:
+                mvs = g["materialValues"]
+                if not isinstance(mvs, list):
+                    errs.append(f"blendShapeGroups[{i}].materialValues must be an array")
+                else:
+                    for mv in mvs:
+                        if (
+                            not isinstance(mv, dict)
+                            or not isinstance(mv.get("materialName"), str)
+                            or not isinstance(mv.get("propertyName"), str)
+                            or not isinstance(mv.get("targetValue"), list)
+                            or not all(_is_num(x) for x in mv["targetValue"])
+                        ):
+                            errs.append(f"blendShapeGroups[{i}].materialValues has a malformed entry")
+                            break
+
+    if "materialProperties" in vrm0:
+        mps = vrm0["materialProperties"]
+        if not isinstance(mps, list):
+            errs.append("materialProperties must be an array")
+        else:
+            for i, mp in enumerate(mps):
+                if not isinstance(mp, dict):
+                    errs.append(f"materialProperties[{i}] is not an object")
+                    continue
+                if "name" in mp and not isinstance(mp["name"], str):
+                    errs.append(f"materialProperties[{i}].name must be a string")
+                if "shader" in mp and not isinstance(mp["shader"], str):
+                    errs.append(f"materialProperties[{i}].shader must be a string")
+                if "renderQueue" in mp and not _is_int(mp["renderQueue"]):
+                    errs.append(f"materialProperties[{i}].renderQueue must be an integer")
+                checks = (
+                    ("floatProperties", _is_num, "finite numbers"),
+                    ("vectorProperties", lambda v: isinstance(v, list) and all(_is_num(x) for x in v), "number arrays"),
+                    ("textureProperties", lambda v: _is_int(v) and 0 <= v < texture_count, "valid texture indices"),
+                    ("keywordMap", lambda v: isinstance(v, bool), "booleans"),
+                    ("tagMap", lambda v: isinstance(v, str), "strings"),
+                )
+                for key, ok, what in checks:
+                    if key in mp and (not isinstance(mp[key], dict) or not all(ok(v) for v in mp[key].values())):
+                        errs.append(f"materialProperties[{i}].{key} must map to {what}")
+    return errs
+
+
+HUMANOID_ALLOWED_PARENTS: Dict[str, List[str]] = {
+    "spine": ["hips"],
+    "chest": ["spine", "hips"],
+    "upperChest": ["chest", "spine"],
+    "neck": ["upperChest", "chest", "spine"],
+    "head": ["neck"],
+    "leftEye": ["head"], "rightEye": ["head"], "jaw": ["head"],
+    "leftShoulder": ["upperChest", "chest", "spine"],
+    "rightShoulder": ["upperChest", "chest", "spine"],
+    "leftUpperArm": ["leftShoulder", "upperChest", "chest", "spine"],
+    "rightUpperArm": ["rightShoulder", "upperChest", "chest", "spine"],
+    "leftLowerArm": ["leftUpperArm"], "rightLowerArm": ["rightUpperArm"],
+    "leftHand": ["leftLowerArm"], "rightHand": ["rightLowerArm"],
+    "leftUpperLeg": ["hips"], "rightUpperLeg": ["hips"],
+    "leftLowerLeg": ["leftUpperLeg"], "rightLowerLeg": ["rightUpperLeg"],
+    "leftFoot": ["leftLowerLeg"], "rightFoot": ["rightLowerLeg"],
+    "leftToes": ["leftFoot"], "rightToes": ["rightFoot"],
+}
+for _side in ("left", "right"):
+    for _finger in ("Thumb", "Index", "Middle", "Ring", "Little"):
+        _hand = f"{_side}Hand"
+        _prox = f"{_side}{_finger}Proximal"
+        _inter = f"{_side}{_finger}Intermediate"
+        _dist = f"{_side}{_finger}Distal"
+        HUMANOID_ALLOWED_PARENTS[_prox] = [_hand]
+        HUMANOID_ALLOWED_PARENTS[_inter] = [_prox, _hand]
+        HUMANOID_ALLOWED_PARENTS[_dist] = [_inter, _prox, _hand]
+
+
+def _humanoid_hierarchy_warnings(mapped_map: Dict[str, int], nodes: List[Dict[str, Any]]) -> List[str]:
+    parent_of: Dict[int, int] = {}
+    for i, nd in enumerate(nodes):
+        children = nd.get("children", []) if isinstance(nd, dict) else []
+        for ch in children if isinstance(children, list) else []:
+            if _is_int(ch) and ch not in parent_of:
+                parent_of[ch] = i
+    node_to_bone = {n: b for b, n in mapped_map.items()}
+    warnings: List[str] = []
+    for bone, node in mapped_map.items():
+        if node < 0 or node >= len(nodes):
+            continue
+        allowed = HUMANOID_ALLOWED_PARENTS.get(bone)
+        if not allowed:
+            continue
+        cur = parent_of.get(node)
+        guard = 0
+        while cur is not None and cur not in node_to_bone and guard <= len(nodes):
+            cur = parent_of.get(cur)
+            guard += 1
+        ancestor = node_to_bone.get(cur) if cur is not None else None
+        if ancestor is None or ancestor not in allowed:
+            warnings.append(f"'{bone}' nearest humanoid ancestor is {ancestor or 'none'} (expected {' / '.join(allowed)})")
+    return warnings
+
+
 def _read_vec4_weight_sum(
     acc: Dict[str, Any],
     v: int,
@@ -296,6 +459,7 @@ def validate_vrm_bytes(
                 errors.append(f"Invalid commercialUssageName {m0['commercialUssageName']}")
             if "licenseName" in m0 and m0["licenseName"] not in VRM0_LICENSE_NAMES:
                 errors.append(f"Invalid licenseName {m0['licenseName']}")
+        errors.extend(_validate_vrm0_extras(vrm0, len(textures)))
 
         raw_bones = vrm0.get("humanoid", {}).get("humanBones")
         if not isinstance(raw_bones, list):
@@ -340,6 +504,7 @@ def validate_vrm_bytes(
                 seen_nodes1[ref["node"]] = bname
                 mapped_map[bname] = ref["node"]
 
+    warnings = _humanoid_hierarchy_warnings(mapped_map, nodes)
     missing = [b for b in REQUIRED_HUMANOID_BONES if b not in mapped_map]
     invalid_nodes = [b for b, idx in mapped_map.items() if idx < 0 or idx >= node_count]
 
@@ -467,10 +632,8 @@ def validate_vrm_bytes(
                     targets = prim.get("targets", [])
                     if 0 <= t_idx < len(targets):
                         matched_slot = True
-                        pos_acc_idx = targets[t_idx].get("POSITION")
-                        if _is_accessor_in_bounds(pos_acc_idx, accessors, buffer_views, len(bin_bytes)):
-                            if _has_nonzero_morph_delta(accessors[pos_acc_idx], buffer_views, bin_bytes):
-                                has_delta = True
+                        if _morph_target_has_delta(targets[t_idx], accessors, buffer_views, bin_bytes):
+                            has_delta = True
                 if not matched_slot:
                     errors.append(f"Morph target index {t_idx} missing on mesh {m_idx}")
             if not has_delta:
@@ -497,10 +660,8 @@ def validate_vrm_bytes(
                     targets = prim.get("targets", [])
                     if isinstance(t_idx, int) and 0 <= t_idx < len(targets):
                         matched_slot = True
-                        pos_acc_idx = targets[t_idx].get("POSITION")
-                        if _is_accessor_in_bounds(pos_acc_idx, accessors, buffer_views, len(bin_bytes)):
-                            if _has_nonzero_morph_delta(accessors[pos_acc_idx], buffer_views, bin_bytes):
-                                has_delta = True
+                        if _morph_target_has_delta(targets[t_idx], accessors, buffer_views, bin_bytes):
+                            has_delta = True
                 if not matched_slot:
                     errors.append(f"Expression '{ename}' missing morph target {t_idx}")
             if not has_delta:
@@ -526,6 +687,11 @@ def validate_vrm_bytes(
                 if not isinstance(rad, (int, float)) or not math.isfinite(rad) or rad < 0:
                     errors.append(f"colliderGroups[{g_idx}] invalid radius {rad}")
         for b_idx, bg in enumerate(bone_groups):
+            for key in ("stiffiness", "gravityPower", "dragForce", "hitRadius"):
+                if key in bg and (not _is_num(bg[key]) or bg[key] < 0):
+                    errors.append(f"boneGroups[{b_idx}].{key} must be a finite non-negative number")
+            if _is_num(bg.get("dragForce")) and bg["dragForce"] > 1:
+                errors.append(f"boneGroups[{b_idx}].dragForce must be within 0..1")
             center = bg.get("center")
             if center is not None and (not isinstance(center, int) or center < -1 or center >= node_count):
                 errors.append(f"boneGroups[{b_idx}] invalid center {center}")
@@ -585,6 +751,7 @@ def validate_vrm_bytes(
         "secondary_bone_group_count": sec_count,
         "collider_group_count": col_count,
         "errors": errors,
+        "warnings": warnings,
     }
 
 

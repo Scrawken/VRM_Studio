@@ -299,6 +299,204 @@ function hasNonZeroMorphDelta(
   return false;
 }
 
+const VRM0_FIRST_PERSON_FLAGS = new Set(['Auto', 'Both', 'ThirdPersonOnly', 'FirstPersonOnly']);
+const VRM0_LOOK_AT_TYPES = new Set(['None', 'Bone', 'BlendShape']);
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** VRM 0.0 checks beyond the permission enums: meta types, firstPerson enums, blendShape and material schema. */
+function validateVrm0Extras(vrm0: Record<string, unknown>, textureCount: number): string[] {
+  const errs: string[] = [];
+  const meta = vrm0.meta;
+  if (isPlainObject(meta)) {
+    for (const key of ['title', 'version', 'author', 'contactInformation', 'reference', 'otherPermissionUrl', 'otherLicenseUrl']) {
+      if (meta[key] !== undefined && typeof meta[key] !== 'string') errs.push(`meta.${key} must be a string`);
+    }
+    const tex = meta.texture;
+    if (tex !== undefined && (!Number.isInteger(tex) || (tex as number) < -1 || (tex as number) >= textureCount)) {
+      errs.push(`meta.texture ${String(tex)} is not -1 or a valid texture index`);
+    }
+  }
+
+  const fp = vrm0.firstPerson;
+  if (isPlainObject(fp)) {
+    if (fp.lookAtTypeName !== undefined && !VRM0_LOOK_AT_TYPES.has(String(fp.lookAtTypeName))) {
+      errs.push(`Invalid firstPerson.lookAtTypeName "${String(fp.lookAtTypeName)}"`);
+    }
+    if (Array.isArray(fp.meshAnnotations)) {
+      for (const ma of fp.meshAnnotations) {
+        const flag = isPlainObject(ma) ? ma.firstPersonFlag : undefined;
+        if (flag !== undefined && !VRM0_FIRST_PERSON_FLAGS.has(String(flag))) {
+          errs.push(`Invalid firstPersonFlag "${String(flag)}"`);
+        }
+      }
+    }
+  }
+
+  const groups = isPlainObject(vrm0.blendShapeMaster) ? vrm0.blendShapeMaster.blendShapeGroups : undefined;
+  if (Array.isArray(groups)) {
+    const seen = new Set<string>();
+    for (let i = 0; i < groups.length; i++) {
+      const g = groups[i];
+      if (!isPlainObject(g)) {
+        errs.push(`blendShapeGroups[${i}] is not an object`);
+        continue;
+      }
+      if (g.isBinary !== undefined && typeof g.isBinary !== 'boolean') {
+        errs.push(`blendShapeGroups[${i}].isBinary must be boolean`);
+      }
+      if (typeof g.presetName === 'string' && g.presetName !== 'unknown') {
+        if (seen.has(g.presetName)) errs.push(`Duplicate blendShapeGroup presetName "${g.presetName}"`);
+        seen.add(g.presetName);
+      }
+      if (g.materialValues !== undefined) {
+        if (!Array.isArray(g.materialValues)) {
+          errs.push(`blendShapeGroups[${i}].materialValues must be an array`);
+        } else {
+          for (const mv of g.materialValues) {
+            if (
+              !isPlainObject(mv) ||
+              typeof mv.materialName !== 'string' ||
+              typeof mv.propertyName !== 'string' ||
+              !Array.isArray(mv.targetValue) ||
+              !mv.targetValue.every(isFiniteNumber)
+            ) {
+              errs.push(`blendShapeGroups[${i}].materialValues has a malformed entry`);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const mps = vrm0.materialProperties;
+  if (mps !== undefined) {
+    if (!Array.isArray(mps)) {
+      errs.push('materialProperties must be an array');
+    } else {
+      mps.forEach((mp, i) => {
+        if (!isPlainObject(mp)) {
+          errs.push(`materialProperties[${i}] is not an object`);
+          return;
+        }
+        if (mp.name !== undefined && typeof mp.name !== 'string') errs.push(`materialProperties[${i}].name must be a string`);
+        if (mp.shader !== undefined && typeof mp.shader !== 'string') errs.push(`materialProperties[${i}].shader must be a string`);
+        if (mp.renderQueue !== undefined && !Number.isInteger(mp.renderQueue)) {
+          errs.push(`materialProperties[${i}].renderQueue must be an integer`);
+        }
+        const mapOf = (key: string, ok: (v: unknown) => boolean, what: string) => {
+          const m = mp[key];
+          if (m === undefined) return;
+          if (!isPlainObject(m) || !Object.values(m).every(ok)) errs.push(`materialProperties[${i}].${key} must map to ${what}`);
+        };
+        mapOf('floatProperties', isFiniteNumber, 'finite numbers');
+        mapOf('vectorProperties', (v) => Array.isArray(v) && v.every(isFiniteNumber), 'number arrays');
+        mapOf(
+          'textureProperties',
+          (v) => Number.isInteger(v) && (v as number) >= 0 && (v as number) < textureCount,
+          'valid texture indices'
+        );
+        mapOf('keywordMap', (v) => typeof v === 'boolean', 'booleans');
+        mapOf('tagMap', (v) => typeof v === 'string', 'strings');
+      });
+    }
+  }
+  return errs;
+}
+
+/** Nearest mapped humanoid ancestors allowed for each bone (optional bones may be skipped). */
+const HUMANOID_ALLOWED_PARENTS: Record<string, string[]> = {
+  spine: ['hips'],
+  chest: ['spine', 'hips'],
+  upperChest: ['chest', 'spine'],
+  neck: ['upperChest', 'chest', 'spine'],
+  head: ['neck'],
+  leftEye: ['head'],
+  rightEye: ['head'],
+  jaw: ['head'],
+  leftShoulder: ['upperChest', 'chest', 'spine'],
+  rightShoulder: ['upperChest', 'chest', 'spine'],
+  leftUpperArm: ['leftShoulder', 'upperChest', 'chest', 'spine'],
+  rightUpperArm: ['rightShoulder', 'upperChest', 'chest', 'spine'],
+  leftLowerArm: ['leftUpperArm'],
+  rightLowerArm: ['rightUpperArm'],
+  leftHand: ['leftLowerArm'],
+  rightHand: ['rightLowerArm'],
+  leftUpperLeg: ['hips'],
+  rightUpperLeg: ['hips'],
+  leftLowerLeg: ['leftUpperLeg'],
+  rightLowerLeg: ['rightUpperLeg'],
+  leftFoot: ['leftLowerLeg'],
+  rightFoot: ['rightLowerLeg'],
+  leftToes: ['leftFoot'],
+  rightToes: ['rightFoot'],
+};
+for (const side of ['left', 'right']) {
+  for (const finger of ['Thumb', 'Index', 'Middle', 'Ring', 'Little']) {
+    const hand = `${side}Hand`;
+    const prox = `${side}${finger}Proximal`;
+    const inter = `${side}${finger}Intermediate`;
+    const dist = `${side}${finger}Distal`;
+    HUMANOID_ALLOWED_PARENTS[prox] = [hand];
+    HUMANOID_ALLOWED_PARENTS[inter] = [prox, hand];
+    HUMANOID_ALLOWED_PARENTS[dist] = [inter, prox, hand];
+  }
+}
+
+function humanoidHierarchyWarnings(
+  boneMap: Map<string, number>,
+  nodes: NonNullable<GltfJson['nodes']>
+): string[] {
+  const parentOf = new Map<number, number>();
+  nodes.forEach((n, i) => {
+    for (const ch of Array.isArray(n?.children) ? n.children : []) {
+      if (Number.isInteger(ch) && !parentOf.has(ch)) parentOf.set(ch, i);
+    }
+  });
+  const nodeToBone = new Map<number, string>();
+  for (const [b, n] of boneMap) nodeToBone.set(n, b);
+  const warnings: string[] = [];
+  for (const [bone, node] of boneMap) {
+    if (!Number.isInteger(node) || node < 0 || node >= nodes.length) continue;
+    const allowed = HUMANOID_ALLOWED_PARENTS[bone];
+    if (!allowed) continue;
+    let cur = parentOf.get(node);
+    let guard = 0;
+    while (cur !== undefined && !nodeToBone.has(cur) && guard++ <= nodes.length) cur = parentOf.get(cur);
+    const ancestor = cur !== undefined ? nodeToBone.get(cur) : undefined;
+    if (ancestor === undefined || !allowed.includes(ancestor)) {
+      warnings.push(`"${bone}" nearest humanoid ancestor is ${ancestor ? `"${ancestor}"` : 'none'} (expected ${allowed.join(' / ')})`);
+    }
+  }
+  return warnings;
+}
+
+const MORPH_DELTA_ATTRIBUTES = ['POSITION', 'NORMAL', 'TANGENT'] as const;
+
+/** A morph target is non-empty when any of POSITION / NORMAL / TANGENT carries a non-zero delta. */
+function morphTargetHasDelta(
+  targetEntry: Record<string, number>,
+  accessors: GltfAccessor[],
+  bufferViews: NonNullable<GltfJson['bufferViews']>,
+  binChunk: Uint8Array,
+  binView: DataView
+): boolean {
+  for (const attr of MORPH_DELTA_ATTRIBUTES) {
+    const accIdx = targetEntry[attr];
+    if (
+      accIdx !== undefined &&
+      isAccessorInBounds(accIdx, accessors, bufferViews, binChunk.byteLength) &&
+      hasNonZeroMorphDelta(accessors[accIdx], bufferViews, binChunk, binView)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function validateVrmBinary(
   bytes: Uint8Array,
   expectedVersion?: VrmExportVersion
@@ -463,6 +661,7 @@ export function validateVrmBinary(
       if (m0.licenseName !== undefined && !VRM0_LICENSE_SET.has(m0.licenseName)) {
         metaErrors.push(`Invalid licenseName "${m0.licenseName}"`);
       }
+      metaErrors.push(...validateVrm0Extras(vrm0Ext as unknown as Record<string, unknown>, (gltf.textures ?? []).length));
     }
     checks.push({
       id: 'vrm_metadata',
@@ -606,6 +805,16 @@ export function validateVrmBinary(
             ? `Missing required bones: ${missingRequiredBones.join(', ')}`
             : `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${Math.max(0, mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length)} optional/finger bones mapped`,
   });
+
+  const hierarchyWarnings = humanoidHierarchyWarnings(boneMap, nodes);
+  if (hierarchyWarnings.length > 0) {
+    checks.push({
+      id: 'humanoid_hierarchy',
+      label: 'VRM Humanoid Parent/Child Hierarchy',
+      status: 'warn',
+      detail: hierarchyWarnings.slice(0, 3).join('; '),
+    });
+  }
 
   // Mesh Geometry, Accessor Bounds, Skinning & 4/8-Influence Weight Normalization
   const accessors = gltf.accessors ?? [];
@@ -835,12 +1044,7 @@ export function validateVrmBinary(
           const targetEntry = prim.targets?.[b.index];
           if (!targetEntry) continue;
           matchedTargetSlot = true;
-          const posAccIdx = targetEntry.POSITION;
-          if (
-            posAccIdx !== undefined &&
-            isAccessorInBounds(posAccIdx, accessors, bufferViews, binChunk.byteLength) &&
-            hasNonZeroMorphDelta(accessors[posAccIdx], bufferViews, binChunk, binView)
-          ) {
+          if (morphTargetHasDelta(targetEntry, accessors, bufferViews, binChunk, binView)) {
             hasDelta = true;
           }
         }
@@ -905,12 +1109,7 @@ export function validateVrmBinary(
           const targetEntry = prim.targets?.[bind.index];
           if (!targetEntry) continue;
           matchedTargetSlot = true;
-          const posAccIdx = targetEntry.POSITION;
-          if (
-            posAccIdx !== undefined &&
-            isAccessorInBounds(posAccIdx, accessors, bufferViews, binChunk.byteLength) &&
-            hasNonZeroMorphDelta(accessors[posAccIdx], bufferViews, binChunk, binView)
-          ) {
+          if (morphTargetHasDelta(targetEntry, accessors, bufferViews, binChunk, binView)) {
             hasDelta = true;
           }
         }
@@ -1034,8 +1233,14 @@ export function validateVrmBinary(
 
     for (let bIdx = 0; bIdx < boneGroups.length; bIdx++) {
       const bg = boneGroups[bIdx];
-      if ((bg.stiffiness ?? 0) < 0 || (bg.hitRadius ?? 0) < 0 || (bg.dragForce ?? 0) < 0) {
-        springErrors.push(`boneGroups[${bIdx}] has negative physics parameter`);
+      for (const key of ['stiffiness', 'gravityPower', 'dragForce', 'hitRadius'] as const) {
+        const val: unknown = bg[key];
+        if (val !== undefined && (!isFiniteNumber(val) || val < 0)) {
+          springErrors.push(`boneGroups[${bIdx}].${key} must be a finite non-negative number`);
+        }
+      }
+      if (isFiniteNumber(bg.dragForce) && bg.dragForce > 1) {
+        springErrors.push(`boneGroups[${bIdx}].dragForce must be within 0..1`);
       }
       if (bg.center !== undefined && (!Number.isInteger(bg.center) || bg.center < -1 || bg.center >= nodeCount)) {
         springErrors.push(`boneGroups[${bIdx}] has out-of-range center node ${bg.center}`);
