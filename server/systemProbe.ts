@@ -131,7 +131,8 @@ function getCandidateBlenderPaths(): string[] {
   if (platform === 'win32') {
     const pf = process.env['ProgramFiles'] || 'C:\\Program Files';
     const pf86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
-    const versions = ['4.3', '4.2', '4.1', '4.0', '3.6'];
+    // 4.2 is the acceptance target; newer builds work via BLENDER_EXECUTABLE or the desktop picker.
+    const versions = ['4.2', '5.2', '5.1', '5.0', '4.5', '4.4', '4.3', '4.1', '4.0', '3.6'];
     for (const v of versions) {
       candidates.push(path.join(pf, 'Blender Foundation', `Blender ${v}`, 'blender.exe'));
       candidates.push(path.join(pf86, 'Blender Foundation', `Blender ${v}`, 'blender.exe'));
@@ -153,16 +154,19 @@ function getCandidateBlenderPaths(): string[] {
 }
 
 function probeBlenderVrmAddon(executablePath: string): boolean {
+  // Registration check lives in blender_scripts/vrm_addon_probe.py. hasattr(bpy.ops.export_scene, "vrm")
+  // is always true (bpy.ops resolves names lazily), so only a registered Armature
+  // `vrm_addon_extension` property counts. The add-on is enabled non-persistently, as the pipeline does.
+  const scriptsDir = path.resolve(
+    process.env.VRM_FORGE_BLENDER_SCRIPTS_DIR || path.join(process.cwd(), 'blender_scripts')
+  );
+  const probeScript = path.join(scriptsDir, 'vrm_addon_probe.py');
+  if (!fs.existsSync(probeScript)) return false;
   try {
     const out = execFileSync(
       executablePath,
-      [
-        '--background',
-        '--factory-startup',
-        '--python-expr',
-        'import bpy; print("VRM_ADDON=" + str(hasattr(bpy.ops, "export_scene") and hasattr(bpy.ops.export_scene, "vrm")))',
-      ],
-      { timeout: 8000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+      ['--background', '--python', probeScript],
+      { timeout: 30000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
     );
     return out.includes('VRM_ADDON=True');
   } catch {
@@ -213,7 +217,7 @@ export function detectBlenderInstallation(): BlenderDetectionResult {
     platform,
     searchedPaths,
     statusMessage:
-      'Blender executable not found on this host. Generated bpy scripts & TypeScript VRM 0.0/1.0 synthesis remain active as fallback; configure a trusted Blender 3.6–4.3 installation or choose blender.exe via the desktop picker.',
+      'Blender executable not found on this host. Generated bpy scripts & TypeScript VRM 0.0/1.0 synthesis remain active as fallback; install Blender 4.2 (supported target), or set BLENDER_EXECUTABLE / choose blender.exe via the desktop picker to use a newer build.',
   };
 }
 

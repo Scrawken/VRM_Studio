@@ -29,7 +29,7 @@ export function generateBlenderCharacterScript(
         : 0;
 
   return `"""
-VRM Forge Studio — Blender 3.6–4.3 Anatomical Refinement, Rig Mapping & VRM ${targetVrmVersion} Export Script
+VRM Forge Studio — Blender 4.2+ Anatomical Refinement, Rig Mapping & VRM ${targetVrmVersion} Export Script
 Character: ${spec.name} (${spec.species} | Art Style: ${spec.artStyle})
 Primary Export Target: VRM ${targetVrmVersion} | Geometry: ${spec.qualityConfig.geometryQuality} | Texture Target: ${texPx}px
 Generated: ${spec.updatedAt}
@@ -119,8 +119,45 @@ VROID_AND_CANONICAL_ALIASES = {
 }
 
 
+def vrm_extension_registered():
+    # hasattr(bpy.ops.export_scene, "vrm") is always True (bpy.ops resolves names lazily), so test
+    # the registered Armature property instead.
+    try:
+        return "vrm_addon_extension" in bpy.types.Armature.bl_rna.properties
+    except Exception:
+        return False
+
+
+def ensure_vrm_addon(preferred_names=()):
+    if vrm_extension_registered():
+        return True
+    try:
+        import addon_utils
+        names = [n for n in preferred_names if "vrm" in n.lower()]
+        for mod in addon_utils.modules():
+            if "vrm" in mod.__name__.lower() and mod.__name__ not in names:
+                names.append(mod.__name__)
+        for name in names:
+            try:
+                addon_utils.enable(name, default_set=True, persistent=False)
+            except Exception:
+                pass
+            if vrm_extension_registered():
+                return True
+    except Exception:
+        pass
+    return False
+
+
+PRIOR_ADDONS = []
+
+
 def clear_scene():
+    # read_factory_settings unregisters add-ons (including VRM), so re-enable them afterwards.
+    if not PRIOR_ADDONS:
+        PRIOR_ADDONS.extend(str(k) for k in bpy.context.preferences.addons.keys())
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    ensure_vrm_addon(PRIOR_ADDONS)
 
 
 def create_material(name, rgba, metallic=0.0, roughness=0.5, emissive_rgba=None):
@@ -432,7 +469,9 @@ def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None, vrm_vers
     blend_path = os.path.join(out_dir, "${safeName}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
-    vrm_addon_installed = hasattr(bpy.ops, "export_scene") and hasattr(bpy.ops.export_scene, "vrm")
+    vrm_addon_installed = ensure_vrm_addon(PRIOR_ADDONS)
+    # Cache armature-derived values: the reload below invalidates arm_obj.
+    bone_count = len(arm_obj.data.bones) if arm_obj else 0
     vrm_exported = False
     vrm_reload_valid = False
     vrm_error = None
@@ -498,7 +537,7 @@ def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None, vrm_vers
                 with open(vrm_path, "rb") as vf:
                     header = vf.read(12)
                     vrm_reload_valid = header[:4] == b"glTF"
-                bpy.ops.wm.read_factory_settings(use_empty=True)
+                clear_scene()
                 bpy.ops.import_scene.gltf(filepath=vrm_path)
                 vrm_reload_valid = vrm_reload_valid and any(o.type == "MESH" for o in bpy.data.objects)
         except Exception as exc:
@@ -525,7 +564,7 @@ def configure_vrm_addon_and_export(arm_obj, out_dir, deform_stats=None, vrm_vers
         "vrm_note": vrm_error,
         "vertex_count": total_verts,
         "polygon_count": total_polys,
-        "bone_count": len(arm_obj.data.bones) if arm_obj else 0,
+        "bone_count": bone_count,
         "mapped_bone_count": len(bone_map),
         "missing_required_bones": missing_bones,
         "deformation": deform_stats or {},
@@ -554,7 +593,7 @@ def main():
         bpy.ops.import_scene.gltf(filepath=source_glb)
         mesh_objs = [o for o in bpy.data.objects if o.type == "MESH"]
         arm_objs = [o for o in bpy.data.objects if o.type == "ARMATURE"]
-        arm_obj = arm_objs[0] if arm_objs else None
+        arm_obj = max(arm_objs, key=lambda a: len(a.data.bones)) if arm_objs else None
         refine_scene_meshes(mesh_objs)
     else:
         arm_obj, _meshes = build_anatomical_fallback_scene("${safeName}")
