@@ -757,7 +757,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(distDir));
-    app.get('*', (_req, res) => {
+    app.get('/{*splat}', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
   }
