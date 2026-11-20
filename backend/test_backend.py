@@ -444,6 +444,150 @@ class BackendTests(unittest.TestCase):
         no_bin = struct.pack("<III", magic, ver, 12 + len(only_json)) + only_json
         self.assertFalse(validate_vrm_bytes(no_bin)["valid"])
 
+    @staticmethod
+    def _add_vec3_accessor(gltf: dict, buf: bytearray, floats) -> int:
+        while len(buf) % 4:
+            buf.append(0)
+        data = struct.pack(f"<{len(floats)}f", *floats)
+        gltf["bufferViews"].append({"buffer": 0, "byteOffset": len(buf), "byteLength": len(data)})
+        buf.extend(data)
+        gltf["accessors"].append({
+            "bufferView": len(gltf["bufferViews"]) - 1,
+            "componentType": 5126,
+            "count": len(floats) // 3,
+            "type": "VEC3",
+        })
+        return len(gltf["accessors"]) - 1
+
+    def _errors_vrm0(self, mutator):
+        res = validate_vrm_bytes(build_minimal_valid_vrm0(mutator), expected_version="0.0")
+        return res, "; ".join(res.get("errors", []))
+
+    def test_conformance_11_normal_and_tangent_only_morphs_are_non_empty(self):
+        zeros = [0.0] * 9
+        nonzero = [0.0, 0.0, 0.0, 0.0, 0.05, 0.0, 0.0, 0.0, 0.0]
+
+        def _mk(attr_name):
+            def _mut(gltf: dict, buf: bytearray):
+                zero_pos = self._add_vec3_accessor(gltf, buf, zeros)
+                attr = self._add_vec3_accessor(gltf, buf, nonzero)
+                gltf["meshes"][0]["primitives"][0]["targets"] = [{"POSITION": zero_pos, attr_name: attr}]
+            return _mut
+
+        for attr in ("NORMAL", "TANGENT"):
+            res, _ = self._errors_vrm0(_mk(attr))
+            self.assertTrue(res["valid"], f"VRM0 {attr}-only morph should be non-empty: {res['errors']}")
+            self.assertEqual(res["non_empty_expression_count"], 1)
+            res1 = validate_vrm_bytes(build_minimal_valid_vrm1(_mk(attr)), expected_version="1.0")
+            self.assertTrue(res1["valid"], f"VRM1 {attr}-only morph should be non-empty: {res1['errors']}")
+
+        def _all_zero(gltf: dict, buf: bytearray):
+            z = self._add_vec3_accessor(gltf, buf, zeros)
+            gltf["meshes"][0]["primitives"][0]["targets"] = [{"POSITION": z, "NORMAL": z, "TANGENT": z}]
+        res, msg = self._errors_vrm0(_all_zero)
+        self.assertFalse(res["valid"])
+        self.assertIn("empty/zero morph", msg)
+
+    def test_conformance_12_vrm0_meta_and_enum_gaps(self):
+        def _set(path, value):
+            def _mut(gltf: dict, _buf: bytearray):
+                node = gltf["extensions"]["VRM"]
+                for key in path[:-1]:
+                    node = node[key]
+                node[path[-1]] = value
+            return _mut
+
+        cases = [
+            (_set(["meta", "title"], 5), "meta.title"),
+            (_set(["meta", "texture"], 3), "meta.texture"),
+            (_set(["firstPerson", "lookAtTypeName"], "Eyes"), "lookAtTypeName"),
+            (_set(["firstPerson", "meshAnnotations", 0, "firstPersonFlag"], "Nope"), "firstPersonFlag"),
+            (_set(["blendShapeMaster", "blendShapeGroups", 1, "isBinary"], "yes"), "isBinary"),
+            (_set(["blendShapeMaster", "blendShapeGroups", 1, "materialValues"], [{"materialName": "m"}]), "materialValues"),
+            (_set(["secondaryAnimation", "boneGroups", 0, "dragForce"], 1.5), "dragForce"),
+            (_set(["secondaryAnimation", "boneGroups", 0, "stiffiness"], "stiff"), "stiffiness"),
+            (_set(["secondaryAnimation", "boneGroups", 0, "gravityPower"], -1), "gravityPower"),
+        ]
+        for mut, needle in cases:
+            res, msg = self._errors_vrm0(mut)
+            self.assertFalse(res["valid"], needle)
+            self.assertIn(needle, msg)
+
+        def _dup_preset(gltf: dict, _buf: bytearray):
+            groups = gltf["extensions"]["VRM"]["blendShapeMaster"]["blendShapeGroups"]
+            groups.append({"name": "Joy2", "presetName": "joy", "binds": []})
+        res, msg = self._errors_vrm0(_dup_preset)
+        self.assertFalse(res["valid"])
+        self.assertIn("Duplicate blendShapeGroup presetName", msg)
+
+        def _valid_extras(gltf: dict, _buf: bytearray):
+            vrm = gltf["extensions"]["VRM"]
+            vrm["meta"]["texture"] = -1
+            vrm["firstPerson"]["lookAtTypeName"] = "Bone"
+            vrm["blendShapeMaster"]["blendShapeGroups"][1]["isBinary"] = False
+            vrm["blendShapeMaster"]["blendShapeGroups"][1]["materialValues"] = [
+                {"materialName": "DefaultMat", "propertyName": "_Color", "targetValue": [1, 1, 1, 1]}
+            ]
+            vrm["secondaryAnimation"]["boneGroups"][0].update({"dragForce": 0.4, "gravityPower": 0.0, "hitRadius": 0.02})
+        res, _ = self._errors_vrm0(_valid_extras)
+        self.assertTrue(res["valid"], res["errors"])
+
+    def test_conformance_13_vrm0_material_properties(self):
+        good = [{
+            "name": "DefaultMat", "shader": "VRM/MToon", "renderQueue": 2000,
+            "floatProperties": {"_Cutoff": 0.5}, "vectorProperties": {"_Color": [1, 1, 1, 1]},
+            "textureProperties": {}, "keywordMap": {"_ALPHATEST_ON": False}, "tagMap": {"RenderType": "Opaque"},
+        }]
+
+        def _with(mps):
+            def _mut(gltf: dict, _buf: bytearray):
+                gltf["extensions"]["VRM"]["materialProperties"] = mps
+            return _mut
+
+        res, _ = self._errors_vrm0(_with(good))
+        self.assertTrue(res["valid"], res["errors"])
+        bad_cases = [
+            ("not-a-list", "materialProperties must be an array"),
+            ([{"floatProperties": {"_Cutoff": "x"}}], "floatProperties"),
+            ([{"vectorProperties": {"_Color": ["a"]}}], "vectorProperties"),
+            ([{"textureProperties": {"_MainTex": 7}}], "textureProperties"),
+            ([{"renderQueue": 2000.5}], "renderQueue"),
+            ([{"keywordMap": {"k": 1}}], "keywordMap"),
+            ([5], "is not an object"),
+        ]
+        for mps, needle in bad_cases:
+            res, msg = self._errors_vrm0(_with(mps))
+            self.assertFalse(res["valid"], needle)
+            self.assertIn(needle, msg)
+
+    def test_conformance_14_humanoid_hierarchy_is_warning_only(self):
+        # Default fixture has humanoid nodes as sibling roots: warnings, still valid.
+        res, _ = self._errors_vrm0(None)
+        self.assertTrue(res["valid"])
+        self.assertTrue(any("'spine'" in w for w in res["warnings"]), res["warnings"])
+
+        def _proper_chain(gltf: dict, _buf: bytearray):
+            nodes = gltf["nodes"]
+            # indices follow REQUIRED_HUMANOID_BONES order
+            for n in nodes[:17]:
+                n.pop("children", None)
+            nodes[0]["children"] = [1, 11, 14]       # hips -> spine, upperLegs
+            nodes[1]["children"] = [2]               # spine -> chest
+            nodes[2]["children"] = [3, 5, 8]         # chest -> neck, upperArms
+            nodes[3]["children"] = [4]               # neck -> head
+            nodes[4]["children"] = [17]
+            nodes[5]["children"] = [6]
+            nodes[6]["children"] = [7]
+            nodes[8]["children"] = [9]
+            nodes[9]["children"] = [10]
+            nodes[11]["children"] = [12]
+            nodes[12]["children"] = [13]
+            nodes[14]["children"] = [15]
+            nodes[15]["children"] = [16]
+        res, _ = self._errors_vrm0(_proper_chain)
+        self.assertTrue(res["valid"], res["errors"])
+        self.assertEqual(res["warnings"], [])
+
     def test_blender_pipeline_fails_explicitly_when_python_validator_missing(self):
         root = Path(__file__).resolve().parent.parent
         scripts_dir = str(root / "blender_scripts")
