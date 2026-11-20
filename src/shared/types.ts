@@ -108,6 +108,34 @@ export interface VrmSourceLicenseRestrictions {
   licenseName?: string;
 }
 
+/*
+ * VRM metadata contract (task C2; the Blender path, task D1, must consume exactly this)
+ *
+ * Sources of truth, in order of authority for licensing identity:
+ *   1. ParsedGlbAsset.sourceVrmMeta + .sourceRestrictions  (what the source VRM declared)
+ *   2. spec.vrmMetadata                                    (user/server choice, already merged)
+ *   3. defaults from createDefaultVrmMetadata              ('Other', 'OnlyAuthor', '1.0', ...)
+ * resolveEffectiveVrmMetadata(spec, sourceVrmMeta) in vrmBuilder.ts is the ONE resolver:
+ *   - identity fields (author, version, contactInformation, reference, licenseName,
+ *     otherLicenseUrl, otherPermissionUrl): an explicit non-default spec value wins, else the
+ *     source value, else default. A default never replaces a source value.
+ *   - permission fields (allowedUserName, violent/sexual/commercialUsage, allowRedistribution,
+ *     modification): spec wins, then clampMetadataToSourceRestrictions can only tighten it.
+ *   - sourceRestrictions always travels with the meta and is never dropped or relaxed.
+ * Blender/spec.json: spec.json carries spec.vrmMetadata ONLY. The importer's sourceVrmMeta is NOT
+ * written to spec.json or blender_context.json (blender_context.json holds springs/colliders only).
+ * So the writer of spec.json must store resolveEffectiveVrmMetadata(spec, sourceVrmMeta) as
+ * spec.vrmMetadata (or add it as blender_context.sourceVrmMeta), and Blender must use that object
+ * verbatim for VRM meta, with no field-level defaults ('Other', 'OnlyAuthor', author) applied on top.
+ * Never copy sample/Ren licence metadata into an import.
+ * VRM 1.0 export losses: otherPermissionUrl and 0.0 licenseName have no field; CC names map to the
+ * creativecommons licenseUrl, other names fall back to the VRM default (warned in RigReport.warnings).
+ *
+ * Spring/collider contract (VRM 0.0 secondaryAnimation): ImportedSpringGroup.colliderGroupIndices
+ * index ImportedColliderGroup[] as given; the builder remaps them past groups whose node is
+ * unresolved. gravityDir, dragForce, stiffiness, hitRadius, gravityPower, center (by node name)
+ * are preserved; an empty collider list stays empty.
+ */
 export interface VrmMetadataConfig {
   title: string;
   author: string;
