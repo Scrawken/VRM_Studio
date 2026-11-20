@@ -322,6 +322,14 @@ function isIdentityMatrix(m: number[]): boolean {
   return true;
 }
 
+function isSingularLinearMatrix(m: number[]): boolean {
+  const det =
+    m[0] * (m[5] * m[10] - m[9] * m[6]) -
+    m[4] * (m[1] * m[10] - m[9] * m[2]) +
+    m[8] * (m[1] * m[6] - m[5] * m[2]);
+  return !Number.isFinite(det) || Math.abs(det) <= 1e-12;
+}
+
 function transformPointMat4(m: number[], x: number, y: number, z: number): [number, number, number] {
   return [
     m[0] * x + m[4] * y + m[8] * z + m[12],
@@ -1165,6 +1173,23 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
         hasMultiInfluenceSkin = true;
       }
 
+      const primLabel = `Mesh "${meshName}" primitive ${pIdx}`;
+      const extraSkinSets = Object.keys(prim.attributes ?? {}).filter((k) => {
+        const m = /^(JOINTS|WEIGHTS)_(\d+)$/.exec(k);
+        return m !== null && Number(m[2]) >= 2;
+      });
+      if (extraSkinSets.length > 0) {
+        unsupportedFeatures.add(
+          `${primLabel} uses ${extraSkinSets.join(', ')}; only the first 8 influences (JOINTS_0/1, WEIGHTS_0/1) are imported and weights beyond them are dropped.`
+        );
+      }
+      const singularTransform = applyWorldTransform && isSingularLinearMatrix(worldMat);
+      if (singularTransform) {
+        unsupportedFeatures.add(
+          `${primLabel} sits under a singular (non-invertible) node transform; normals were recomputed from the transformed geometry and morph target normals were dropped.`
+        );
+      }
+
       const hasJointsAttr =
         prim.attributes?.JOINTS_0 !== undefined && prim.attributes?.WEIGHTS_0 !== undefined;
       const hasJoints1Attr =
@@ -1211,7 +1236,11 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
           ? readAccessorArray(binChunk, accessors, bufferViews, prim.attributes!.WEIGHTS_1)
           : undefined;
 
-        if (rawJoints.length >= vertCount * 4 && rawWeights.length >= vertCount * 4) {
+        if (!(rawJoints.length >= vertCount * 4 && rawWeights.length >= vertCount * 4)) {
+          unsupportedFeatures.add(
+            `${primLabel}: JOINTS_0/WEIGHTS_0 accessors hold fewer than ${vertCount} vertices (joints ${Math.floor(rawJoints.length / 4)}, weights ${Math.floor(rawWeights.length / 4)}); skinning data for this primitive was not imported.`
+          );
+        } else {
           joints = new Uint16Array(rawJoints.subarray(0, vertCount * 4));
           weights = new Float32Array(vertCount * 4);
           const useSecondSet = Boolean(
@@ -1220,38 +1249,62 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
               rawJoints1.length >= vertCount * 4 &&
               rawWeights1.length >= vertCount * 4
           );
+          if (hasJoints1Attr && !useSecondSet) {
+            unsupportedFeatures.add(
+              `${primLabel}: JOINTS_1/WEIGHTS_1 accessors hold fewer than ${vertCount} vertices; the second influence set (influences 5-8) was ignored.`
+            );
+          }
           if (useSecondSet) {
             joints1 = new Uint16Array(rawJoints1!.subarray(0, vertCount * 4));
             weights1 = new Float32Array(vertCount * 4);
           }
 
+          // Unmappable joints (absent from skins[0]) return -1: their weight is dropped and the rest renormalised.
           const mapJoint = (rawJ: number) => {
             if (!jointRemap) return rawJ;
             const mapped = jointRemap[rawJ];
-            return mapped !== undefined && mapped >= 0 ? mapped : 0;
+            return mapped !== undefined && mapped >= 0 ? mapped : -1;
           };
+          let droppedInfluences = 0;
+          let affectedVertices = 0;
+          let lostAllWeightVertices = 0;
 
           for (let i = 0; i < vertCount; i++) {
-            const w0 = Math.max(0, rawWeights[i * 4]);
-            const w1 = Math.max(0, rawWeights[i * 4 + 1]);
-            const w2 = Math.max(0, rawWeights[i * 4 + 2]);
-            const w3 = Math.max(0, rawWeights[i * 4 + 3]);
-            joints[i * 4] = mapJoint(joints[i * 4]);
-            joints[i * 4 + 1] = mapJoint(joints[i * 4 + 1]);
-            joints[i * 4 + 2] = mapJoint(joints[i * 4 + 2]);
-            joints[i * 4 + 3] = mapJoint(joints[i * 4 + 3]);
-
-            let w4 = 0, w5 = 0, w6 = 0, w7 = 0;
-            if (useSecondSet && rawWeights1 && joints1) {
-              w4 = Math.max(0, rawWeights1[i * 4]);
-              w5 = Math.max(0, rawWeights1[i * 4 + 1]);
-              w6 = Math.max(0, rawWeights1[i * 4 + 2]);
-              w7 = Math.max(0, rawWeights1[i * 4 + 3]);
-              joints1[i * 4] = mapJoint(joints1[i * 4]);
-              joints1[i * 4 + 1] = mapJoint(joints1[i * 4 + 1]);
-              joints1[i * 4 + 2] = mapJoint(joints1[i * 4 + 2]);
-              joints1[i * 4 + 3] = mapJoint(joints1[i * 4 + 3]);
+            const wRaw = [0, 0, 0, 0, 0, 0, 0, 0];
+            for (let k = 0; k < 4; k++) wRaw[k] = Math.max(0, rawWeights[i * 4 + k]);
+            if (useSecondSet && rawWeights1) {
+              for (let k = 0; k < 4; k++) wRaw[4 + k] = Math.max(0, rawWeights1[i * 4 + k]);
             }
+            const wMapped = wRaw.slice();
+            let dropped = 0;
+            for (let k = 0; k < 4; k++) {
+              const m = mapJoint(joints[i * 4 + k]);
+              if (m < 0) {
+                if (wRaw[k] > 0) dropped++;
+                wMapped[k] = 0;
+                joints[i * 4 + k] = 0;
+              } else {
+                joints[i * 4 + k] = m;
+              }
+              if (useSecondSet && joints1) {
+                const m1 = mapJoint(joints1[i * 4 + k]);
+                if (m1 < 0) {
+                  if (wRaw[4 + k] > 0) dropped++;
+                  wMapped[4 + k] = 0;
+                  joints1[i * 4 + k] = 0;
+                } else {
+                  joints1[i * 4 + k] = m1;
+                }
+              }
+            }
+            if (dropped > 0) {
+              droppedInfluences += dropped;
+              affectedVertices++;
+              if (wMapped.reduce((a, b) => a + b, 0) <= 1e-6 && wRaw.reduce((a, b) => a + b, 0) > 1e-6) {
+                lostAllWeightVertices++;
+              }
+            }
+            const [w0, w1, w2, w3, w4, w5, w6, w7] = wMapped;
 
             const sum = w0 + w1 + w2 + w3 + w4 + w5 + w6 + w7;
             if (sum > 1e-6) {
@@ -1277,6 +1330,11 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
                 weights1[i * 4 + 3] = 0;
               }
             }
+          }
+          if (droppedInfluences > 0) {
+            unsupportedFeatures.add(
+              `${primLabel} (skin ${activeSkinIdx}): ${droppedInfluences} influence(s) on ${affectedVertices} of ${vertCount} vertices referenced joints missing from primary Skin[0]; those weights were dropped and the remaining weights renormalised. ${lostAllWeightVertices} vertex/vertices lost all weight and fall back to joint 0 with weight 1.`
+            );
           }
           hasExistingSkin = true;
         }
@@ -1340,7 +1398,9 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
       }
 
       let normals: Float32Array;
-      if (rawNorm.length >= vertCount * 3) {
+      if (singularTransform) {
+        normals = computeSmoothNormals(positions, indices);
+      } else if (rawNorm.length >= vertCount * 3) {
         normals = new Float32Array(vertCount * 3);
         for (let i = 0; i < vertCount; i++) {
           let nx = rawNorm[i * 3];
@@ -1393,7 +1453,7 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
             }
           }
           let tNormals: Float32Array | undefined;
-          if (target.NORMAL !== undefined) {
+          if (target.NORMAL !== undefined && !singularTransform) {
             const rawTN = readAccessorArray(binChunk!, accessors, bufferViews, target.NORMAL);
             if (rawTN.length >= vertCount * 3) {
               if (applyWorldTransform) {

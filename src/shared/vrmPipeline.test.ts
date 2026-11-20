@@ -2407,3 +2407,179 @@ test('Production Acceptance 7: 8-influence JOINTS_1/WEIGHTS_1 preservation, inco
 });
 
 
+
+function buildAccessorGlbParts() {
+  const chunks: Uint8Array[] = [];
+  const bufferViews: Array<Record<string, any>> = [];
+  const accessors: Array<Record<string, any>> = [];
+  let off = 0;
+  const add = (bytes: Uint8Array, componentType: number, count: number, type: string, target?: number) => {
+    const pad = (4 - (off % 4)) % 4;
+    if (pad) {
+      chunks.push(new Uint8Array(pad));
+      off += pad;
+    }
+    bufferViews.push({ buffer: 0, byteOffset: off, byteLength: bytes.length, ...(target ? { target } : {}) });
+    chunks.push(bytes);
+    off += bytes.length;
+    accessors.push({ bufferView: bufferViews.length - 1, componentType, count, type });
+    return accessors.length - 1;
+  };
+  const finish = () => {
+    const bin = new Uint8Array(off);
+    let wp = 0;
+    for (const ch of chunks) {
+      bin.set(ch, wp);
+      wp += ch.length;
+    }
+    return bin;
+  };
+  return { add, finish, accessors, bufferViews };
+}
+
+test('GLB importer: singular node transform recomputes normals, drops morph normals and warns; JOINTS_2/WEIGHTS_2 warned', () => {
+  const p = buildAccessorGlbParts();
+  // Triangle that stays non-degenerate when X is collapsed (scale x = 0).
+  const pos = new Float32Array([0, 0, 0, 1, 0, 1, 0, 1, 0]);
+  const nrm = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]);
+  const idx = new Uint16Array([0, 1, 2, 0]);
+  const mPos = new Float32Array([0, 0.1, 0, 0, 0.1, 0, 0, 0.1, 0]);
+  const mNrm = new Float32Array([0.1, 0, 0, 0.1, 0, 0, 0.1, 0, 0]);
+  const j2 = new Uint8Array(12).fill(0);
+  const w2 = new Float32Array(12).fill(0);
+  const posA = p.add(new Uint8Array(pos.buffer), 5126, 3, 'VEC3', 34962);
+  const nrmA = p.add(new Uint8Array(nrm.buffer), 5126, 3, 'VEC3', 34962);
+  const idxA = p.add(new Uint8Array(idx.buffer), 5123, 3, 'SCALAR', 34963);
+  const mPosA = p.add(new Uint8Array(mPos.buffer), 5126, 3, 'VEC3', 34962);
+  const mNrmA = p.add(new Uint8Array(mNrm.buffer), 5126, 3, 'VEC3', 34962);
+  const j2A = p.add(j2, 5121, 3, 'VEC4', 34962);
+  const w2A = p.add(new Uint8Array(w2.buffer), 5126, 3, 'VEC4', 34962);
+  const bin = p.finish();
+  const glb = packTestGlb({
+    asset: { version: '2.0' },
+    scene: 0,
+    scenes: [{ nodes: [0] }],
+    nodes: [{ name: 'FlatNode', mesh: 0, scale: [0, 1, 1] }],
+    meshes: [{
+      name: 'FlatMesh',
+      extras: { targetNames: ['Morph0'] },
+      primitives: [{
+        attributes: { POSITION: posA, NORMAL: nrmA, JOINTS_2: j2A, WEIGHTS_2: w2A },
+        indices: idxA,
+        targets: [{ POSITION: mPosA, NORMAL: mNrmA }],
+      }],
+    }],
+    accessors: p.accessors,
+    bufferViews: p.bufferViews,
+    buffers: [{ byteLength: bin.length }],
+  }, bin);
+
+  const parsed = parseAndValidateGlbAsset(glb);
+  assert.equal(parsed.valid, true);
+  const prim = parsed.meshes[0].primitives[0];
+  // Normals recomputed from collapsed geometry: triangle lies in the YZ plane, so normal is along +/-X.
+  for (let i = 0; i < 3; i++) {
+    assert.ok(Math.abs(Math.abs(prim.normals[i * 3]) - 1) < 1e-4, `vertex ${i} normal not along X: ${Array.from(prim.normals.slice(i * 3, i * 3 + 3))}`);
+  }
+  assert.equal(prim.morphTargets.length, 1);
+  assert.equal(prim.morphTargets[0].normals, undefined);
+  const feats = parsed.unsupportedFeatures ?? [];
+  assert.ok(feats.some((f) => f.includes('singular') && f.includes('morph target normals were dropped')), JSON.stringify(feats));
+  assert.ok(feats.some((f) => f.includes('JOINTS_2') && f.includes('WEIGHTS_2') && f.includes('first 8 influences')), JSON.stringify(feats));
+});
+
+test('GLB importer: short JOINTS_0/WEIGHTS_0 accessors are warned instead of silently dropped', () => {
+  const p = buildAccessorGlbParts();
+  const pos = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+  const idx = new Uint16Array([0, 1, 2, 0]);
+  const j0 = new Uint8Array([0, 0, 0, 0]); // 1 vertex only
+  const w0 = new Float32Array([1, 0, 0, 0]);
+  const posA = p.add(new Uint8Array(pos.buffer), 5126, 3, 'VEC3', 34962);
+  const idxA = p.add(new Uint8Array(idx.buffer), 5123, 3, 'SCALAR', 34963);
+  const j0A = p.add(j0, 5121, 1, 'VEC4', 34962);
+  const w0A = p.add(new Uint8Array(w0.buffer), 5126, 1, 'VEC4', 34962);
+  const bin = p.finish();
+  const glb = packTestGlb({
+    asset: { version: '2.0' },
+    scene: 0,
+    scenes: [{ nodes: [0, 1] }],
+    nodes: [{ name: 'M', mesh: 0, skin: 0 }, { name: 'J' }],
+    skins: [{ joints: [1] }],
+    meshes: [{ name: 'Short', primitives: [{ attributes: { POSITION: posA, JOINTS_0: j0A, WEIGHTS_0: w0A }, indices: idxA }] }],
+    accessors: p.accessors,
+    bufferViews: p.bufferViews,
+    buffers: [{ byteLength: bin.length }],
+  }, bin);
+  const parsed = parseAndValidateGlbAsset(glb);
+  assert.equal(parsed.valid, true);
+  assert.ok((parsed.unsupportedFeatures ?? []).some((f) => f.includes('JOINTS_0/WEIGHTS_0') && f.includes('fewer than 3 vertices')), JSON.stringify(parsed.unsupportedFeatures));
+});
+
+test('GLB importer: multi-skin remap drops weights for joints missing from Skin[0], renormalises and reports counts', () => {
+  const p = buildAccessorGlbParts();
+  const pos = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]);
+  const idx = new Uint16Array([0, 1, 2, 1, 3, 2]);
+  // skin 1 joints = [nodeA (also in skin 0), nodeC (missing from skin 0)]
+  const j0 = new Uint8Array([
+    0, 1, 1, 1, // v0: 0.6 on A, 0.2+0.2 on C
+    1, 1, 1, 1, // v1: all weight on C (lost entirely)
+    0, 0, 0, 0, // v2: unaffected
+    0, 1, 0, 0, // v3: 0.5 A, 0.5 C
+  ]);
+  const w0 = new Float32Array([
+    0.6, 0.2, 0.2, 0,
+    0, 1, 0, 0,
+    0.5, 0.5, 0, 0,
+    0.5, 0.5, 0, 0,
+  ]);
+  const posA = p.add(new Uint8Array(pos.buffer), 5126, 4, 'VEC3', 34962);
+  const idxA = p.add(new Uint8Array(idx.buffer), 5123, 6, 'SCALAR', 34963);
+  const j0A = p.add(j0, 5121, 4, 'VEC4', 34962);
+  const w0A = p.add(new Uint8Array(w0.buffer), 5126, 4, 'VEC4', 34962);
+  const bin = p.finish();
+  const glb = packTestGlb({
+    asset: { version: '2.0' },
+    scene: 0,
+    scenes: [{ nodes: [0, 1, 2, 3] }],
+    nodes: [
+      { name: 'SkinnedMesh', mesh: 0, skin: 1 },
+      { name: 'NodeB' },
+      { name: 'NodeA' },
+      { name: 'NodeC_onlyInSkin1' },
+    ],
+    skins: [
+      { name: 'Skin0', joints: [1, 2] },
+      { name: 'Skin1', joints: [2, 3] },
+    ],
+    meshes: [{ name: 'M', primitives: [{ attributes: { POSITION: posA, JOINTS_0: j0A, WEIGHTS_0: w0A }, indices: idxA }] }],
+    accessors: p.accessors,
+    bufferViews: p.bufferViews,
+    buffers: [{ byteLength: bin.length }],
+  }, bin);
+  const parsed = parseAndValidateGlbAsset(glb);
+  assert.equal(parsed.valid, true);
+  const prim = parsed.meshes[0].primitives[0];
+  assert.ok(prim.joints && prim.weights);
+  // NodeA is skins[0] joint index 1.
+  assert.equal(prim.joints![0], 1);
+  assert.ok(Math.abs(prim.weights![0] - 1) < 1e-6, `v0 weight renormalised to 1, got ${prim.weights![0]}`);
+  assert.ok(Math.abs(prim.weights![1] + prim.weights![2] + prim.weights![3]) < 1e-6);
+  // v1 lost everything -> joint 0 weight 1 fallback
+  assert.equal(prim.joints![4], 0);
+  assert.ok(Math.abs(prim.weights![4] - 1) < 1e-6);
+  // v2 untouched: 0.5/0.5 on joint 1
+  assert.ok(Math.abs(prim.weights![8] - 0.5) < 1e-6 && Math.abs(prim.weights![9] - 0.5) < 1e-6);
+  // v3: C dropped, A renormalised to 1
+  assert.equal(prim.joints![12], 1);
+  assert.ok(Math.abs(prim.weights![12] - 1) < 1e-6);
+  for (let v = 0; v < 4; v++) {
+    let s = 0;
+    for (let k = 0; k < 4; k++) s += prim.weights![v * 4 + k];
+    assert.ok(Math.abs(s - 1) < 1e-5, `vertex ${v} weights sum ${s}`);
+  }
+  // dropped influences: v0 two, v1 one, v3 one = 4 on 3 of 4 vertices; v1 lost all weight.
+  const msg = (parsed.unsupportedFeatures ?? []).find((f) => f.includes('missing from primary Skin[0]') && f.includes('renormalised'));
+  assert.ok(msg, JSON.stringify(parsed.unsupportedFeatures));
+  assert.ok(msg!.includes('4 influence(s) on 3 of 4 vertices'), msg);
+  assert.ok(msg!.includes('1 vertex/vertices lost all weight'), msg);
+});
