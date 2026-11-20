@@ -40,368 +40,213 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// node_modules/dotenv/lib/main.js
-var require_main = __commonJS({
-  "node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs8 = require("fs");
-    var path7 = require("path");
-    var os3 = require("os");
-    var crypto4 = require("crypto");
-    var TIPS = [
-      "\u25C8 encrypted .env [www.dotenvx.com]",
-      "\u25C8 secrets for agents [www.dotenvx.com]",
-      "\u2301 auth for agents [www.vestauth.com]",
-      "\u2318 custom filepath { path: '/custom/path/.env' }",
-      "\u2318 enable debugging { debug: true }",
-      "\u2318 override existing { override: true }",
-      "\u2318 suppress logs { quiet: true }",
-      "\u2318 multiple files { path: ['.env.local', '.env'] }"
-    ];
-    function _getRandomTip() {
-      return TIPS[Math.floor(Math.random() * TIPS.length)];
-    }
-    function parseBoolean(value) {
-      if (typeof value === "string") {
-        return !["false", "0", "no", "off", ""].includes(value.toLowerCase());
-      }
-      return Boolean(value);
-    }
-    function supportsAnsi() {
-      return process.stdout.isTTY;
-    }
-    function dim(text) {
-      return supportsAnsi() ? `\x1B[2m${text}\x1B[0m` : text;
-    }
-    var LINE = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg;
-    function parse(src) {
-      const obj = {};
-      let lines = src.toString();
-      lines = lines.replace(/\r\n?/mg, "\n");
-      let match2;
-      while ((match2 = LINE.exec(lines)) != null) {
-        const key = match2[1];
-        let value = match2[2] || "";
-        value = value.trim();
-        const maybeQuote = value[0];
-        value = value.replace(/^(['"`])([\s\S]*)\1$/mg, "$2");
-        if (maybeQuote === '"') {
-          value = value.replace(/\\n/g, "\n");
-          value = value.replace(/\\r/g, "\r");
-        }
-        obj[key] = value;
-      }
-      return obj;
-    }
-    function _parseVault(options) {
-      options = options || {};
-      const vaultPath = _vaultPath(options);
-      options.path = vaultPath;
-      const result = DotenvModule.configDotenv(options);
-      if (!result.parsed) {
-        const err = new Error(`MISSING_DATA: Cannot parse ${vaultPath} for an unknown reason`);
-        err.code = "MISSING_DATA";
-        throw err;
-      }
-      const keys = _dotenvKey(options).split(",");
-      const length = keys.length;
-      let decrypted;
-      for (let i2 = 0; i2 < length; i2++) {
-        try {
-          const key = keys[i2].trim();
-          const attrs = _instructions(result, key);
-          decrypted = DotenvModule.decrypt(attrs.ciphertext, attrs.key);
-          break;
-        } catch (error) {
-          if (i2 + 1 >= length) {
-            throw error;
-          }
-        }
-      }
-      return DotenvModule.parse(decrypted);
-    }
-    function _warn(message) {
-      console.error(`\u26A0 ${message}`);
-    }
-    function _debug(message) {
-      console.log(`\u2506 ${message}`);
-    }
-    function _log(message) {
-      console.log(`\u25C7 ${message}`);
-    }
-    function _dotenvKey(options) {
-      if (options && options.DOTENV_KEY && options.DOTENV_KEY.length > 0) {
-        return options.DOTENV_KEY;
-      }
-      if (process.env.DOTENV_KEY && process.env.DOTENV_KEY.length > 0) {
-        return process.env.DOTENV_KEY;
-      }
-      return "";
-    }
-    function _instructions(result, dotenvKey) {
-      let uri;
+// node_modules/dotenv/dist/index.cjs
+var require_dist = __commonJS({
+  "node_modules/dotenv/dist/index.cjs"(exports2, module2) {
+    var j = (e2, n) => () => {
       try {
-        uri = new URL(dotenvKey);
-      } catch (error) {
-        if (error.code === "ERR_INVALID_URL") {
-          const err = new Error("INVALID_DOTENV_KEY: Wrong format. Must be in valid uri format like dotenv://:key_1234@dotenvx.com/vault/.env.vault?environment=development");
-          err.code = "INVALID_DOTENV_KEY";
-          throw err;
-        }
-        throw error;
+        return n || e2((n = { exports: {} }).exports, n), n.exports;
+      } catch (t2) {
+        throw n = 0, t2;
       }
-      const key = uri.password;
-      if (!key) {
-        const err = new Error("INVALID_DOTENV_KEY: Missing key part");
-        err.code = "INVALID_DOTENV_KEY";
-        throw err;
-      }
-      const environment = uri.searchParams.get("environment");
-      if (!environment) {
-        const err = new Error("INVALID_DOTENV_KEY: Missing environment part");
-        err.code = "INVALID_DOTENV_KEY";
-        throw err;
-      }
-      const environmentKey = `DOTENV_VAULT_${environment.toUpperCase()}`;
-      const ciphertext = result.parsed[environmentKey];
-      if (!ciphertext) {
-        const err = new Error(`NOT_FOUND_DOTENV_ENVIRONMENT: Cannot locate environment ${environmentKey} in your .env.vault file.`);
-        err.code = "NOT_FOUND_DOTENV_ENVIRONMENT";
-        throw err;
-      }
-      return { ciphertext, key };
-    }
-    function _vaultPath(options) {
-      let possibleVaultPath = null;
-      if (options && options.path && options.path.length > 0) {
-        if (Array.isArray(options.path)) {
-          for (const filepath of options.path) {
-            if (fs8.existsSync(filepath)) {
-              possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
-            }
-          }
-        } else {
-          possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
-        }
-      } else {
-        possibleVaultPath = path7.resolve(process.cwd(), ".env.vault");
-      }
-      if (fs8.existsSync(possibleVaultPath)) {
-        return possibleVaultPath;
-      }
-      return null;
-    }
-    function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path7.join(os3.homedir(), envPath.slice(1)) : envPath;
-    }
-    function _configVault(options) {
-      const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
-      const quiet = parseBoolean(process.env.DOTENV_CONFIG_QUIET || options && options.quiet);
-      if (debug || !quiet) {
-        _log("loading env from encrypted .env.vault");
-      }
-      const parsed = DotenvModule._parseVault(options);
-      let processEnv = process.env;
-      if (options && options.processEnv != null) {
-        processEnv = options.processEnv;
-      }
-      DotenvModule.populate(processEnv, parsed, options);
-      return { parsed };
-    }
-    function configDotenv(options) {
-      const dotenvPath = path7.resolve(process.cwd(), ".env");
-      let encoding = "utf8";
-      let processEnv = process.env;
-      if (options && options.processEnv != null) {
-        processEnv = options.processEnv;
-      }
-      let debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || options && options.debug);
-      let quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || options && options.quiet);
-      if (options && options.encoding) {
-        encoding = options.encoding;
-      } else {
-        if (debug) {
-          _debug("no encoding is specified (UTF-8 is used by default)");
-        }
-      }
-      let optionPaths = [dotenvPath];
-      if (options && options.path) {
-        if (!Array.isArray(options.path)) {
-          optionPaths = [_resolveHome(options.path)];
-        } else {
-          optionPaths = [];
-          for (const filepath of options.path) {
-            optionPaths.push(_resolveHome(filepath));
-          }
-        }
-      }
-      let lastError;
-      const parsedAll = {};
-      for (const path8 of optionPaths) {
-        try {
-          const parsed = DotenvModule.parse(fs8.readFileSync(path8, { encoding }));
-          DotenvModule.populate(parsedAll, parsed, options);
-        } catch (e2) {
-          if (debug) {
-            _debug(`failed to load ${path8} ${e2.message}`);
-          }
-          lastError = e2;
-        }
-      }
-      const populated = DotenvModule.populate(processEnv, parsedAll, options);
-      debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || debug);
-      quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || quiet);
-      if (debug || !quiet) {
-        const keysCount = Object.keys(populated).length;
-        const shortPaths = [];
-        for (const filePath of optionPaths) {
-          try {
-            const relative = path7.relative(process.cwd(), filePath);
-            shortPaths.push(relative);
-          } catch (e2) {
-            if (debug) {
-              _debug(`failed to load ${filePath} ${e2.message}`);
-            }
-            lastError = e2;
-          }
-        }
-        _log(`injected env (${keysCount}) from ${shortPaths.join(",")} ${dim(`// tip: ${_getRandomTip()}`)}`);
-      }
-      if (lastError) {
-        return { parsed: parsedAll, error: lastError };
-      } else {
-        return { parsed: parsedAll };
-      }
-    }
-    function config(options) {
-      if (_dotenvKey(options).length === 0) {
-        return DotenvModule.configDotenv(options);
-      }
-      const vaultPath = _vaultPath(options);
-      if (!vaultPath) {
-        _warn(`you set DOTENV_KEY but you are missing a .env.vault file at ${vaultPath}`);
-        return DotenvModule.configDotenv(options);
-      }
-      return DotenvModule._configVault(options);
-    }
-    function decrypt(encrypted, keyStr) {
-      const key = Buffer.from(keyStr.slice(-64), "hex");
-      let ciphertext = Buffer.from(encrypted, "base64");
-      const nonce = ciphertext.subarray(0, 12);
-      const authTag = ciphertext.subarray(-16);
-      ciphertext = ciphertext.subarray(12, -16);
-      try {
-        const aesgcm = crypto4.createDecipheriv("aes-256-gcm", key, nonce);
-        aesgcm.setAuthTag(authTag);
-        return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
-      } catch (error) {
-        const isRange = error instanceof RangeError;
-        const invalidKeyLength = error.message === "Invalid key length";
-        const decryptionFailed = error.message === "Unsupported state or unable to authenticate data";
-        if (isRange || invalidKeyLength) {
-          const err = new Error("INVALID_DOTENV_KEY: It must be 64 characters long (or more)");
-          err.code = "INVALID_DOTENV_KEY";
-          throw err;
-        } else if (decryptionFailed) {
-          const err = new Error("DECRYPTION_FAILED: Please check your DOTENV_KEY");
-          err.code = "DECRYPTION_FAILED";
-          throw err;
-        } else {
-          throw error;
-        }
-      }
-    }
-    function populate(processEnv, parsed, options = {}) {
-      const debug = Boolean(options && options.debug);
-      const override = Boolean(options && options.override);
-      const populated = {};
-      if (typeof parsed !== "object") {
-        const err = new Error("OBJECT_REQUIRED: Please check the processEnv argument being passed to populate");
-        err.code = "OBJECT_REQUIRED";
-        throw err;
-      }
-      for (const key of Object.keys(parsed)) {
-        if (Object.prototype.hasOwnProperty.call(processEnv, key)) {
-          if (override === true) {
-            processEnv[key] = parsed[key];
-            populated[key] = parsed[key];
-          }
-          if (debug) {
-            if (override === true) {
-              _debug(`"${key}" is already defined and WAS overwritten`);
-            } else {
-              _debug(`"${key}" is already defined and was NOT overwritten`);
-            }
-          }
-        } else {
-          processEnv[key] = parsed[key];
-          populated[key] = parsed[key];
-        }
-      }
-      return populated;
-    }
-    var DotenvModule = {
-      configDotenv,
-      _configVault,
-      _parseVault,
-      config,
-      decrypt,
-      parse,
-      populate
     };
-    module2.exports.configDotenv = DotenvModule.configDotenv;
-    module2.exports._configVault = DotenvModule._configVault;
-    module2.exports._parseVault = DotenvModule._parseVault;
-    module2.exports.config = DotenvModule.config;
-    module2.exports.decrypt = DotenvModule.decrypt;
-    module2.exports.parse = DotenvModule.parse;
-    module2.exports.populate = DotenvModule.populate;
-    module2.exports = DotenvModule;
+    var R = j((Z2, N) => {
+      function T(e2) {
+        return typeof e2 == "string" ? !["false", "0", "no", "off", ""].includes(e2.toLowerCase()) : !!e2;
+      }
+      function U(e2 = process.env) {
+        let n = {};
+        for (let t2 of ["ENCODING", "PATH", "QUIET", "DEBUG", "OVERRIDE", "FAST"]) {
+          let r2 = e2[`DOTENV_${t2}`] != null ? e2[`DOTENV_${t2}`] : e2[`DOTENV_CONFIG_${t2}`];
+          r2 != null && (n[t2.toLowerCase()] = t2 === "ENCODING" || t2 === "PATH" ? r2 : T(r2));
+        }
+        return n;
+      }
+      N.exports = { parseBoolean: T, optionsFromEnv: U };
+    });
+    var P = j((ee, b) => {
+      var F2 = require("fs"), _ = require("path"), B = require("os"), { URL: L, fileURLToPath: Q } = require("url"), { parseBoolean: $, optionsFromEnv: I } = R(), G = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg, y = new Uint8Array(256);
+      for (let e2 = 48; e2 <= 57; e2++) y[e2] = 1;
+      for (let e2 = 65; e2 <= 90; e2++) y[e2] = 1;
+      for (let e2 = 97; e2 <= 122; e2++) y[e2] = 1;
+      y[45] = 1;
+      y[46] = 1;
+      y[95] = 1;
+      function H(e2) {
+        let n = {}, t2 = e2.toString();
+        t2 = t2.replace(/\r\n?/mg, `
+`);
+        let r2;
+        for (; (r2 = G.exec(t2)) != null; ) {
+          let o = r2[1], i2 = r2[2] || "";
+          i2 = i2.trim();
+          let c = i2[0];
+          i2 = i2.replace(/^(['"`])([\s\S]*)\1$/mg, "$2"), c === '"' && (i2 = i2.replace(/\\n/g, `
+`), i2 = i2.replace(/\\r/g, "\r")), n[o] = i2;
+        }
+        return n;
+      }
+      function g(e2) {
+        return e2 <= 32 ? e2 === 32 || e2 >= 9 && e2 <= 13 : e2 >= 160 && (e2 === 160 || e2 === 5760 || e2 >= 8192 && e2 <= 8202 || e2 === 8232 || e2 === 8233 || e2 === 8239 || e2 === 8287 || e2 === 12288 || e2 === 65279);
+      }
+      function O(e2) {
+        return e2 === 10 || e2 === 8232 || e2 === 8233;
+      }
+      function V(e2) {
+        let n = {}, t2 = typeof e2 == "string" ? e2 : e2.toString();
+        t2.indexOf("\r") !== -1 && (t2 = t2.replace(/\r\n?/g, `
+`));
+        let r2 = t2.length, o = 0;
+        for (; o < r2; ) {
+          let i2 = t2.charCodeAt(o);
+          for (; o < r2 && g(i2); ) o++, i2 = t2.charCodeAt(o);
+          if (o >= r2) break;
+          if (i2 === 35) {
+            for (; o < r2 && !O(t2.charCodeAt(o)); ) o++;
+            continue;
+          }
+          let c = -1;
+          if (i2 === 101 && o + 6 < r2 && t2.charCodeAt(o + 1) === 120 && t2.charCodeAt(o + 2) === 112 && t2.charCodeAt(o + 3) === 111 && t2.charCodeAt(o + 4) === 114 && t2.charCodeAt(o + 5) === 116) {
+            let u = t2.charCodeAt(o + 6);
+            if (g(u)) {
+              let s2 = o + 7;
+              for (; s2 < r2 && g(t2.charCodeAt(s2)); ) s2++;
+              y[t2.charCodeAt(s2)] && (c = o + 6, o = s2);
+            } else i2 = t2.charCodeAt(o);
+          }
+          let E = o, p = 0;
+          for (; o < r2 && (p = t2.charCodeAt(o), y[p]); ) o++;
+          if (o === E) {
+            for (; o < r2 && !O(t2.charCodeAt(o)); ) o++;
+            continue;
+          }
+          let k = t2.slice(E, o), D = o;
+          if (o >= r2 && (p = 0), g(p)) do
+            o++, p = o < r2 ? t2.charCodeAt(o) : 0;
+          while (g(p));
+          if (p === 61) o++;
+          else if (p === 58 && o === D && o + 1 < r2 && g(t2.charCodeAt(o + 1))) o += 2;
+          else {
+            for (o = c === -1 ? D : c; o < r2 && !O(t2.charCodeAt(o)); ) o++;
+            continue;
+          }
+          let d = o, l = o;
+          for (; l < r2 && g(t2.charCodeAt(l)); ) l++;
+          let C = t2.charCodeAt(l), a, q = false;
+          if (C === 39 || C === 34 || C === 96) {
+            let u = t2[l], s2 = t2.indexOf(u, l + 1), f3 = -1, h2 = -1;
+            for (; s2 !== -1; ) {
+              let x2 = t2.charCodeAt(s2 - 1) === 92, w = s2 + 1;
+              for (; w < r2 && !O(t2.charCodeAt(w)) && g(t2.charCodeAt(w)); ) w++;
+              if ((w === r2 || O(t2.charCodeAt(w)) || t2.charCodeAt(w) === 35) && (f3 = s2, h2 = w), !x2) break;
+              s2 = t2.indexOf(u, s2 + 1);
+            }
+            if (f3 !== -1) {
+              if (a = t2.slice(l + 1, f3), o = h2, t2.charCodeAt(o) === 35) for (; o < r2 && !O(t2.charCodeAt(o)); ) o++;
+              q = true;
+            }
+          }
+          if (!q) {
+            let u = t2.indexOf(`
+`, d);
+            u === -1 && (u = r2);
+            let s2;
+            if (r2 < 4096) s2 = t2.indexOf("#", d), (s2 === -1 || s2 > u) && (s2 = u);
+            else for (s2 = d; s2 < u && t2.charCodeAt(s2) !== 35; ) s2++;
+            let f3 = d, h2 = s2;
+            for (; f3 < h2 && g(t2.charCodeAt(f3)); ) f3++;
+            for (; h2 > f3 && g(t2.charCodeAt(h2 - 1)); ) h2--;
+            let x2 = t2.charCodeAt(f3);
+            if (a = t2.slice(f3, h2), a.includes("\u2028") || a.includes("\u2029") ? a = a.replace(/^(['"`])([\s\S]*)\1$/mg, "$2") : h2 - f3 >= 2 && (x2 === 39 || x2 === 34 || x2 === 96) && t2.charCodeAt(h2 - 1) === x2 && (a = t2.slice(f3 + 1, h2 - 1)), o = s2, s2 < u) for (; o < r2 && !O(t2.charCodeAt(o)); ) o++;
+          }
+          C === 34 && (q || l < o) && a.indexOf("\\") !== -1 && (a = a.replace(/\\n/g, `
+`).replace(/\\r/g, "\r")), n[k] = a;
+        }
+        return n;
+      }
+      function J(e2, n) {
+        return n && $(n.fast) ? V(e2) : H(e2);
+      }
+      function v(e2) {
+        console.log(`\u2506 ${e2}`);
+      }
+      function W(e2) {
+        console.error(`\u25C7 ${e2}`);
+      }
+      function S2(e2) {
+        return e2[0] === "~" ? _.join(B.homedir(), e2.slice(1)) : e2;
+      }
+      function K(e2 = {}) {
+        let n = { ...e2 };
+        for (let t2 of Object.keys(n)) n[t2] === void 0 && delete n[t2];
+        return { ...I(), ...n };
+      }
+      function M(e2) {
+        e2 = K(e2);
+        let n = _.resolve(process.cwd(), ".env"), t2 = "utf8", r2 = process.env;
+        e2 && e2.processEnv != null && (r2 = e2.processEnv);
+        let o = $(e2 && e2.debug);
+        e2 && e2.encoding ? t2 = e2.encoding : o && v("no encoding is specified (UTF-8 is used by default)");
+        let i2 = [n];
+        if (e2 && e2.path) if (!Array.isArray(e2.path)) i2 = [S2(e2.path)];
+        else {
+          i2 = [];
+          for (let d of e2.path) i2.push(S2(d));
+        }
+        let c, E = {}, p = { fast: e2.fast };
+        for (let d of i2) try {
+          let l = A2.parse(F2.readFileSync(d, { encoding: t2 }), p);
+          A2.populate(E, l, e2);
+        } catch (l) {
+          o && v(`failed to load ${d} ${l.message}`), c = l;
+        }
+        let k = A2.populate(r2, E, e2), D = $(Object.prototype.hasOwnProperty.call(e2, "quiet") ? e2.quiet : I(r2).quiet);
+        if (o || !D) {
+          let d = Object.keys(k).length, l = [];
+          for (let C of i2) try {
+            let a = _.relative(process.cwd(), C instanceof L ? Q(C) : C);
+            l.push(a);
+          } catch (a) {
+            o && v(`failed to load ${C} ${a.message}`), c = a;
+          }
+          W(`injected env (${d}) from ${l.join(",")}`);
+        }
+        return c ? { parsed: E, error: c } : { parsed: E };
+      }
+      function Y(e2) {
+        return A2.configDotenv(e2);
+      }
+      function z(e2, n, t2 = {}) {
+        let r2 = $(t2 && t2.debug), o = $(t2 && t2.override), i2 = {};
+        if (e2 === null || typeof e2 != "object" || n === null || typeof n != "object") {
+          let c = new Error("OBJECT_REQUIRED: Please check the processEnv argument being passed to populate");
+          throw c.code = "OBJECT_REQUIRED", c;
+        }
+        for (let c of Object.keys(n)) Object.prototype.hasOwnProperty.call(e2, c) ? (o === true && (e2[c] = n[c], i2[c] = n[c]), r2 && v(o === true ? `"${c}" is already defined and WAS overwritten` : `"${c}" is already defined and was NOT overwritten`)) : (e2[c] = n[c], i2[c] = n[c]);
+        return i2;
+      }
+      var A2 = { configDotenv: M, config: Y, parse: J, populate: z };
+      b.exports.configDotenv = A2.configDotenv;
+      b.exports.config = A2.config;
+      b.exports.parse = A2.parse;
+      b.exports.populate = A2.populate;
+      b.exports = A2;
+    });
+    var m2 = P();
+    module2.exports = m2;
+    module2.exports.config = m2.config;
+    module2.exports.configDotenv = m2.configDotenv;
+    module2.exports.parse = m2.parse;
+    module2.exports.populate = m2.populate;
   }
 });
 
-// node_modules/dotenv/lib/env-options.js
-var require_env_options = __commonJS({
-  "node_modules/dotenv/lib/env-options.js"(exports2, module2) {
-    var options = {};
-    if (process.env.DOTENV_CONFIG_ENCODING != null) {
-      options.encoding = process.env.DOTENV_CONFIG_ENCODING;
-    }
-    if (process.env.DOTENV_CONFIG_PATH != null) {
-      options.path = process.env.DOTENV_CONFIG_PATH;
-    }
-    if (process.env.DOTENV_CONFIG_QUIET != null) {
-      options.quiet = process.env.DOTENV_CONFIG_QUIET;
-    }
-    if (process.env.DOTENV_CONFIG_DEBUG != null) {
-      options.debug = process.env.DOTENV_CONFIG_DEBUG;
-    }
-    if (process.env.DOTENV_CONFIG_OVERRIDE != null) {
-      options.override = process.env.DOTENV_CONFIG_OVERRIDE;
-    }
-    if (process.env.DOTENV_CONFIG_DOTENV_KEY != null) {
-      options.DOTENV_KEY = process.env.DOTENV_CONFIG_DOTENV_KEY;
-    }
-    module2.exports = options;
-  }
-});
-
-// node_modules/dotenv/lib/cli-options.js
-var require_cli_options = __commonJS({
-  "node_modules/dotenv/lib/cli-options.js"(exports2, module2) {
-    var re = /^dotenv_config_(encoding|path|quiet|debug|override|DOTENV_KEY)=(.+)$/;
-    module2.exports = function optionMatcher(args) {
-      const options = args.reduce(function(acc, cur) {
-        const matches = cur.match(re);
-        if (matches) {
-          acc[matches[1]] = matches[2];
-        }
-        return acc;
-      }, {});
-      if (!("quiet" in options)) {
-        options.quiet = "true";
-      }
-      return options;
-    };
+// node_modules/dotenv/dist/config.cjs
+var require_config = __commonJS({
+  "node_modules/dotenv/dist/config.cjs"() {
+    var dotenv = require_dist();
+    var quiet = process.env.DOTENV_QUIET != null ? process.env.DOTENV_QUIET : process.env.DOTENV_CONFIG_QUIET;
+    dotenv.config({ quiet: quiet != null ? quiet : true });
   }
 });
 
@@ -25231,7 +25076,7 @@ var require_helpers = __commonJS({
 });
 
 // node_modules/agent-base/dist/index.js
-var require_dist = __commonJS({
+var require_dist2 = __commonJS({
   "node_modules/agent-base/dist/index.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m2, k, k2) {
@@ -25483,7 +25328,7 @@ var require_parse_proxy_response = __commonJS({
 });
 
 // node_modules/https-proxy-agent/dist/index.js
-var require_dist2 = __commonJS({
+var require_dist3 = __commonJS({
   "node_modules/https-proxy-agent/dist/index.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m2, k, k2) {
@@ -25522,7 +25367,7 @@ var require_dist2 = __commonJS({
     var tls = __importStar(require("tls"));
     var assert_1 = __importDefault(require("assert"));
     var debug_1 = __importDefault(require_src2());
-    var agent_base_1 = require_dist();
+    var agent_base_1 = require_dist2();
     var url_1 = require("url");
     var parse_proxy_response_1 = require_parse_proxy_response();
     var debug = (0, debug_1.default)("https-proxy-agent");
@@ -32553,7 +32398,7 @@ Content-Type: ${partContentType}\r
        * @returns A proxy agent
        */
       static async #getProxyAgent() {
-        this.#proxyAgent ||= (await Promise.resolve().then(() => __toESM(require_dist2()))).HttpsProxyAgent;
+        this.#proxyAgent ||= (await Promise.resolve().then(() => __toESM(require_dist3()))).HttpsProxyAgent;
         return this.#proxyAgent;
       }
       static async #getFetch() {
@@ -45981,18 +45826,8 @@ var require_websocket_server = __commonJS({
   }
 });
 
-// node_modules/dotenv/config.js
-(function() {
-  require_main().config(
-    Object.assign(
-      {},
-      require_env_options(),
-      require_cli_options()(process.argv)
-    )
-  );
-})();
-
 // server.ts
+var import_config = __toESM(require_config(), 1);
 var import_node_child_process3 = require("node:child_process");
 var import_node_crypto2 = __toESM(require("node:crypto"), 1);
 var import_node_fs6 = __toESM(require("node:fs"), 1);
