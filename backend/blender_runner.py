@@ -49,7 +49,8 @@ def candidate_blender_paths() -> List[str]:
         pf = os.environ.get("ProgramFiles", r"C:\Program Files")
         pf86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
         for base in (pf, pf86):
-            for ver in ("4.3", "4.2", "4.1", "4.0", "3.6"):
+            # 4.2 first (acceptance target); newer builds also via BLENDER_EXECUTABLE.
+            for ver in ("4.2", "5.2", "5.1", "5.0", "4.5", "4.4", "4.3", "4.1", "4.0", "3.6"):
                 candidates.append(str(Path(base) / "Blender Foundation" / f"Blender {ver}" / "blender.exe"))
     elif system == "Darwin":
         candidates.extend([
@@ -111,7 +112,7 @@ def run_blender_script(
     if not Path(script_path).is_file():
         raise FileNotFoundError(f"Blender Python script not found: {script_path}")
 
-    cmd = [blender_executable, "--background", "--python", script_path]
+    cmd = [blender_executable, "--background", "--python-exit-code", "1", "--python", script_path]
     if extra_args:
         cmd.append("--")
         cmd.extend(extra_args)

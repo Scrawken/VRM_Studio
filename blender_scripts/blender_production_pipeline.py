@@ -391,7 +391,10 @@ def _configure_vrm_extension(
         # Map mesh shape keys to VRM 0.0 blendShapeGroups using official lowercase enums & 0..100 weights
         if hasattr(ext.vrm0, "blend_shape_master"):
             bsg = ext.vrm0.blend_shape_master.blend_shape_groups
-            seen = set()
+            # One group per (preset, key name) with a bind on EVERY mesh that carries that key. Binding only
+            # the first mesh found (bpy.data.objects is name-sorted, so e.g. EyesMesh precedes FaceAndBodyMesh)
+            # attached expressions to a mesh where the key is all-zero and failed validation.
+            groups = {}
             for m_obj in mesh_objs:
                 sk = getattr(m_obj.data, "shape_keys", None)
                 if not sk:
@@ -403,16 +406,17 @@ def _configure_vrm_extension(
                     if preset not in VRM0_BLEND_SHAPE_PRESETS:
                         preset = "unknown"
                     key = (preset, kb.name.lower())
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    grp = bsg.add()
-                    grp.name = kb.name
-                    grp.preset_name = preset
+                    entry = groups.setdefault(key, (kb.name, preset, []))
+                    entry[2].append(m_obj.name)
+            for _key, (kb_name, preset, mesh_names) in groups.items():
+                grp = bsg.add()
+                grp.name = kb_name
+                grp.preset_name = preset
+                for mesh_name in mesh_names:
                     bind = grp.binds.add()
                     if hasattr(bind, "mesh"):
-                        bind.mesh.mesh_object_name = m_obj.name
-                    bind.index = kb.name
+                        bind.mesh.mesh_object_name = mesh_name
+                    bind.index = kb_name
                     bind.weight = 100
 
         # Secondary springs & colliders: preserve source physics cleanly, excluding humanoid bones
@@ -558,7 +562,107 @@ def _check_weight_normalization(mesh_objs) -> dict:
     }
 
 
-def run_production_pipeline(
+VRM_EXTENSION_PROPERTY = "vrm_addon_extension"
+
+
+def _vrm_extension_registered():
+    """True/False when the VRM add-on's Armature property is (not) registered; None if undeterminable.
+
+    hasattr(bpy.ops.export_scene, "vrm") is NOT a valid test: bpy.ops resolves any attribute
+    lazily, so it is True even when the add-on is disabled or was unregistered by a factory reset.
+    """
+    types_mod = getattr(bpy, "types", None)
+    armature_type = getattr(types_mod, "Armature", None) if types_mod is not None else None
+    if armature_type is None or not hasattr(armature_type, "bl_rna"):
+        return None
+    try:
+        return VRM_EXTENSION_PROPERTY in armature_type.bl_rna.properties
+    except Exception:
+        return None
+
+
+def _enabled_addon_names():
+    try:
+        return [str(k) for k in bpy.context.preferences.addons.keys()]
+    except Exception:
+        return []
+
+
+def ensure_vrm_addon(preferred_names=()):
+    """Make sure the VRM add-on is registered; re-enable it if a factory reset removed it.
+
+    Returns (registered, detail). Enabling uses default_set=True so the add-on gets a preferences entry (the VRM exporter asserts
+    "No add-on preferences" without it); persistent=False and --background mean nothing is written to the
+    user's saved preferences. Add-on preference values return to defaults after read_factory_settings.
+    """
+    state = _vrm_extension_registered()
+    if state is None:
+        return True, "bpy.types unavailable; add-on registration not verifiable here"
+    if state:
+        return True, "registered"
+    try:
+        import addon_utils
+    except Exception as exc:  # pragma: no cover - only outside Blender
+        return False, f"addon_utils unavailable: {exc}"
+    names = [n for n in preferred_names if "vrm" in n.lower()]
+    try:
+        for mod in addon_utils.modules():
+            n = getattr(mod, "__name__", "")
+            if "vrm" in n.lower() and n not in names:
+                names.append(n)
+    except Exception:
+        pass
+    errors = []
+    for name in names:
+        try:
+            addon_utils.enable(name, default_set=True, persistent=False)
+        except Exception as exc:
+            errors.append(f"{name}: {exc}")
+        if _vrm_extension_registered():
+            return True, f"enabled {name}"
+    if not names:
+        detail = "VRM add-on not found among installed add-ons"
+    else:
+        detail = "could not register VRM add-on (" + "; ".join(errors or ["no error reported"]) + ")"
+    return False, detail
+
+
+def _reset_scene(addon_names=()):
+    """Factory reset to an empty scene, then restore the VRM add-on that the reset unregisters."""
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    return ensure_vrm_addon(addon_names)
+
+
+def _pick_armature(arm_objs, mesh_objs):
+    """Choose the deforming armature: most bound meshes, then most matched vertex groups, then most bones."""
+    def score(arm):
+        bound = 0
+        matched = 0
+        bone_names = {b.name for b in arm.data.bones}
+        for m in mesh_objs:
+            mods = [
+                md for md in getattr(m, "modifiers", [])
+                if getattr(md, "type", "") == "ARMATURE" and getattr(md, "object", None) is arm
+            ]
+            parented = getattr(m, "parent", None) is arm
+            if mods or parented:
+                bound += 1
+            try:
+                matched += sum(1 for vg in getattr(m, "vertex_groups", []) if vg.name in bone_names)
+            except Exception:
+                pass
+        return (bound, matched, len(arm.data.bones))
+    scored = [(score(a), a) for a in arm_objs]
+    best = max(scored, key=lambda t: t[0])[1]
+    info = [
+        {"name": a.name, "bound_meshes": sc[0], "matched_vertex_groups": sc[1], "bone_count": sc[2]}
+        for sc, a in scored
+    ]
+    return best, info
+
+
+def _run_production_pipeline_impl(
+    stage: dict,
     out_dir: str,
     glb_path: str,
     vrm_version: str = "0.0",
@@ -591,7 +695,9 @@ def run_production_pipeline(
                 blender_context = {}
 
     os.makedirs(out_dir, exist_ok=True)
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+    prior_addons = _enabled_addon_names()
+    stage["name"] = "import"
+    _reset_scene(prior_addons)
     bpy.ops.import_scene.gltf(filepath=glb_path)
 
     mesh_objs = [o for o in bpy.data.objects if o.type == "MESH"]
@@ -601,12 +707,18 @@ def run_production_pipeline(
     input_materials, input_textures = _collect_materials_and_images(mesh_objs)
     arm_objs = [o for o in bpy.data.objects if o.type == "ARMATURE"]
     unrigged_auto_rigged = False
+    armature_candidates = []
     if not arm_objs:
         arm_obj = _create_fitted_humanoid_armature(mesh_objs)
         unrigged_auto_rigged = True
     else:
-        arm_obj = arm_objs[0]
+        arm_obj, armature_candidates = _pick_armature(arm_objs, mesh_objs)
 
+    # Cache everything derived from arm_obj now: the reload below replaces all Blender data
+    # and leaves arm_obj as a dangling reference.
+    armature_name = arm_obj.name
+    bone_count = len(arm_obj.data.bones)
+    stage["name"] = "rig"
     bone_map = resolve_vrm_bone_map(arm_obj)
     missing_bones = [b for b in REQUIRED_VRM_BONES if b not in bone_map]
     total_polys = sum(len(o.data.polygons) for o in mesh_objs)
@@ -626,10 +738,13 @@ def run_production_pipeline(
         and deformation["deformed"]
     )
 
+    stage["name"] = "save_blend"
     blend_path = os.path.join(out_dir, blend_filename)
     bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
-    vrm_addon_installed = hasattr(bpy.ops, "export_scene") and hasattr(bpy.ops.export_scene, "vrm")
+    stage["name"] = "export"
+    vrm_addon_installed, addon_detail = ensure_vrm_addon(prior_addons)
+    vrm_addon_installed = bool(vrm_addon_installed and hasattr(arm_obj.data, VRM_EXTENSION_PROPERTY))
     vrm_path = os.path.join(out_dir, vrm_filename)
     vrm_export_success = False
     vrm_reload_success = False
@@ -666,7 +781,10 @@ def run_production_pipeline(
                         errs = vrm_reload_report.get("errors") or []
                         vrm_note = f"Independent VRM {vrm_version} validator failed: {'; '.join(errs) or vrm_reload_report.get('error', 'schema violation')}"
 
-                bpy.ops.wm.read_factory_settings(use_empty=True)
+                stage["name"] = "reload"
+                reload_addon_ok, reload_addon_detail = _reset_scene(prior_addons)
+                if not reload_addon_ok:
+                    raise RuntimeError(f"VRM add-on could not be re-enabled after reset: {reload_addon_detail}")
                 bpy.ops.import_scene.gltf(filepath=vrm_path)
                 reloaded_meshes = [o for o in bpy.data.objects if o.type == "MESH"]
                 rel_mats, rel_imgs = _collect_materials_and_images(reloaded_meshes)
@@ -680,7 +798,7 @@ def run_production_pipeline(
         except Exception as exc:
             vrm_note = f"VRM {vrm_version} export/reload failed: {exc}"
     else:
-        vrm_note = "VRM_Addon_for_Blender is not installed in this Blender instance; .vrm export and reload did NOT succeed."
+        vrm_note = f"VRM_Addon_for_Blender is not registered in this Blender instance ({addon_detail}); .vrm export and reload did NOT succeed."
 
     ok = (
         rigging_success
@@ -715,7 +833,9 @@ def run_production_pipeline(
         "mesh_count": len(mesh_objs),
         "vertex_count": weight_audit["total_vertices"],
         "polygon_count": total_polys,
-        "bone_count": len(arm_obj.data.bones),
+        "bone_count": bone_count,
+        "armature_name": armature_name,
+        "armature_candidates": armature_candidates,
         "mapped_bones": bone_map,
         "missing_required_bones": missing_bones,
         "vertex_groups": total_vgroups,
@@ -726,6 +846,7 @@ def run_production_pipeline(
         "deformation_max_delta": deformation["max_delta"],
         "deformation_joint_results": deformation["joint_results"],
         "vrm_addon_installed": vrm_addon_installed,
+        "vrm_addon_detail": addon_detail,
         "vrm_exported": vrm_export_success,
         "vrm_path": vrm_path if vrm_export_success else None,
         "vrm_reload_valid": vrm_reload_success,
@@ -737,6 +858,55 @@ def run_production_pipeline(
         json.dump(report, f, indent=2)
     print("BLENDER_PRODUCTION_REPORT:" + json.dumps(report))
     return report
+
+
+def run_production_pipeline(
+    out_dir: str,
+    glb_path: str,
+    vrm_version: str = "0.0",
+    spec_json_path: str = "",
+    report_filename: str = "blender_report.json",
+    vrm_filename: str = "character_blender.vrm",
+    blend_filename: str = "character_blender.blend",
+    run_id: str = "",
+) -> dict:
+    """Run the pipeline; on any failure still write a status=fail report (never exit silently)."""
+    stage = {"name": "start"}
+    try:
+        return _run_production_pipeline_impl(
+            stage, out_dir, glb_path, vrm_version, spec_json_path,
+            report_filename, vrm_filename, blend_filename, run_id,
+        )
+    except Exception as exc:
+        import traceback
+        message = f"Pipeline failed during stage '{stage['name']}': {type(exc).__name__}: {exc}"
+        try:
+            version_string = bpy.app.version_string
+        except Exception:
+            version_string = None
+        report = {
+            "status": "fail",
+            "run_id": run_id,
+            "vrm_version": vrm_version,
+            "source_glb": glb_path,
+            "blender_version": version_string,
+            "failed_stage": stage["name"],
+            "error": f"{type(exc).__name__}: {exc}",
+            "traceback": traceback.format_exc(),
+            "vrm_export_success": False,
+            "vrm_reload_success": False,
+            "python_validator_available": False,
+            "vrm_path": None,
+            "vrm_note": message,
+        }
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+            with open(os.path.join(out_dir, report_filename), "w", encoding="utf-8") as f:
+                json.dump(report, f, indent=2)
+        except Exception as write_exc:
+            report["report_write_error"] = str(write_exc)
+        print("BLENDER_PRODUCTION_REPORT:" + json.dumps(report))
+        return report
 
 
 if __name__ == "__main__":

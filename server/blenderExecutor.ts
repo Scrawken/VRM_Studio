@@ -143,14 +143,20 @@ export async function runHeadlessBlenderPipeline(params: {
   );
   fs.mkdirSync(isolatedRunDir, { recursive: true });
 
-  // Remove any stale blender_report.json in outDir before launching so failed runs cannot look valid
+  // Remove stale artifacts from earlier runs before launching so a failed run can never leave a
+  // previous (or half-promoted) .vrm/.blend/report looking like this run's output.
   const finalReportPath = resolveSafePathWithinRoot(params.outDir, 'blender_report.json');
   const finalVrmPath = resolveSafePathWithinRoot(params.outDir, 'character_blender.vrm');
   const finalBlendPath = resolveSafePathWithinRoot(params.outDir, 'character_blender.blend');
   fs.rmSync(finalReportPath, { force: true });
+  fs.rmSync(finalVrmPath, { force: true });
+  fs.rmSync(finalBlendPath, { force: true });
 
   const args = [
     '--background',
+    // Uncaught Python exceptions must produce a non-zero exit code (Blender defaults to 0).
+    '--python-exit-code',
+    '1',
     '--python',
     pipelineScript,
     '--',

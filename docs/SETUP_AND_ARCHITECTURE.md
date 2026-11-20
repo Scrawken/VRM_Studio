@@ -47,11 +47,17 @@ npm run desktop
 Electron starts its own local server process and stores projects in its per-user application data directory.
 
 ### Blender
-Install Blender 4.2 and VRM Add-on for Blender to use the local headless Blender export path. To invoke the repository's Blender script manually:
+Acceptance target: **Blender 4.2** with **VRM Add-on for Blender** installed and enabled. Newer Blender builds can be used by setting `BLENDER_EXECUTABLE` (or choosing `blender.exe` in the desktop picker); results on a newer build apply to that build only and are not a claim of 4.2 compatibility. Auto-detection checks `Program Files\Blender Foundation\Blender <version>` for 4.2 first, then 5.2 through 3.6.
+
+The add-on counts as installed only if its Armature property `vrm_addon_extension` is registered after the probe (`blender_scripts/vrm_addon_probe.py`) tries to enable it. Testing `hasattr(bpy.ops.export_scene, "vrm")` is not valid because `bpy.ops` resolves any name. The pipeline re-enables the add-on after each factory reset, because a reset unregisters it (it is enabled with a fresh preferences entry because the VRM exporter asserts when none exists; add-on preference values return to defaults; nothing is saved to the user's preferences).
+
+To invoke the repository's Blender script manually, pass an input GLB (`--glb-path` is required; the script fails with a report otherwise):
 ```bash
-blender --background --python blender_scripts/test_milestone2_blender.py -- --out-dir ./projects/_blender_test
+blender --background --python-exit-code 1 --python blender_scripts/test_milestone2_blender.py --   --glb-path ./projects/<character_id>/character.glb --out-dir ./projects/_blender_test
 ```
-This command has not been run as part of the documentation update; verify it on the target Windows installation.
+`--python-exit-code 1` makes uncaught Python errors return a non-zero exit code (Blender otherwise exits 0). On any failure the pipeline writes a `status: "fail"` report (`failed_stage`, `error`, `traceback`). The app deletes stale `blender_report.json`, `character_blender.vrm` and `character_blender.blend` before each run and promotes outputs only after verification. When the GLB has several armatures, the one with the most bound meshes, then matched vertex groups, then bones is used (`armature_candidates` in the report).
+
+Not yet done (pending the metadata contract): spring bone gravity direction/center/collider references and license/meta mapping in the Blender export. This command has not been run as part of the documentation update; verify it on the target Windows installation.
 
 ### Windows installer
 ```bash
