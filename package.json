@@ -15,7 +15,7 @@
     "preview": "vite preview",
     "clean": "node -e \"for (const p of ['dist','dist-server','electron/dist','server.js']) require('fs').rmSync(p,{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
-    "test": "npx tsx --test src/shared/vrmPipeline.test.ts",
+    "test": "npx tsx --test src/shared/vrmPipeline.test.ts server/hostAllowlist.test.ts",
     "test:backend": "python -m unittest discover -s backend -p \"test_*.py\" -v",
     "verify": "npm run lint && npm run build && npm test && npm run test:backend"
   },

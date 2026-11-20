@@ -43,6 +43,7 @@ import {
   SecurityValidationError,
   isLoopbackOrigin,
   resolveServerBindHost,
+  isAllowedHostHeader,
   resolveSafePathWithinRoot,
   sanitizeDownloadFilename,
 } from './server/security';
@@ -108,7 +109,15 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
 
   // Loopback & Security Hardening Middleware
+  // The listening port is only known after listen() (PORT=0 under Electron), so it is read per request.
+  let listeningServer: ReturnType<typeof app.listen> | undefined;
+  const bindHost = resolveServerBindHost();
   app.use((req: Request, res: Response, next: NextFunction) => {
+    const addr = listeningServer?.address() as AddressInfo | null | undefined;
+    const lanHost = bindHost === '127.0.0.1' ? [] : [bindHost];
+    if (!addr || !isAllowedHostHeader(req.headers.host, addr.port, lanHost)) {
+      return res.status(403).json({ error: 'Host header rejected.' });
+    }
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     if (req.path.startsWith('/api')) {
@@ -117,9 +126,7 @@ async function startServer() {
       if (
         origin &&
         process.env.VRM_FORGE_ALLOW_ANY_ORIGIN !== '1' &&
-        !isLoopbackOrigin(origin) &&
-        req.headers.host &&
-        (req.headers.host.startsWith('127.0.0.1') || req.headers.host.startsWith('localhost'))
+        !isLoopbackOrigin(origin)
       ) {
         return res.status(403).json({ error: 'Cross-origin request from non-loopback origin rejected.' });
       }
@@ -758,6 +765,7 @@ async function startServer() {
   const host = resolveServerBindHost();
   const port = parseListenPort();
   const server = app.listen(port, host, () => {
+    listeningServer = server;
     const addr = server.address() as AddressInfo | null;
     const actualPort = addr?.port ?? port;
     console.log(`VRM_FORGE_READY:${actualPort}`);

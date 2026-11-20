@@ -30,6 +30,10 @@ jobs:
       - name: Build frontend and server
         run: npm run build
 
+      - name: Check committed server bundle is fresh
+        run: |
+          git diff --exit-code -- dist-server/server.cjs || { echo "dist-server/server.cjs is stale: run 'npm run build:server' and commit it"; exit 1; }
+
       - name: Run TypeScript VRM pipeline & conformance tests
         run: npm test
 
