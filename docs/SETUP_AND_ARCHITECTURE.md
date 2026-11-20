@@ -29,14 +29,14 @@ VRM Forge Studio runs locally as a Node.js application, with an optional Electro
 npm install
 npm run dev
 ```
-Open `http://127.0.0.1:3000`. Copy `.env.example` to `.env` if you want to configure optional providers. The server binds to loopback by default.
+Open `http://127.0.0.1:3000`. Copy `.env.example` to `.env` (PowerShell: `Copy-Item .env.example .env`) if you want to configure optional providers. The server binds to `127.0.0.1` by default; `PORT` changes the port (default 3000, invalid values fall back to 3000). A non-loopback `HOST`/`VRM_FORGE_HOST` is ignored unless `VRM_FORGE_ALLOW_NON_LOOPBACK=1` is set.
 
 ### Built local server
 ```bash
 npm run build
 npm start
 ```
-This builds the frontend and bundled Express server, then serves them locally.
+This builds the frontend and bundled Express server, then serves them locally. `dist-server/server.cjs` is a committed build artifact; rebuild it whenever `server.ts` or `server/` changes.
 
 ### Electron desktop app
 ```bash

@@ -44,4 +44,6 @@ Blender is optional for the TypeScript VRM pipeline. Install Blender 4.2 and VRM
 - `.env` is read by the local server and should remain private. `.env.example` contains optional provider settings.
 - Browser-mode projects are stored under `projects/` by default. Electron uses its per-user application data directory.
 - The browser and server communicate over the local machine. Gemini, Tripo, and Meshy remain optional network services when selected.
-- `npm run build` builds both the frontend and the local server bundle.
+- `npm run build` builds both the frontend and the local server bundle (`dist-server/server.cjs`, which is committed; rebuild it after changing `server.ts` or `server/`).
+- `npm run clean` removes build output using Node, so it works in cmd, PowerShell and Git Bash.
+- `npm run test:backend` needs Python 3 available as `python` on PATH (there is no `python3` on a default Windows install). `npm test` also runs one test that calls `python3`; on Windows it fails unless a `python3` command exists.
