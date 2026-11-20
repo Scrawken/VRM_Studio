@@ -19,6 +19,7 @@ import {
 import {
   buildCharacterVrmAndGlb,
   buildRiggedVrmFromExternalMesh,
+  resolveEffectiveVrmMetadata,
 } from '../src/shared/vrmBuilder';
 import { validateVrmBinary } from '../src/shared/vrmValidator';
 import { BlenderExecutionOutcome, runHeadlessBlenderPipeline } from './blenderExecutor';
@@ -331,7 +332,17 @@ function prepareSpecAndBaseBuild(
   } else if (fs.existsSync(blenderContextPath)) {
     fs.rmSync(blenderContextPath, { force: true });
   }
-  fs.writeFileSync(specJsonPath, JSON.stringify(spec, null, 2));
+  // spec.json is what the Blender pipeline reads. Per the VRM metadata contract (types.ts) it must carry the
+  // RESOLVED metadata (spec > source VRM > defaults, clamped to source restrictions) so Blender applies it
+  // verbatim; the stored spec record itself is not modified.
+  const resolvedVrmMetadata = resolveEffectiveVrmMetadata(
+    spec,
+    externalGeometry?.parsedMesh.sourceVrmMeta
+  );
+  fs.writeFileSync(
+    specJsonPath,
+    JSON.stringify({ ...spec, vrmMetadata: resolvedVrmMetadata }, null, 2)
+  );
   fs.writeFileSync(resolveSafePathWithinRoot(dir, 'blender_build.py'), blenderScript);
   const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
 
