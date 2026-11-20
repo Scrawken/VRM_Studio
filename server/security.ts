@@ -56,6 +56,32 @@ export function resolveLoopbackHost(requestedHost?: string): string {
   return '127.0.0.1';
 }
 
+/**
+ * Exact-match Host header allowlist (DNS-rebinding defence). Accepts only
+ * 127.0.0.1, localhost and [::1] (plus the bound host when LAN access was
+ * explicitly enabled) with the live listening port. A bare host without a port is
+ * accepted only when the server really listens on port 80. No wildcard, prefix or
+ * suffix matching; a missing or malformed Host header is rejected.
+ */
+export function isAllowedHostHeader(
+  hostHeader: string | undefined,
+  boundPort: number,
+  extraHosts: readonly string[] = []
+): boolean {
+  if (typeof hostHeader !== 'string' || hostHeader === '' || !Number.isInteger(boundPort)) return false;
+  const value = hostHeader.toLowerCase();
+  const allowedNames = new Set(['127.0.0.1', 'localhost', '[::1]']);
+  for (const h of extraHosts) {
+    const name = h.trim().toLowerCase();
+    if (name) allowedNames.add(name.includes(':') && !name.startsWith('[') ? `[${name}]` : name);
+  }
+  for (const name of allowedNames) {
+    if (value === `${name}:${boundPort}`) return true;
+    if (boundPort === 80 && value === name) return true;
+  }
+  return false;
+}
+
 export function isLoopbackOrigin(origin: string | undefined): boolean {
   if (!origin) return true;
   try {
