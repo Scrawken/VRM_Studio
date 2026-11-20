@@ -329,6 +329,196 @@ def _assign_bone_ref(prop_obj, target_bone_name):
         prop_obj.bone_name = target_bone_name
 
 
+# Resolved metadata (spec.json "vrmMetadata", written by resolveEffectiveVrmMetadata) is applied VERBATIM:
+# no field-level defaults ('Other', 'OnlyAuthor', author names) are applied here. A missing key is left
+# at the add-on's own default and reported in meta_missing_fields. Source/sample licence data is never
+# hard-coded in this script.
+VRM0_META_FIELDS = [
+    ("title", "title"), ("author", "author"), ("version", "version"),
+    ("contactInformation", "contact_information"), ("reference", "reference"),
+    ("otherLicenseUrl", "other_license_url"), ("otherPermissionUrl", "other_permission_url"),
+    ("licenseName", "license_name"), ("allowedUserName", "allowed_user_name"),
+    ("violentUsage", "violent_ussage_name"), ("sexualUsage", "sexual_ussage_name"),
+    ("commercialUsage", "commercial_ussage_name"),
+]
+
+
+def _meta_apply(ext, vrm_version, spec_meta, info):
+    def setp(obj, attr, key, value):
+        try:
+            setattr(obj, attr, value)
+        except Exception as exc:
+            info["meta_apply_errors"].append(f"{key}: {exc}")
+
+    if vrm_version == "0.0":
+        meta0 = ext.vrm0.meta
+        for key, attr in VRM0_META_FIELDS:
+            if key not in spec_meta or spec_meta[key] is None:
+                info["meta_missing_fields"].append(key)
+                continue
+            if hasattr(meta0, attr):
+                setp(meta0, attr, key, str(spec_meta[key]))
+        return
+
+    meta1 = ext.vrm1.meta
+    ext.spec_version = "1.0"
+
+    def has(key):
+        if key not in spec_meta or spec_meta[key] is None:
+            info["meta_missing_fields"].append(key)
+            return False
+        return True
+
+    if has("title"):
+        setp(meta1, "vrm_name", "title", str(spec_meta["title"]))
+    if has("version"):
+        setp(meta1, "version", "version", str(spec_meta["version"]))
+    if has("author"):
+        meta1.authors.clear()
+        meta1.authors.add().value = str(spec_meta["author"])
+    if has("sourceAttribution"):
+        setp(meta1, "copyright_information", "sourceAttribution", str(spec_meta["sourceAttribution"]))
+    if has("contactInformation"):
+        setp(meta1, "contact_information", "contactInformation", str(spec_meta["contactInformation"]))
+    if spec_meta.get("reference"):
+        meta1.references.clear()
+        meta1.references.add().value = str(spec_meta["reference"])
+    if has("otherLicenseUrl") and spec_meta["otherLicenseUrl"]:
+        setp(meta1, "other_license_url", "otherLicenseUrl", str(spec_meta["otherLicenseUrl"]))
+    if has("allowedUserName"):
+        setp(meta1, "avatar_permission", "allowedUserName", {
+            "Everyone": "everyone", "ExplicitlyLicensedPerson": "onlySeparatelyLicensedPerson",
+        }.get(spec_meta["allowedUserName"], "onlyAuthor"))
+    if has("violentUsage"):
+        setp(meta1, "allow_excessively_violent_usage", "violentUsage", spec_meta["violentUsage"] == "Allow")
+    if has("sexualUsage"):
+        setp(meta1, "allow_excessively_sexual_usage", "sexualUsage", spec_meta["sexualUsage"] == "Allow")
+    if has("commercialUsage"):
+        setp(meta1, "commercial_usage", "commercialUsage",
+             "corporation" if spec_meta["commercialUsage"] == "Allow" else "personalNonProfit")
+    if has("allowRedistribution"):
+        setp(meta1, "allow_redistribution", "allowRedistribution", bool(spec_meta["allowRedistribution"]))
+    if has("modification"):
+        setp(meta1, "modification", "modification", spec_meta["modification"])
+    if spec_meta.get("otherPermissionUrl"):
+        info["meta_apply_errors"].append("VRM 1.0 has no field for otherPermissionUrl (dropped)")
+
+
+def _vec_blender_from_vrm0(v):
+    """VRM 0.0 -> add-on gravity_dir axes (the add-on exporter writes y=gd[2], z=gd[1])."""
+    return (float(v[0]), float(v[2]), float(v[1]))
+
+
+def _create_collider_empty(arm_obj, bone_name, col_def, name):
+    """Create the sphere empty the add-on exports as a collider (it reads bpy_object, not offset/radius)."""
+    from mathutils import Matrix, Vector
+    off = col_def.get("offset", [0.0, 0.0, 0.0])
+    # add-on exporter writes vrm = (-x, z, -y) of (world_pos - bone_head); invert that here
+    delta = Vector((-float(off[0]), -float(off[2]), float(off[1])))
+    pbone = arm_obj.pose.bones[bone_name]
+    head_world = (arm_obj.matrix_world @ pbone.matrix).to_translation()
+    obj = bpy.data.objects.new(name, None)
+    obj.empty_display_type = "SPHERE"
+    obj.empty_display_size = max(0.0, float(col_def.get("radius", 0.0)))
+    bpy.context.scene.collection.objects.link(obj)
+    obj.parent = arm_obj
+    obj.parent_type = "BONE"
+    obj.parent_bone = bone_name
+    obj.matrix_world = Matrix.Translation(head_world + delta)
+    return obj
+
+
+def _export_springs_vrm0(arm_obj, ext, bone_map, blender_context, info):
+    import uuid as _uuid
+    sec_anim = ext.vrm0.secondary_animation
+    mapped_real_bones = set(bone_map.values())
+    arm_bone_names = {b.name for b in arm_obj.data.bones}
+    preserved_cgs = blender_context.get("preservedVrmColliderGroups") or []
+    preserved_sgs = blender_context.get("preservedVrmSprings") or []
+    info.update({
+        "colliders_skipped": [], "collider_groups_created": 0, "colliders_created": 0,
+        "springs_created": 0, "springs_skipped": [], "spring_warnings": [],
+    })
+
+    src_index_to_uuid = {}
+    for src_i, cg_def in enumerate(preserved_cgs):
+        node_name = cg_def.get("nodeName")
+        if not node_name or node_name not in arm_bone_names:
+            info["colliders_skipped"].append({
+                "source_index": src_i, "nodeName": node_name,
+                "reason": "node name is not a bone of the exported armature",
+                "collider_count": len(cg_def.get("colliders", [])),
+            })
+            continue
+        cg = sec_anim.collider_groups.add()
+        cg.uuid = str(_uuid.uuid4())
+        _assign_bone_ref(cg, node_name)
+        src_index_to_uuid[src_i] = cg.uuid
+        info["collider_groups_created"] += 1
+        for ci, col_def in enumerate(cg_def.get("colliders", [])):
+            col = cg.colliders.add()
+            col.bpy_object = _create_collider_empty(arm_obj, node_name, col_def, f"vrm_collider_{src_i}_{ci}")
+            info["colliders_created"] += 1
+
+    def make_group(sg_def, root_bones, comment):
+        bg = sec_anim.bone_groups.add()
+        bg.comment = comment
+        bg.stiffiness = max(0.0, float(sg_def.get("stiffiness", 0.6)))
+        bg.gravity_power = float(sg_def.get("gravityPower", 0.25))
+        gd = sg_def.get("gravityDir")
+        if gd is not None:
+            bg.gravity_dir = _vec_blender_from_vrm0(gd)
+        bg.drag_force = max(0.0, float(sg_def.get("dragForce", 0.4)))
+        bg.hit_radius = max(0.0, float(sg_def.get("hitRadius", 0.025)))
+        for rbone in root_bones:
+            _assign_bone_ref(bg.bones.add(), rbone)
+        return bg
+
+    if preserved_sgs:
+        for si, sg_def in enumerate(preserved_sgs):
+            root_bones = []
+            for bn in sg_def.get("boneNames", []):
+                if bn not in arm_bone_names:
+                    info["spring_warnings"].append(f"spring {si}: bone '{bn}' not in armature")
+                elif bn in mapped_real_bones:
+                    info["spring_warnings"].append(f"spring {si}: bone '{bn}' is a humanoid bone, excluded")
+                else:
+                    root_bones.append(bn)
+            if not root_bones:
+                info["springs_skipped"].append({"index": si, "comment": sg_def.get("comment"), "reason": "no usable root bones"})
+                continue
+            bg = make_group(sg_def, root_bones, str(sg_def.get("comment") or "PreservedSpring"))
+            center = sg_def.get("centerNodeName")
+            if center:
+                if center in arm_bone_names:
+                    _assign_bone_ref(bg.center, center)
+                else:
+                    info["spring_warnings"].append(f"spring {si}: center '{center}' not in armature, center dropped")
+            if sg_def.get("colliderGroupIndices") is not None:
+                wanted = list(sg_def.get("colliderGroupIndices") or [])
+            else:
+                names = sg_def.get("colliderGroupNodeNames") or []
+                wanted = [i for i, c in enumerate(preserved_cgs) if c.get("nodeName") in names]
+            for ci in wanted:
+                u = src_index_to_uuid.get(ci)
+                if u is None:
+                    info["spring_warnings"].append(f"spring {si}: collider group {ci} was not exported (unresolved node)")
+                    continue
+                bg.collider_groups.add().collider_group_uuid = u
+            info["springs_created"] += 1
+    else:
+        sec_roots = []
+        for b in arm_obj.data.bones:
+            if b.name in mapped_real_bones:
+                continue
+            if re.match(r"^(j_sec_|hair|cloak|cape|skirt|ribbon|tail|ear)", b.name, re.I):
+                if b.parent is None or b.parent.name in mapped_real_bones:
+                    sec_roots.append(b.name)
+        if sec_roots:
+            make_group({}, sec_roots, "SecondaryHairCloakSpring")
+            info["springs_created"] += 1
+
+
 def _configure_vrm_extension(
     arm_obj,
     mesh_objs,
@@ -339,34 +529,11 @@ def _configure_vrm_extension(
 ):
     ext = arm_obj.data.vrm_addon_extension
     blender_context = blender_context or {}
-    title = spec_meta.get("title") or spec_meta.get("name") or "Generated VRM Avatar"
-    author = spec_meta.get("author") or "Unspecified Author"
-    allowed_user = spec_meta.get("allowedUserName") or "OnlyAuthor"
-    violent = spec_meta.get("violentUsage") or "Disallow"
-    sexual = spec_meta.get("sexualUsage") or "Disallow"
-    commercial = spec_meta.get("commercialUsage") or "Disallow"
-    license_name = spec_meta.get("licenseName") or "Other"
+    export_info = {"meta_missing_fields": [], "meta_apply_errors": []}
+    _meta_apply(ext, vrm_version, spec_meta, export_info)
 
     if vrm_version == "0.0":
         ext.spec_version = "0.0"
-        meta0 = ext.vrm0.meta
-        meta0.title = title
-        meta0.author = author
-        meta0.version = str(spec_meta.get("version") or "1.0")
-        if hasattr(meta0, "contact_information"):
-            meta0.contact_information = str(spec_meta.get("contactInformation") or "")
-        if hasattr(meta0, "reference"):
-            meta0.reference = str(spec_meta.get("reference") or "")
-        if hasattr(meta0, "other_license_url"):
-            meta0.other_license_url = str(spec_meta.get("otherLicenseUrl") or "")
-        if hasattr(meta0, "other_permission_url"):
-            meta0.other_permission_url = str(spec_meta.get("otherPermissionUrl") or "")
-        meta0.license_name = license_name
-        meta0.allowed_user_name = allowed_user
-        meta0.violent_ussage_name = violent
-        meta0.sexual_ussage_name = sexual
-        meta0.commercial_ussage_name = commercial
-
         hum0 = ext.vrm0.humanoid
         seen_vrm0_bones = set()
         seen_real_bones = set()
@@ -419,73 +586,18 @@ def _configure_vrm_extension(
                     bind.index = kb_name
                     bind.weight = 100
 
-        # Secondary springs & colliders: preserve source physics cleanly, excluding humanoid bones
-        mapped_real_bones = set(bone_map.values())
-        arm_bone_names = {b.name for b in arm_obj.data.bones}
+        # Secondary springs & colliders: preserve source physics (reported, never silently skipped)
         if hasattr(ext.vrm0, "secondary_animation"):
-            sec_anim = ext.vrm0.secondary_animation
-            preserved_cgs = blender_context.get("preservedVrmColliderGroups") or []
-            preserved_sgs = blender_context.get("preservedVrmSprings") or []
-
-            for cg_def in preserved_cgs:
-                node_name = cg_def.get("nodeName")
-                if not node_name or node_name not in arm_bone_names:
-                    continue
-                cg = sec_anim.collider_groups.add()
-                _assign_bone_ref(cg, node_name)
-                for col_def in cg_def.get("colliders", []):
-                    col = cg.colliders.add()
-                    off = col_def.get("offset", [0.0, 0.0, 0.0])
-                    if hasattr(col, "offset"):
-                        col.offset = (float(off[0]), float(off[1]), float(off[2]))
-                    if hasattr(col, "radius"):
-                        col.radius = max(0.0, float(col_def.get("radius", 0.05)))
-
-            if preserved_sgs:
-                for sg_def in preserved_sgs:
-                    root_bones = [
-                        bn for bn in sg_def.get("boneNames", [])
-                        if bn in arm_bone_names and bn not in mapped_real_bones
-                    ]
-                    if not root_bones:
-                        continue
-                    bg = sec_anim.bone_groups.add()
-                    bg.comment = str(sg_def.get("comment") or "PreservedSpring")
-                    bg.stiffiness = max(0.0, float(sg_def.get("stiffiness", 0.6)))
-                    bg.gravity_power = float(sg_def.get("gravityPower", 0.25))
-                    bg.drag_force = max(0.0, float(sg_def.get("dragForce", 0.4)))
-                    bg.hit_radius = max(0.0, float(sg_def.get("hitRadius", 0.025)))
-                    for rbone in root_bones:
-                        bref = bg.bones.add()
-                        _assign_bone_ref(bref, rbone)
-            else:
-                sec_roots = []
-                for b in arm_obj.data.bones:
-                    if b.name in mapped_real_bones:
-                        continue
-                    if re.match(r"^(j_sec_|hair|cloak|cape|skirt|ribbon|tail|ear)", b.name, re.I):
-                        if b.parent is None or b.parent.name in mapped_real_bones:
-                            sec_roots.append(b.name)
-                if sec_roots:
-                    bg = sec_anim.bone_groups.add()
-                    bg.comment = "SecondaryHairCloakSpring"
-                    bg.stiffiness = 0.6
-                    bg.gravity_power = 0.25
-                    bg.drag_force = 0.4
-                    bg.hit_radius = 0.025
-                    for rbone in sec_roots:
-                        bref = bg.bones.add()
-                        _assign_bone_ref(bref, rbone)
+            _export_springs_vrm0(arm_obj, ext, bone_map, blender_context, export_info)
     else:
-        ext.spec_version = "1.0"
-        ext.vrm1.meta.vrm_name = title
-        ext.vrm1.meta.authors.clear()
-        a_item = ext.vrm1.meta.authors.add()
-        a_item.value = author
         human_bones = ext.vrm1.humanoid.human_bones
         for canonical, real_bone in bone_map.items():
             if hasattr(human_bones, canonical):
                 _assign_bone_ref(getattr(human_bones, canonical), real_bone)
+        export_info["spring_warnings"] = [
+            "VRM 1.0: source VRM 0.0 springs/colliders are not exported by the Blender path"
+        ]
+    return export_info
 
 
 def _measure_pose_deformation(arm_obj, mesh_objs, bone_map) -> dict:
@@ -677,22 +789,29 @@ def _run_production_pipeline_impl(
 
     spec_meta = {}
     blender_context = {}
+    input_notes = []
+    if not spec_json_path:
+        input_notes.append("no --spec-json: VRM meta left at add-on defaults (no licence data supplied)")
+    elif not os.path.exists(spec_json_path):
+        input_notes.append(f"--spec-json not found: {spec_json_path}")
     if spec_json_path and os.path.exists(spec_json_path):
         try:
             with open(spec_json_path, "r", encoding="utf-8") as sf:
                 spec_data = json.load(sf)
+                # Used verbatim: spec.json vrmMetadata is the resolved metadata (see the VRM metadata
+                # contract in src/shared/types.ts). No field-level defaults are added here.
                 spec_meta = dict(spec_data.get("vrmMetadata") or {})
-                if not spec_meta.get("title") and spec_data.get("name"):
-                    spec_meta["title"] = spec_data["name"]
-        except Exception:
+        except Exception as exc:
             spec_meta = {}
+            input_notes.append(f"spec.json unreadable ({exc}); VRM meta left at add-on defaults")
         ctx_path = Path(spec_json_path).with_name("blender_context.json")
         if ctx_path.exists():
             try:
                 with open(ctx_path, "r", encoding="utf-8") as cf:
                     blender_context = json.load(cf)
-            except Exception:
+            except Exception as exc:
                 blender_context = {}
+                input_notes.append(f"blender_context.json unreadable ({exc}); springs/colliders not preserved")
 
     os.makedirs(out_dir, exist_ok=True)
     prior_addons = _enabled_addon_names()
@@ -755,12 +874,16 @@ def _run_production_pipeline_impl(
     output_vrm_size = 0
     python_validator_available = False
     vrm_note = None
+    export_info = {}
 
     if vrm_addon_installed:
         try:
-            _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version, spec_meta, blender_context)
-            bpy.ops.export_scene.vrm(filepath=vrm_path)
+            export_info = _configure_vrm_extension(arm_obj, mesh_objs, bone_map, vrm_version, spec_meta, blender_context) or {}
+            export_result = bpy.ops.export_scene.vrm(filepath=vrm_path)
             vrm_export_success = os.path.exists(vrm_path) and os.path.getsize(vrm_path) > 0
+            if not vrm_export_success:
+                # The add-on can CANCEL without raising (e.g. its own validator errors); never leave this silent.
+                vrm_note = f"VRM {vrm_version} export produced no file (bpy.ops result: {sorted(export_result) if export_result else export_result}); see Blender stderr/validator output."
 
             if vrm_export_success:
                 with open(vrm_path, "rb") as vf:
@@ -852,6 +975,9 @@ def _run_production_pipeline_impl(
         "vrm_reload_valid": vrm_reload_success,
         "vrm_reload_report": vrm_reload_report,
         "vrm_note": vrm_note,
+        "export_info": export_info,
+        "input_notes": input_notes,
+        "meta_applied_from_spec": {k: spec_meta.get(k) for k in sorted(spec_meta) if k != "sourceRestrictions"},
     }
     report_path = os.path.join(out_dir, report_filename)
     with open(report_path, "w", encoding="utf-8") as f:

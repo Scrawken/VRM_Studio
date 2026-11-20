@@ -62,6 +62,15 @@ export async function runHeadlessBlenderPipeline(params: {
   blenderOverride?: BlenderDetectionResult;
 }): Promise<BlenderExecutionOutcome> {
   const t0 = performance.now();
+  // Remove stale artifacts from earlier runs before ANY return (abort, Blender missing, add-on missing,
+  // launch failure) so a failed run can never leave a previous .vrm/.blend/report looking current.
+  const finalReportPath = resolveSafePathWithinRoot(params.outDir, 'blender_report.json');
+  const finalVrmPath = resolveSafePathWithinRoot(params.outDir, 'character_blender.vrm');
+  const finalBlendPath = resolveSafePathWithinRoot(params.outDir, 'character_blender.blend');
+  fs.rmSync(finalReportPath, { force: true });
+  fs.rmSync(finalVrmPath, { force: true });
+  fs.rmSync(finalBlendPath, { force: true });
+
   const detection = params.blenderOverride ?? detectBlenderInstallation();
 
   if (params.signal?.aborted) {
@@ -142,15 +151,6 @@ export async function runHeadlessBlenderPipeline(params: {
     path.join('_blender_runs', runId)
   );
   fs.mkdirSync(isolatedRunDir, { recursive: true });
-
-  // Remove stale artifacts from earlier runs before launching so a failed run can never leave a
-  // previous (or half-promoted) .vrm/.blend/report looking like this run's output.
-  const finalReportPath = resolveSafePathWithinRoot(params.outDir, 'blender_report.json');
-  const finalVrmPath = resolveSafePathWithinRoot(params.outDir, 'character_blender.vrm');
-  const finalBlendPath = resolveSafePathWithinRoot(params.outDir, 'character_blender.blend');
-  fs.rmSync(finalReportPath, { force: true });
-  fs.rmSync(finalVrmPath, { force: true });
-  fs.rmSync(finalBlendPath, { force: true });
 
   const args = [
     '--background',
