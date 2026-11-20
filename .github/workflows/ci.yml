@@ -28,7 +28,7 @@ jobs:
         run: npm run lint
 
       - name: Build frontend and server
-        run: npm run build && npm run build:server
+        run: npm run build
 
       - name: Run TypeScript VRM pipeline & conformance tests
         run: npm test

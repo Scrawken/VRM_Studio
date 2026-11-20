@@ -13,10 +13,10 @@
     "build:all": "npm run build && npm run build:electron",
     "package:win": "npm run build && npm --prefix electron run package:win",
     "preview": "vite preview",
-    "clean": "rm -rf dist dist-server electron/dist server.js",
+    "clean": "node -e \"for (const p of ['dist','dist-server','electron/dist','server.js']) require('fs').rmSync(p,{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
     "test": "npx tsx --test src/shared/vrmPipeline.test.ts",
-    "test:backend": "python3 -m unittest discover -s backend -p \"test_*.py\" -v",
+    "test:backend": "python -m unittest discover -s backend -p \"test_*.py\" -v",
     "verify": "npm run lint && npm run build && npm test && npm run test:backend"
   },
   "dependencies": {
