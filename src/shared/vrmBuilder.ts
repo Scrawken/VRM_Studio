@@ -81,20 +81,39 @@ const VRM0_DISPLAY_NAMES: Record<string, string> = {
   o: 'O',
 };
 
-function resolveEffectiveVrmMetadata(
+// Value a spec carries when nobody chose anything (createDefaultVrmMetadata defaults).
+// For source-identity fields such a value must not shadow what the source VRM declared.
+const DEFAULT_IDENTITY_VALUES: Record<string, string> = { licenseName: 'Other', version: '1.0' };
+
+function pickIdentity(
+  key: 'author' | 'version' | 'contactInformation' | 'reference' | 'licenseName' | 'otherLicenseUrl' | 'otherPermissionUrl',
+  specMeta: Partial<VrmMetadataConfig> | undefined,
+  sourceMeta: Partial<VrmMetadataConfig> | undefined,
+  fallback: string
+): string {
+  const s = specMeta?.[key];
+  const src = sourceMeta?.[key];
+  const specIsExplicit = typeof s === 'string' && s.trim() !== '' && s !== DEFAULT_IDENTITY_VALUES[key];
+  if (specIsExplicit) return s as string;
+  if (typeof src === 'string' && src.trim() !== '') return src;
+  return (typeof s === 'string' && s.trim() !== '' ? s : fallback);
+}
+
+// Exported for tests and for the Blender-context contract (see "VRM metadata contract" in types.ts).
+export function resolveEffectiveVrmMetadata(
   spec: CharacterSpecification,
   sourceMeta?: Partial<VrmMetadataConfig>
 ): VrmMetadataConfig {
   const mergedInput: Partial<VrmMetadataConfig> = {
     ...(sourceMeta || {}),
     ...(spec.vrmMetadata || {}),
-    author: spec.vrmMetadata?.author || sourceMeta?.author || '',
-    version: spec.vrmMetadata?.version || sourceMeta?.version || '1.0',
-    contactInformation: spec.vrmMetadata?.contactInformation || sourceMeta?.contactInformation || '',
-    reference: spec.vrmMetadata?.reference || sourceMeta?.reference || '',
-    licenseName: spec.vrmMetadata?.licenseName || sourceMeta?.licenseName || 'Other',
-    otherLicenseUrl: spec.vrmMetadata?.otherLicenseUrl || sourceMeta?.otherLicenseUrl || '',
-    otherPermissionUrl: spec.vrmMetadata?.otherPermissionUrl || sourceMeta?.otherPermissionUrl || '',
+    author: pickIdentity('author', spec.vrmMetadata, sourceMeta, ''),
+    version: pickIdentity('version', spec.vrmMetadata, sourceMeta, '1.0'),
+    contactInformation: pickIdentity('contactInformation', spec.vrmMetadata, sourceMeta, ''),
+    reference: pickIdentity('reference', spec.vrmMetadata, sourceMeta, ''),
+    licenseName: pickIdentity('licenseName', spec.vrmMetadata, sourceMeta, 'Other'),
+    otherLicenseUrl: pickIdentity('otherLicenseUrl', spec.vrmMetadata, sourceMeta, ''),
+    otherPermissionUrl: pickIdentity('otherPermissionUrl', spec.vrmMetadata, sourceMeta, ''),
     allowedUserName: spec.vrmMetadata?.allowedUserName || sourceMeta?.allowedUserName || 'OnlyAuthor',
     violentUsage: spec.vrmMetadata?.violentUsage || sourceMeta?.violentUsage || 'Disallow',
     sexualUsage: spec.vrmMetadata?.sexualUsage || sourceMeta?.sexualUsage || 'Disallow',
@@ -112,7 +131,7 @@ function resolveEffectiveVrmMetadata(
   return clampMetadataToSourceRestrictions(base, mergedInput.sourceRestrictions);
 }
 
-function buildVrm0MetaBlock(meta: VrmMetadataConfig): Record<string, unknown> {
+export function buildVrm0MetaBlock(meta: VrmMetadataConfig): Record<string, unknown> {
   return {
     title: meta.title,
     version: meta.version,
@@ -129,7 +148,18 @@ function buildVrm0MetaBlock(meta: VrmMetadataConfig): Record<string, unknown> {
   };
 }
 
-function buildVrm1MetaBlock(meta: VrmMetadataConfig): Record<string, unknown> {
+// VRM 0.0 licenseName values that name a public license; VRM 1.0 only has a licenseUrl.
+const CC_LICENSE_URLS: Record<string, string> = {
+  CC0: 'https://creativecommons.org/publicdomain/zero/1.0/',
+  CC_BY: 'https://creativecommons.org/licenses/by/4.0/',
+  CC_BY_NC: 'https://creativecommons.org/licenses/by-nc/4.0/',
+  CC_BY_SA: 'https://creativecommons.org/licenses/by-sa/4.0/',
+  CC_BY_NC_SA: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  CC_BY_ND: 'https://creativecommons.org/licenses/by-nd/4.0/',
+  CC_BY_NC_ND: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+};
+
+export function buildVrm1MetaBlock(meta: VrmMetadataConfig): Record<string, unknown> {
   return {
     name: meta.title,
     version: meta.version,
@@ -137,7 +167,7 @@ function buildVrm1MetaBlock(meta: VrmMetadataConfig): Record<string, unknown> {
     copyrightInformation: meta.sourceAttribution || 'Created with VRM Forge Studio',
     contactInformation: meta.contactInformation,
     references: meta.reference ? [meta.reference] : [],
-    licenseUrl: meta.otherLicenseUrl || 'https://vrm.dev/licenses/1.0/',
+    licenseUrl: meta.otherLicenseUrl || CC_LICENSE_URLS[meta.licenseName] || 'https://vrm.dev/licenses/1.0/',
     avatarPermission:
       meta.allowedUserName === 'Everyone'
         ? 'everyone'
@@ -2219,6 +2249,18 @@ export function buildRiggedVrmFromExternalMesh(
   }
 
   const effectiveMeta = resolveEffectiveVrmMetadata(spec, externalAsset.sourceVrmMeta);
+  if (targetVrmVersion === '1.0') {
+    if (effectiveMeta.otherPermissionUrl) {
+      rigWarnings.push(
+        'VRM 1.0 has no otherPermissionUrl field; source permission URL is not written to the exported meta.'
+      );
+    }
+    if (effectiveMeta.licenseName !== 'Other' && !CC_LICENSE_URLS[effectiveMeta.licenseName] && !effectiveMeta.otherLicenseUrl) {
+      rigWarnings.push(
+        `VRM 1.0 cannot express licenseName "${effectiveMeta.licenseName}"; exported licenseUrl falls back to the VRM default.`
+      );
+    }
+  }
 
   const jointIdxByName = new Map<string, number>();
   jointNodes.forEach((b, i) => jointIdxByName.set(b.name, i + 1));
@@ -2264,6 +2306,9 @@ export function buildRiggedVrmFromExternalMesh(
   }> = [];
   const vrm1ColliderGroups: Array<{ name: string; colliders: number[] }> = [];
 
+  // Importer indices refer to the importer's list; skipped groups must not shift later refs.
+  const colliderGroupRemap = new Map<number, number>();
+
   if (externalAsset.existingVrmColliderGroups && externalAsset.existingVrmColliderGroups.length > 0) {
     externalAsset.existingVrmColliderGroups.forEach((cg, idx) => {
       const targetNode = jointIdxByName.get(cg.nodeName);
@@ -2271,6 +2316,7 @@ export function buildRiggedVrmFromExternalMesh(
         rigWarnings.push(`Skipped imported collider group on unresolved node "${cg.nodeName}".`);
         return;
       }
+      colliderGroupRemap.set(idx, vrm0ColliderGroups.length);
       const mappedCols = cg.colliders
         .filter((c) => Number.isFinite(c.radius) && c.radius >= 0)
         .map((c) => {
@@ -2373,21 +2419,27 @@ export function buildRiggedVrmFromExternalMesh(
         ? [negZeroClean(sp.gravityDir[0]), sp.gravityDir[1], negZeroClean(sp.gravityDir[2])]
         : sp.gravityDir;
 
-      const resolvedCgIndices = (sp.colliderGroupIndices ?? [])
-        .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < vrm0ColliderGroups.length);
-      const effectiveCgIndices =
-        resolvedCgIndices.length > 0
-          ? resolvedCgIndices
-          : sp.colliderGroupNodeNames && sp.colliderGroupNodeNames.length > 0
-            ? sp.colliderGroupNodeNames
-                .map((nName) => {
-                  const nIdx = jointIdxByName.get(nName);
-                  return nIdx !== undefined
-                    ? vrm0ColliderGroups.findIndex((cg) => cg.node === nIdx)
-                    : -1;
-                })
-                .filter((idx) => idx >= 0)
-            : vrm0ColliderGroups.map((_, i) => i).slice(0, 2);
+      // Source refs are authoritative: remap them past skipped groups; an empty list stays empty
+      // (never inject default head/chest colliders into a spring the source had none for).
+      const hasSourceRefs = sp.colliderGroupIndices !== undefined || sp.colliderGroupNodeNames !== undefined;
+      const remapped = (sp.colliderGroupIndices ?? [])
+        .map((idx) => colliderGroupRemap.get(idx))
+        .filter((idx): idx is number => idx !== undefined);
+      const byNode = (sp.colliderGroupNodeNames ?? [])
+        .map((nName) => {
+          const nIdx = jointIdxByName.get(nName);
+          return nIdx !== undefined ? vrm0ColliderGroups.findIndex((cg) => cg.node === nIdx) : -1;
+        })
+        .filter((idx) => idx >= 0);
+      const effectiveCgIndices = Array.from(
+        new Set(
+          remapped.length > 0
+            ? remapped
+            : hasSourceRefs
+              ? byNode
+              : vrm0ColliderGroups.map((_, i) => i).slice(0, 2)
+        )
+      );
 
       vrm0BoneGroups.push({
         comment: sp.comment || 'PreservedSpring',
