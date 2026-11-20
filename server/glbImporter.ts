@@ -815,6 +815,7 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
   let sourceVrmMeta: Partial<VrmMetadataConfig> | undefined;
   let existingVrmSprings: ImportedSpringGroup[] | undefined;
   let existingVrmColliderGroups: ImportedColliderGroup[] | undefined;
+  const colliderImportWarnings: string[] = [];
 
   const vrm0Ext = gltfJson.extensions?.VRM;
   const vrm1Ext = gltfJson.extensions?.VRMC_vrm;
@@ -886,11 +887,18 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
       };
     }
     const cgGroups = vrm0Ext.secondaryAnimation?.colliderGroups || [];
+    // Source collider-group index -> index in existingVrmColliderGroups (dropped groups absent).
+    const cgSourceToMapped = new Map<number, number>();
     if (cgGroups.length > 0) {
       existingVrmColliderGroups = cgGroups
-        .map((cg) => {
+        .map((cg, srcIdx) => {
           const cgNode = typeof cg.node === 'number' ? gltfNodes[cg.node] : undefined;
-          if (!cgNode || typeof cg.node !== 'number') return null;
+          if (!cgNode || typeof cg.node !== 'number') {
+            colliderImportWarnings.push(
+              `Dropped source collider group #${srcIdx}: node ${String(cg.node)} does not exist.`
+            );
+            return null;
+          }
           const colliders: ImportedColliderDef[] = (cg.colliders || []).map((col) => ({
             offset: [
               Number.isFinite(col?.offset?.x) ? Number(col!.offset!.x) : 0,
@@ -900,11 +908,18 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
             radius: Number.isFinite(col?.radius) ? Math.max(0, Number(col!.radius)) : 0.05,
           }));
           return {
-            nodeName: cgNode.name || `node_${cg.node}`,
-            colliders,
+            srcIdx,
+            group: {
+              nodeName: cgNode.name || `node_${cg.node}`,
+              colliders,
+            } as ImportedColliderGroup,
           };
         })
-        .filter((cg): cg is ImportedColliderGroup => Boolean(cg));
+        .filter((e): e is { srcIdx: number; group: ImportedColliderGroup } => Boolean(e))
+        .map((e, mappedIdx) => {
+          cgSourceToMapped.set(e.srcIdx, mappedIdx);
+          return e.group;
+        });
     }
     if (Array.isArray(vrm0Ext.secondaryAnimation?.boneGroups)) {
       existingVrmSprings = vrm0Ext.secondaryAnimation!.boneGroups
@@ -912,16 +927,12 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
           const boneNames = (bg.bones || [])
             .map((nodeIdx) => (gltfNodes[nodeIdx] ? gltfNodes[nodeIdx].name || `node_${nodeIdx}` : null))
             .filter((n): n is string => Boolean(n));
-          const colliderGroupIndices = (bg.colliderGroups || []).filter(
-            (cgIdx): cgIdx is number => typeof cgIdx === 'number' && cgIdx >= 0 && cgIdx < cgGroups.length
-          );
+          // colliderGroupIndices index existingVrmColliderGroups (the importer output), not the source list.
+          const colliderGroupIndices = (bg.colliderGroups || [])
+            .map((cgIdx) => (typeof cgIdx === 'number' ? cgSourceToMapped.get(cgIdx) : undefined))
+            .filter((m): m is number => m !== undefined);
           const colliderGroupNodeNames = colliderGroupIndices
-            .map((cgIdx) => {
-              const cgNodeIdx = cgGroups[cgIdx]?.node;
-              return cgNodeIdx !== undefined && gltfNodes[cgNodeIdx]
-                ? gltfNodes[cgNodeIdx].name || `node_${cgNodeIdx}`
-                : null;
-            })
+            .map((mIdx) => existingVrmColliderGroups?.[mIdx]?.nodeName)
             .filter((n): n is string => Boolean(n));
           return {
             comment: bg.comment,
@@ -1001,11 +1012,14 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
     }
 
     if (vrm1SpringExt && typeof vrm1SpringExt === 'object') {
+      let v1ColliderMap = new Map<number, number[]>();
       const flatColliders = vrm1SpringExt.colliders || [];
       const cgList = vrm1SpringExt.colliderGroups || [];
       if (cgList.length > 0 && flatColliders.length > 0) {
         const mappedGroups: ImportedColliderGroup[] = [];
-        cgList.forEach((cg) => {
+        // Source group index -> indices in mappedGroups (one source group can span several nodes).
+        const v1SourceToMapped = new Map<number, number[]>();
+        cgList.forEach((cg, srcIdx) => {
           const colIndices = cg.colliders || [];
           const byNode = new Map<number, ImportedColliderDef[]>();
           for (const ci of colIndices) {
@@ -1023,14 +1037,23 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
             byNode.set(c.node, list);
           }
           for (const [nodeIdx, cols] of byNode.entries()) {
+            const list = v1SourceToMapped.get(srcIdx) ?? [];
+            list.push(mappedGroups.length);
+            v1SourceToMapped.set(srcIdx, list);
             mappedGroups.push({
               nodeName: gltfNodes[nodeIdx].name || `node_${nodeIdx}`,
               colliders: cols,
             });
           }
+          if (!v1SourceToMapped.has(srcIdx)) {
+            colliderImportWarnings.push(
+              `Dropped source collider group #${srcIdx}: none of its colliders resolve to an existing node.`
+            );
+          }
         });
         if (mappedGroups.length > 0) {
           existingVrmColliderGroups = mappedGroups;
+          v1ColliderMap = v1SourceToMapped;
         }
       }
 
@@ -1043,11 +1066,12 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
             if (joints.length === 0) return null;
             const chainBoneNames = joints.map((j) => gltfNodes[j.node!].name || `node_${j.node}`);
             const j0 = joints[0];
-            const cgIndices = (sp.colliderGroups || []).filter(
-              (idx): idx is number =>
-                typeof idx === 'number' &&
-                idx >= 0 &&
-                idx < (existingVrmColliderGroups?.length ?? 0)
+            const cgIndices = Array.from(
+              new Set(
+                (sp.colliderGroups || [])
+                  .filter((idx): idx is number => typeof idx === 'number')
+                  .flatMap((idx) => v1ColliderMap.get(idx) ?? [])
+              )
             );
             return {
               comment: sp.name,
@@ -1106,7 +1130,7 @@ export function parseAndValidateGlbAsset(payload: Uint8Array): ParsedGlbAsset {
   let hasMorphTargets = false;
   let hasVertexColors = false;
   let hasMultiInfluenceSkin = false;
-  const unsupportedFeatures = new Set<string>();
+  const unsupportedFeatures = new Set<string>(colliderImportWarnings);
   let minX = Infinity;
   let minY = Infinity;
   let minZ = Infinity;

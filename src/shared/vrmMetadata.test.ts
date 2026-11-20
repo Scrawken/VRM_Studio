@@ -235,3 +235,67 @@ test('spring bone params, centre, gravityDir and collider refs survive; skipped 
   assert.ok(b, 'spring without colliders survives');
   assert.deepEqual(b.colliderGroups, [], 'empty source collider list is not padded with defaults');
 });
+
+// ---- C3: importer collider-index consistency ----
+
+function makeColumnGlbWithVrmExt(vrmExt: Record<string, unknown> | undefined, vrm1Ext?: Record<string, unknown>): Uint8Array {
+  const base = makeColumnGlb();
+  const json = readJson(base);
+  json.nodes = [{ mesh: 0, name: 'Body' }, { name: 'head' }, { name: 'hairBackRoot' }];
+  json.scenes = [{ nodes: [0, 1, 2] }];
+  json.extensionsUsed = vrmExt ? ['VRM'] : ['VRMC_springBone'];
+  json.extensions = vrmExt ? { VRM: vrmExt } : { VRMC_vrm: { specVersion: '1.0', humanoid: { humanBones: {} } }, VRMC_springBone: vrm1Ext };
+  // re-pack with the original BIN chunk
+  const jl = new DataView(base.buffer, base.byteOffset).getUint32(12, true);
+  const binStart = 20 + jl + 8;
+  return packGlb(json, base.subarray(binStart));
+}
+
+test('importer (VRM 0.0): collider refs index the importer list; dropped groups warn and do not shift refs', () => {
+  const glb = makeColumnGlbWithVrmExt({
+    specVersion: '0.0',
+    meta: { title: 'X', licenseName: 'CC_BY' },
+    secondaryAnimation: {
+      colliderGroups: [
+        { node: 99, colliders: [{ offset: { x: 0, y: 0, z: 0 }, radius: 0.5 }] },
+        { node: 1, colliders: [{ offset: { x: 0, y: 0.1, z: 0 }, radius: 0.07 }] },
+      ],
+      boneGroups: [
+        { comment: 'S', stiffiness: 0.9, gravityPower: 0.3, gravityDir: { x: 0, y: -1, z: 0 }, dragForce: 0.5, center: -1, hitRadius: 0.03, bones: [2], colliderGroups: [1] },
+      ],
+    },
+  });
+  const parsed = parseAndValidateGlbAsset(glb);
+  assert.equal(parsed.valid, true, parsed.error);
+  assert.equal(parsed.existingVrmColliderGroups?.length, 1);
+  assert.equal(parsed.existingVrmColliderGroups![0].nodeName, 'head');
+  const sp = parsed.existingVrmSprings![0];
+  assert.deepEqual(sp.colliderGroupIndices, [0], 'source ref 1 must become importer index 0');
+  assert.deepEqual(sp.colliderGroupNodeNames, ['head']);
+  assert.ok(parsed.unsupportedFeatures?.some((w) => w.includes('Dropped source collider group #0')));
+
+  const built = buildRiggedVrmFromExternalMesh(makeSpec('0.0'), parsed, glb);
+  const sec = readJson(built.vrmBuffer).extensions.VRM.secondaryAnimation;
+  assert.equal(sec.colliderGroups.length, 1);
+  assert.equal(sec.colliderGroups[0].colliders[0].radius, 0.07);
+  assert.deepEqual(sec.boneGroups.find((g: any) => g.comment === 'S').colliderGroups, [0]);
+});
+
+test('importer (VRM 1.0): spring collider refs map through split/dropped source groups', () => {
+  const glb = makeColumnGlbWithVrmExt(undefined, {
+    specVersion: '1.0',
+    colliders: [
+      { node: 99, shape: { sphere: { offset: [0, 0, 0], radius: 0.5 } } },
+      { node: 1, shape: { sphere: { offset: [0, 0.1, 0], radius: 0.07 } } },
+    ],
+    colliderGroups: [{ name: 'dead', colliders: [0] }, { name: 'live', colliders: [1] }],
+    springs: [{ name: 'S', colliderGroups: [1], joints: [{ node: 2, hitRadius: 0.03, stiffness: 0.9, gravityPower: 0.3, gravityDir: [0, -1, 0], dragForce: 0.5 }] }],
+  });
+  const parsed = parseAndValidateGlbAsset(glb);
+  assert.equal(parsed.valid, true, parsed.error);
+  assert.equal(parsed.existingVrmColliderGroups?.length, 1);
+  const sp = parsed.existingVrmSprings![0];
+  assert.deepEqual(sp.colliderGroupIndices, [0]);
+  assert.deepEqual(sp.colliderGroupNodeNames, ['head']);
+  assert.ok(parsed.unsupportedFeatures?.some((w) => w.includes('Dropped source collider group #0')));
+});
