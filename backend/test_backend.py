@@ -640,6 +640,27 @@ class BackendTests(unittest.TestCase):
             self.assertFalse(res["valid"], c)
             self.assertIn("center", msg)
 
+    def test_conformance_18_vrm1_presets_without_binds_are_invalid(self):
+        def _strip(gltf: dict, _buf: bytearray):
+            for pdef in gltf["extensions"]["VRMC_vrm"]["expressions"]["preset"].values():
+                pdef["morphTargetBinds"] = []
+
+        res = validate_vrm_bytes(build_minimal_valid_vrm1(_strip), expected_version="1.0")
+        self.assertFalse(res["valid"], res["errors"])
+        self.assertIn("No non-empty expressions", "; ".join(res["errors"]))
+        self.assertEqual(res["non_empty_expression_count"], 0)
+        res = validate_vrm_bytes(build_minimal_valid_vrm1(), expected_version="1.0")
+        self.assertTrue(res["valid"], res["errors"])
+        self.assertEqual(res["non_empty_expression_count"], 1)
+
+        def _strip0(gltf: dict, _buf: bytearray):
+            for g in gltf["extensions"]["VRM"]["blendShapeMaster"]["blendShapeGroups"]:
+                g["binds"] = []
+
+        res = validate_vrm_bytes(build_minimal_valid_vrm0(_strip0), expected_version="0.0")
+        self.assertFalse(res["valid"])
+        self.assertIn("No non-empty expressions", "; ".join(res["errors"]))
+
     def test_blender_pipeline_fails_explicitly_when_python_validator_missing(self):
         root = Path(__file__).resolve().parent.parent
         scripts_dir = str(root / "blender_scripts")
