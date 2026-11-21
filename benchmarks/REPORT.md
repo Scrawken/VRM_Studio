@@ -131,7 +131,7 @@ npm run test:backend                                                       20 pa
 python -I backend/vrm_validator.py <each regenerated character.vrm> 0.0    3 valid
 ```
 
-The corrected deformation values are effectively unchanged from E3: the maximum weighted displacement values remain within rounding-level differences in the regenerated outputs (for example Aurelia hip 1.016m, Vaelith hip 1.147m, Marcus hip 0.956m). No deformation regression was observed. Unreal Engine/VRM4U import, retargeting, morph playback, spring physics and UE material behavior remain untested.
+This is the final bounded Python import attempt. U3 used a 120-tick rendered-editor wait, file-backed markers, a retained callback handle and a project StartupScripts fallback. The callback never advanced past tick 1; the StartupScripts entry was discovered but did not execute the script body. No Unreal import or asset counts are claimed. See `benchmarks/UNREAL_U3_EVIDENCE.md`. The cheapest next step is a human-launched interactive editor import or compiled C++ automation.
 
 ## U2 bounded Unreal/VRM4U retry
 
