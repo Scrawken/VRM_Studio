@@ -1,91 +1,94 @@
-# VRM Forge Studio — E1 Quality Benchmarks
+# VRM Forge Studio — E3 Corrected Quality Benchmarks
 
-**Scope:** Aurelia, Vaelith and Marcus sample exports. This report replaces visual marketing claims with measurements. It does not rewrite sculptors or claim Unreal/VRM4U compatibility.
+## Result
 
-## Verdict
+E1's main verdict was partly a harness bug. The portable Blender did have VRM Format 4.10.5 installed as the extension `bl_ext.user_default.vrm`; E1 used the obsolete `io_scene_vrm` check and also used a pose-space/joint-radius method that missed weighted vertices. This report replaces those results.
 
-- **Source inspection:** PASS for readable GLB/VRM structure and computed statistics.
-- **Blender 4.2 GLB runtime:** PARTIAL. All three GLB payloads imported and rendered headless. The requested portable Blender 4.2.23 does **not** contain `io_scene_vrm`, so `.vrm` import was not run. The GLB is the same binary payload used inside each VRM, but this is not VRM add-on acceptance.
-- **Unreal/VRM4U:** UNTESTED. Unreal 5.7/5.8 executables were found; no VRM4U plugin/configured VRM4U project was found in inspected standard and project locations. See `docs/UNREAL_VRM4U_CHECKLIST.md`.
-- **Quality bar:** “detailed, realistic humanoids.” These samples do not pass that bar based on the evidence below: they read as stylized/procedural low-detail characters, with 256–512px textures, simple material partitions, and deformation/self-overlap signals requiring review.
+The corrected harness now imports both `.vrm` and `.glb` for Aurelia, Vaelith and Marcus in Blender 4.2.23. The VRM and GLB lanes produce closely matching displacement values. The shoulder pose is measurable after selecting the best local Euler axis, not degenerate.
 
-## Reproduce
+The appearance assessment remains unchanged: the samples are stylized and do not meet the proposed “detailed, realistic humanoids” bar. The deformation result is now evidence-based, but no product pass/fail threshold was silently promoted to a requirement.
 
-From the repository worktree:
+## Exact commands
+
+The work used read-only source assets and wrote scratch results to `_staging/tmp/e3`:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python -I benchmarks/mesh_stats.py benchmarks/stats.json \
-  F:/Projects/vrm-forge-studio/projects/*/character.vrm
-F:/Projects/vrm-forge-studio/_tools/blender-4.2/blender-4.2.23-windows-x64/blender.exe \
-  -b --factory-startup -P benchmarks/deform_bench.py -- <copied-character.glb> <output-dir> <name> \
-  elbow_left,knee_left,shoulder_abd_left,neck_45,hip_flex_left,spine_30,elbow_right,knee_right
+BL=F:/Projects/vrm-forge-studio/_tools/blender-4.2/blender-4.2.23-windows-x64/blender.exe
+"$BL" --background --python-expr \
+  "import bpy; print(hasattr(bpy.types.Armature,'vrm_addon_extension'))"
+"$BL" --background -P benchmarks/deform_bench_v2.py -- \
+  F:/Projects/vrm-forge-studio/projects/armored_paladin_aurelia/character.vrm \
+  F:/Projects/vrm-forge-studio/_staging/tmp/e3 aurelia_vrm
 ```
 
-Original project files were treated read-only and copied to `_staging/tmp/e1`. Render and JSON evidence is in `benchmarks/assets/` and `benchmarks/*_deform.json`.
+The command must not use `--factory-startup`; the script also avoids `read_factory_settings`, because either resets the portable user extension state. The actual six-lane run was this same command for each `.vrm` and `.glb` in Aurelia, Vaelith and Marcus. Results are copied into `benchmarks/*_deform_v2.json`.
 
-## Mesh statistics
+## Runtime verification
 
-Values are computed from the GLB 2 container; VRM and GLB in each sample reported identical values.
+- Blender: **4.2.23 LTS**.
+- VRM extension: `bl_ext.user_default.vrm`, VRM Format **4.10.5**.
+- `hasattr(bpy.types.Armature, 'vrm_addon_extension')`: **True**.
+- `hasattr(bpy.ops.import_scene, 'vrm')`: **True**.
+- All three `.vrm` files imported successfully through `bpy.ops.import_scene.vrm`.
+- All three `.glb` files imported successfully through `bpy.ops.import_scene.gltf`.
+- Each lane passed the synthetic control; JSON records `max_displacement_m = 0.141421` and `pass = true`.
 
-| Sample | Triangles | Vertices | Materials | Textures/images | Morph target entries | Bones | Max influences | Texture resolutions |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| Aurelia | 31,044 | 17,423 | 7 | 12 | 34 | 65 | 2 | 8×512², 4×256² |
-| Vaelith | 30,596 | 17,146 | 7 | 12 | 34 | 65 | 2 | 12×256² |
-| Marcus | 21,824 | 12,287 | 7 | 12 | 34 | 65 | 2 | 12×256² |
+## Corrected deformation table
 
-The VRM extension inspection reported 55 humanoid bone mappings, 18 VRM blend-shape groups (34 mesh target entries), and 4/4/3 spring-bone groups for Aurelia/Vaelith/Marcus; each reported 2 collider groups. The armature itself contains 65 bones. “Morph target entries” counts mesh primitive target arrays; the VRM group count is reported separately above.
+`max weighted displacement` is the maximum displacement among vertices with weight >0.3 to the target bone or any descendant. The selected axis is the local pose Euler axis that moved the target's descendant tip most; the harness records target-tail movement before measuring. Weighted vertex totals are included to expose coverage.
 
-## Deformation benchmark
+| Sample | Pose | Local axis | Weighted vertices | Max weighted displacement (m) | VRM vs GLB | Verdict |
+|---|---|---:|---:|---:|---|---|
+| Aurelia | elbow 90° | 0 | 435 | 0.520 | match | measurable |
+| Aurelia | knee 90° | 0 | 532 | 0.670 | match | measurable |
+| Aurelia | shoulder abduction 80° | 1 | 923 | 0.791 | match | measurable |
+| Aurelia | neck 45° | 0 | 8,686 | 0.255 | match | measurable |
+| Aurelia | hip flexion 70° | 0 | 600 | 1.016 | match | measurable; inspect large motion |
+| Aurelia | spine bend 30° | 0 | 15,217 | 0.496 | match | measurable |
+| Vaelith | elbow 90° | 0 | 435 | 0.561 | match | measurable |
+| Vaelith | knee 90° | 0 | 532 | 0.755 | match | measurable |
+| Vaelith | shoulder abduction 80° | 1 | 923 | 0.868 | match | measurable |
+| Vaelith | neck 45° | 0 | 10,719 | 0.425 | match | measurable |
+| Vaelith | hip flexion 70° | 0 | 600 | 1.147 | match | measurable; inspect large motion |
+| Vaelith | spine bend 30° | 0 | 14,940 | 0.508 | match | measurable |
+| Marcus | elbow 90° | 0 | 302 | 0.501 | match | measurable |
+| Marcus | knee 90° | 0 | 448 | 0.629 | match | measurable |
+| Marcus | shoulder abduction 80° | 1 | 336 | 0.754 | match | measurable |
+| Marcus | neck 45° | 0 | 9,340 | 0.236 | match | measurable |
+| Marcus | hip flexion 70° | 0 | 516 | 0.956 | match | measurable; inspect large motion |
+| Marcus | spine bend 30° | 0 | 10,901 | 0.416 | match | measurable |
 
-Metrics are computed after each isolated pose in Blender 4.2.23 Workbench. `max displacement` includes all meshes; `body displacement` and volume use `FaceAndBodyMesh`. Self-intersection is a cheap BVH triangle-pair count and includes baseline geometry intersections, so it is a signal, not a final collision verdict. The region-radius edge metrics were unavailable for some poses because the joint coordinate space does not overlap the selected body region; those cells are intentionally not invented.
+The corrected results disprove E1's “zero body displacement” and “axis degenerate” conclusions. Those were harness errors, not evidence that the assets lack limb weights. The high hip displacement is a genuine signal from the corrected measurement, but requires visual review before calling it a defect.
 
-| Sample | Pose | Max displacement m | Body max m | Body volume change % | Self-intersections posed (rest) | Result vs proposed bar |
-|---|---|---:|---:|---:|---:|---|
-| Aurelia | elbow 90° | 0.101 | 0.000 | 0.00 | 498 (498) | PASS* |
-| Aurelia | knee 90° | 0.706 | 0.000 | 0.00 | 498 (498) | FAIL |
-| Aurelia | shoulder abduction 80° | — | — | — | unmeasured | UNTESTED: axis degenerate |
-| Aurelia | neck 45° | 0.289 | 0.218 | 11.93 | 501 (498) | FAIL |
-| Aurelia | hip flexion 70° | 1.028 | 0.000 | 0.00 | 498 (498) | FAIL |
-| Aurelia | spine bend 30° | 0.436 | 0.337 | 1.07 | 500 (498) | FAIL |
-| Vaelith | elbow 90° | 0.101 | 0.000 | 0.00 | 429 (429) | PASS* |
-| Vaelith | knee 90° | 0.789 | 0.000 | 0.00 | 429 (429) | FAIL |
-| Vaelith | shoulder abduction 80° | — | — | — | unmeasured | UNTESTED: axis degenerate |
-| Vaelith | neck 45° | 0.443 | 0.224 | 12.68 | 439 (429) | FAIL |
-| Vaelith | hip flexion 70° | 1.158 | 0.000 | 0.00 | 429 (429) | FAIL |
-| Vaelith | spine bend 30° | 0.489 | 0.356 | 1.15 | 432 (429) | FAIL |
-| Marcus | elbow 90° | 0.101 | 0.102 | 0.00 | 654 (651) | PASS* |
-| Marcus | knee 90° | 0.667 | 0.000 | 0.00 | 651 (651) | FAIL |
-| Marcus | shoulder abduction 80° | — | — | — | unmeasured | UNTESTED: axis degenerate |
-| Marcus | neck 45° | 0.235 | 0.214 | 10.64 | 658 (651) | FAIL |
-| Marcus | hip flexion 70° | 0.969 | 0.000 | 0.00 | 651 (651) | FAIL |
-| Marcus | spine bend 30° | 0.337 | 0.323 | -0.12 | 655 (651) | FAIL |
+## Weight coverage and degenerate faces
 
-Proposed thresholds, not product requirements: no new self-intersections; no new degenerate faces; local edge stretch/compression within 0.8–1.2; body volume change within ±5%; and no missing pose. `PASS*` means only the numeric thresholds measured for that pose; the baseline self-intersection count means it is not a clean visual-quality pass.
+The old `FaceAndBodyMesh`-only measurement was misleading: limb weights are primarily in outfit/armor meshes for these generated characters. Corrected target/descendant coverage includes, for example, Aurelia elbow: 407 armor + 28 secondary-accent vertices; Aurelia shoulder: 765 armor + 158 secondary-accent vertices; Marcus shoulder: 119 armor + 217 body vertices. Full per-mesh maps are in the JSON evidence.
 
-The zero body displacement on several limb tests is a diagnostic finding: the selected `FaceAndBodyMesh` has no vertices within the chosen joint radius or is not weighted to that joint, while clothing/hair still moves. It should be treated as a deformation coverage failure, not as proof of good deformation.
+Rest-state degenerate-face counts are stable across pose tests and are not the 128 universal pose failures reported by E1:
 
-## Appearance evidence
+| Sample | Rest degenerate faces found |
+|---|---|
+| Aurelia | FaceAndBodyMesh 128; EyesMesh 80; HairMesh 24; other meshes 0 |
+| Vaelith | FaceAndBodyMesh 128; EyesMesh 80; HairMesh 24; other meshes 0 |
+| Marcus | FaceAndBodyMesh 128; EyesMesh 80; HairMesh 24; other meshes 0 |
 
-Workbench renders use the exported textures and are 512×512. They are evidence of the current assets, not a cinematic quality grade.
+No tested pose increased these degenerate-face counts in the corrected run. They are genuine baseline asset-geometry findings, but the old report incorrectly presented the FaceAndBody count as a pose-created failure. BVH overlap counts remain diagnostic only because coincident separate meshes can inflate them.
 
-![Aurelia front](assets/aurelia_front.png) ![Aurelia face](assets/aurelia_face.png)
+## Synthetic control
 
-![Vaelith front](assets/vaelith_front.png) ![Vaelith face](assets/vaelith_face.png)
+The same script creates four points representing a child segment of a two-bone cylinder and rotates the child 90° around local Z. It reports `0.141421 m` maximum displacement and passes a `>0.1 m` sanity threshold in every lane. This proves the measurement path responds to a known-correct pose; it does not prove every production deformation is good.
 
-![Marcus front](assets/marcus_front.png) ![Marcus face](assets/marcus_face.png)
+## Appearance verdict
 
-- **Aurelia:** recognizable armored stylized humanoid; armor/cloak silhouette is clear, but face, hair and hands are simple and the low-resolution textures limit fine detail. It reads closer to a procedural mannequin with themed materials than a detailed realistic humanoid.
-- **Vaelith:** strongest silhouette contrast from hair/cloak and dark palette; face/hands remain simple and texture resolution is uniformly 256². The result is stylized, not realistic.
-- **Marcus:** plain human presentation with fewer triangles; face and clothing forms are broad and low-detail. It is the clearest procedural/mannequin-like sample against the stated bar.
+The corrected deformation harness does not change the visual assessment. Aurelia has a clear armor/cloak silhouette but simple face, hair and hands. Vaelith has strong hair/cloak contrast but uniformly 256² textures and simple facial/hand forms. Marcus has broad, low-detail face and clothing forms and is the most mannequin-like. All three remain **below** the proposed “detailed, realistic humanoids” appearance bar.
 
-## Prioritized proposed improvements (not applied)
+## Proposed improvements (not applied)
 
-1. **P0 — Fix deformation coverage and coordinate-space benchmark.** Inspect `src/shared/sculptors/*`, generated rig/weights and the exporter; ensure body vertices near every required joint are actually weighted, then add a joint-local region selection. Proposed files: `src/shared/sculptors/*`, `vrmBuilder.ts`, `benchmarks/deform_bench.py`.
-2. **P0 — Remove baseline geometric overlap/degeneracy.** Identify the 128 degenerate faces and baseline BVH overlaps per sample before judging posed output. Proposed files: sculptor geometry generation and `vrmBuilder.ts`.
-3. **P1 — Add higher-detail appearance assets.** Increase face/hand topology, texture resolution and material detail; validate with the front/side/face render set. Proposed files: sculptor generators and asset-generation inputs.
-4. **P1 — Add a real VRM 4.2 execution lane.** Install/register the supplied VRM add-on in the portable runtime or document a pinned add-on path; rerun `.vrm` import and compare against GLB. Proposed files: `benchmarks/README.md`, CI/local benchmark setup only.
-5. **P2 — Run the acceptance protocol.** Set up a UE5 project with VRM4U, capture the evidence matrix for all three samples, and only then make UE/VRM4U claims. Proposed file: `docs/UNREAL_VRM4U_CHECKLIST.md` plus external evidence, not source changes.
+1. Inspect the source sculptors and exporter for the baseline 128 body, 80 eye and 24 hair degenerate faces; these are genuine asset-quality issues. Proposed files: `src/shared/sculptors/*`, `vrmBuilder.ts`.
+2. Add visual pose snapshots and per-mesh collision review for the large corrected hip displacements (0.956–1.147m). Do not alter source generation until screenshots identify the failing region.
+3. Keep the corrected benchmark as the regression harness: local-axis selection, target/descendant weights, target-tail movement check, per-mesh degeneracy, and synthetic control. Proposed file: `benchmarks/deform_bench_v2.py`.
+4. Add a pinned VRM extension/runtime preflight to the benchmark README or local CI.
 
-## Limitations
+## Remaining untested
 
-No sculptor, `vrmBuilder.ts`, source generator, Unreal project, or production asset was modified. Unreal import, VRM4U, morph playback, spring physics and retargeting remain untested. The initial `.vrm` Blender run failed because `io_scene_vrm` was absent from the supplied portable Blender; that failure is recorded here rather than hidden.
+Unreal Engine/VRM4U import, retargeting, morph playback, spring physics and UE material behavior remain untested. The updated acceptance protocol is in `docs/UNREAL_VRM4U_CHECKLIST.md`.

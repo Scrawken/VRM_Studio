@@ -1,0 +1,848 @@
+{
+ "model": "character.glb",
+ "importer": "gltf",
+ "blender": "4.2.23 LTS",
+ "vrm_extension_loaded": true,
+ "armature_bones": 65,
+ "mesh_degenerate_faces_rest": {
+  "ArmorAndOutfitMesh": {
+   "degenerate_faces": 0,
+   "triangles": 3312,
+   "self_intersections": 1376
+  },
+  "Cube": {
+   "degenerate_faces": 0,
+   "triangles": 12,
+   "self_intersections": 0
+  },
+  "EyesMesh": {
+   "degenerate_faces": 80,
+   "triangles": 1280,
+   "self_intersections": 0
+  },
+  "FaceAndBodyMesh": {
+   "degenerate_faces": 128,
+   "triangles": 7672,
+   "self_intersections": 651
+  },
+  "HairMesh": {
+   "degenerate_faces": 24,
+   "triangles": 8352,
+   "self_intersections": 16070
+  },
+  "Icosphere": {
+   "degenerate_faces": 0,
+   "triangles": 80,
+   "self_intersections": 0
+  },
+  "MetallicTrimMesh": {
+   "degenerate_faces": 0,
+   "triangles": 280,
+   "self_intersections": 32
+  },
+  "SecondaryAccentMesh": {
+   "degenerate_faces": 0,
+   "triangles": 928,
+   "self_intersections": 9
+  }
+ },
+ "poses": [
+  {
+   "pose": "elbow_left",
+   "bone": "leftLowerArm",
+   "angle_deg": 90,
+   "local_axis": 2,
+   "axis_child_tip_deltas_m": [
+    0.21376469738663292,
+    0.4841066272411479,
+    0.501317597846856
+   ],
+   "bone_tail_delta_m": 0.3023089157165677,
+   "weighted_vertices_by_mesh": {
+    "ArmorAndOutfitMesh": 85,
+    "Cube": 0,
+    "EyesMesh": 0,
+    "FaceAndBodyMesh": 217,
+    "HairMesh": 0,
+    "Icosphere": 0,
+    "MetallicTrimMesh": 0,
+    "SecondaryAccentMesh": 0
+   },
+   "weighted_vertex_total": 302,
+   "meshes": {
+    "ArmorAndOutfitMesh": {
+     "weighted_max_displacement_m": 0.30417057329366287,
+     "weighted_mean_displacement_m": 0.14863500805979823,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 1376,
+     "self_intersections_posed": 1376
+    },
+    "Cube": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "EyesMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 80,
+     "degenerate_faces_posed": 80,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "FaceAndBodyMesh": {
+     "weighted_max_displacement_m": 0.5015578169851096,
+     "weighted_mean_displacement_m": 0.41416324069614463,
+     "degenerate_faces_rest": 128,
+     "degenerate_faces_posed": 128,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 651,
+     "self_intersections_posed": 655
+    },
+    "HairMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 24,
+     "degenerate_faces_posed": 24,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 16070,
+     "self_intersections_posed": 16070
+    },
+    "Icosphere": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "MetallicTrimMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 32,
+     "self_intersections_posed": 32
+    },
+    "SecondaryAccentMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 9,
+     "self_intersections_posed": 9
+    }
+   },
+   "max_weighted_displacement_m": 0.5015578169851096,
+   "measurable": true
+  },
+  {
+   "pose": "knee_left",
+   "bone": "leftLowerLeg",
+   "angle_deg": 90,
+   "local_axis": 2,
+   "axis_child_tip_deltas_m": [
+    0.5232679676114078,
+    0.38046958735254427,
+    0.5292980574140688
+   ],
+   "bone_tail_delta_m": 0.5380653058923942,
+   "weighted_vertices_by_mesh": {
+    "ArmorAndOutfitMesh": 334,
+    "Cube": 0,
+    "EyesMesh": 0,
+    "FaceAndBodyMesh": 0,
+    "HairMesh": 0,
+    "Icosphere": 0,
+    "MetallicTrimMesh": 28,
+    "SecondaryAccentMesh": 86
+   },
+   "weighted_vertex_total": 448,
+   "meshes": {
+    "ArmorAndOutfitMesh": {
+     "weighted_max_displacement_m": 0.6133201790246314,
+     "weighted_mean_displacement_m": 0.28989298081186593,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 1376,
+     "self_intersections_posed": 1493
+    },
+    "Cube": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "EyesMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 80,
+     "degenerate_faces_posed": 80,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "FaceAndBodyMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 128,
+     "degenerate_faces_posed": 128,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 651,
+     "self_intersections_posed": 651
+    },
+    "HairMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 24,
+     "degenerate_faces_posed": 24,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 16070,
+     "self_intersections_posed": 16070
+    },
+    "Icosphere": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "MetallicTrimMesh": {
+     "weighted_max_displacement_m": 0.5202860332760436,
+     "weighted_mean_displacement_m": 0.5090447885119218,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 32,
+     "self_intersections_posed": 32
+    },
+    "SecondaryAccentMesh": {
+     "weighted_max_displacement_m": 0.6333199287487546,
+     "weighted_mean_displacement_m": 0.41079622071388167,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 9,
+     "self_intersections_posed": 11
+    }
+   },
+   "max_weighted_displacement_m": 0.6333199287487546,
+   "measurable": true
+  },
+  {
+   "pose": "shoulder_abduction_left",
+   "bone": "leftUpperArm",
+   "angle_deg": 80,
+   "local_axis": 2,
+   "axis_child_tip_deltas_m": [
+    0.23239935362115619,
+    0.7385662776095663,
+    0.7572898143673948
+   ],
+   "bone_tail_delta_m": 0.29876687787275535,
+   "weighted_vertices_by_mesh": {
+    "ArmorAndOutfitMesh": 119,
+    "Cube": 0,
+    "EyesMesh": 0,
+    "FaceAndBodyMesh": 217,
+    "HairMesh": 0,
+    "Icosphere": 0,
+    "MetallicTrimMesh": 0,
+    "SecondaryAccentMesh": 0
+   },
+   "weighted_vertex_total": 336,
+   "meshes": {
+    "ArmorAndOutfitMesh": {
+     "weighted_max_displacement_m": 0.5746794105058427,
+     "weighted_mean_displacement_m": 0.3313574667167966,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 1376,
+     "self_intersections_posed": 1378
+    },
+    "Cube": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "EyesMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 80,
+     "degenerate_faces_posed": 80,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "FaceAndBodyMesh": {
+     "weighted_max_displacement_m": 0.7544690704354908,
+     "weighted_mean_displacement_m": 0.6750755736672718,
+     "degenerate_faces_rest": 128,
+     "degenerate_faces_posed": 128,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 651,
+     "self_intersections_posed": 655
+    },
+    "HairMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 24,
+     "degenerate_faces_posed": 24,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 16070,
+     "self_intersections_posed": 16070
+    },
+    "Icosphere": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "MetallicTrimMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 32,
+     "self_intersections_posed": 32
+    },
+    "SecondaryAccentMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 9,
+     "self_intersections_posed": 9
+    }
+   },
+   "max_weighted_displacement_m": 0.7544690704354908,
+   "measurable": true
+  },
+  {
+   "pose": "neck_45",
+   "bone": "neck",
+   "angle_deg": 45,
+   "local_axis": 0,
+   "axis_child_tip_deltas_m": [
+    0.32998477872898707,
+    0.23497536650411718,
+    0.31116484987745974
+   ],
+   "bone_tail_delta_m": 0.06402074122293609,
+   "weighted_vertices_by_mesh": {
+    "ArmorAndOutfitMesh": 114,
+    "Cube": 0,
+    "EyesMesh": 714,
+    "FaceAndBodyMesh": 3701,
+    "HairMesh": 4811,
+    "Icosphere": 0,
+    "MetallicTrimMesh": 0,
+    "SecondaryAccentMesh": 0
+   },
+   "weighted_vertex_total": 9340,
+   "meshes": {
+    "ArmorAndOutfitMesh": {
+     "weighted_max_displacement_m": 0.02234415772889328,
+     "weighted_mean_displacement_m": 0.010317796705081497,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 1376,
+     "self_intersections_posed": 1381
+    },
+    "Cube": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "EyesMesh": {
+     "weighted_max_displacement_m": 0.15953309678884167,
+     "weighted_mean_displacement_m": 0.14808798700256806,
+     "degenerate_faces_rest": 80,
+     "degenerate_faces_posed": 80,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 6
+    },
+    "FaceAndBodyMesh": {
+     "weighted_max_displacement_m": 0.2140667343751119,
+     "weighted_mean_displacement_m": 0.13546109199424022,
+     "degenerate_faces_rest": 128,
+     "degenerate_faces_posed": 128,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 651,
+     "self_intersections_posed": 658
+    },
+    "HairMesh": {
+     "weighted_max_displacement_m": 0.2351483062275487,
+     "weighted_mean_displacement_m": 0.18644005815350112,
+     "degenerate_faces_rest": 24,
+     "degenerate_faces_posed": 24,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 16070,
+     "self_intersections_posed": 16064
+    },
+    "Icosphere": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "MetallicTrimMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 32,
+     "self_intersections_posed": 32
+    },
+    "SecondaryAccentMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 9,
+     "self_intersections_posed": 9
+    }
+   },
+   "max_weighted_displacement_m": 0.2351483062275487,
+   "measurable": true
+  },
+  {
+   "pose": "hip_flexion_left",
+   "bone": "leftUpperLeg",
+   "angle_deg": 70,
+   "local_axis": 2,
+   "axis_child_tip_deltas_m": [
+    0.8612501321025707,
+    0.3823049060528192,
+    0.8677918673663312
+   ],
+   "bone_tail_delta_m": 0.4385621766786025,
+   "weighted_vertices_by_mesh": {
+    "ArmorAndOutfitMesh": 402,
+    "Cube": 0,
+    "EyesMesh": 0,
+    "FaceAndBodyMesh": 0,
+    "HairMesh": 0,
+    "Icosphere": 0,
+    "MetallicTrimMesh": 28,
+    "SecondaryAccentMesh": 86
+   },
+   "weighted_vertex_total": 516,
+   "meshes": {
+    "ArmorAndOutfitMesh": {
+     "weighted_max_displacement_m": 0.9351674956155599,
+     "weighted_mean_displacement_m": 0.5469279457406603,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 1376,
+     "self_intersections_posed": 1415
+    },
+    "Cube": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "EyesMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 80,
+     "degenerate_faces_posed": 80,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "FaceAndBodyMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 128,
+     "degenerate_faces_posed": 128,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 651,
+     "self_intersections_posed": 651
+    },
+    "HairMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 24,
+     "degenerate_faces_posed": 24,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 16070,
+     "self_intersections_posed": 16070
+    },
+    "Icosphere": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "MetallicTrimMesh": {
+     "weighted_max_displacement_m": 0.8587187364205078,
+     "weighted_mean_displacement_m": 0.8504395160144188,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 32,
+     "self_intersections_posed": 32
+    },
+    "SecondaryAccentMesh": {
+     "weighted_max_displacement_m": 0.9512614887703014,
+     "weighted_mean_displacement_m": 0.7353847803299943,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 9,
+     "self_intersections_posed": 9
+    }
+   },
+   "max_weighted_displacement_m": 0.9512614887703014,
+   "measurable": true
+  },
+  {
+   "pose": "spine_30",
+   "bone": "spine",
+   "angle_deg": 30,
+   "local_axis": 0,
+   "axis_child_tip_deltas_m": [
+    0.8087451190215593,
+    0.6997064670229711,
+    0.6994404765893459
+   ],
+   "bone_tail_delta_m": 0.06254285408632804,
+   "weighted_vertices_by_mesh": {
+    "ArmorAndOutfitMesh": 774,
+    "Cube": 0,
+    "EyesMesh": 714,
+    "FaceAndBodyMesh": 4135,
+    "HairMesh": 4811,
+    "Icosphere": 0,
+    "MetallicTrimMesh": 105,
+    "SecondaryAccentMesh": 362
+   },
+   "weighted_vertex_total": 10901,
+   "meshes": {
+    "ArmorAndOutfitMesh": {
+     "weighted_max_displacement_m": 0.18226291013446025,
+     "weighted_mean_displacement_m": 0.1259262440060679,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 1376,
+     "self_intersections_posed": 1492
+    },
+    "Cube": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "EyesMesh": {
+     "weighted_max_displacement_m": 0.28010684028125465,
+     "weighted_mean_displacement_m": 0.2723533853855921,
+     "degenerate_faces_rest": 80,
+     "degenerate_faces_posed": 80,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 5
+    },
+    "FaceAndBodyMesh": {
+     "weighted_max_displacement_m": 0.3227729211450794,
+     "weighted_mean_displacement_m": 0.25251429346507104,
+     "degenerate_faces_rest": 128,
+     "degenerate_faces_posed": 128,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 651,
+     "self_intersections_posed": 659
+    },
+    "HairMesh": {
+     "weighted_max_displacement_m": 0.33704182158290946,
+     "weighted_mean_displacement_m": 0.30134887033190105,
+     "degenerate_faces_rest": 24,
+     "degenerate_faces_posed": 24,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 16070,
+     "self_intersections_posed": 16076
+    },
+    "Icosphere": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "MetallicTrimMesh": {
+     "weighted_max_displacement_m": 0.10314672226088835,
+     "weighted_mean_displacement_m": 0.03190085014551315,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 32,
+     "self_intersections_posed": 30
+    },
+    "SecondaryAccentMesh": {
+     "weighted_max_displacement_m": 0.15942629992933388,
+     "weighted_mean_displacement_m": 0.04058344695798467,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 9,
+     "self_intersections_posed": 29
+    }
+   },
+   "max_weighted_displacement_m": 0.33704182158290946,
+   "measurable": true
+  },
+  {
+   "pose": "elbow_right",
+   "bone": "rightLowerArm",
+   "angle_deg": 90,
+   "local_axis": 1,
+   "axis_child_tip_deltas_m": [
+    0.21376469738663292,
+    0.4841066272411479,
+    0.46598599444419625
+   ],
+   "bone_tail_delta_m": 0.0,
+   "weighted_vertices_by_mesh": {
+    "ArmorAndOutfitMesh": 85,
+    "Cube": 0,
+    "EyesMesh": 0,
+    "FaceAndBodyMesh": 217,
+    "HairMesh": 0,
+    "Icosphere": 0,
+    "MetallicTrimMesh": 0,
+    "SecondaryAccentMesh": 0
+   },
+   "weighted_vertex_total": 302,
+   "meshes": {
+    "ArmorAndOutfitMesh": {
+     "weighted_max_displacement_m": 0.30360305884698136,
+     "weighted_mean_displacement_m": 0.14797327770305635,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 1376,
+     "self_intersections_posed": 1376
+    },
+    "Cube": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "EyesMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 80,
+     "degenerate_faces_posed": 80,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "FaceAndBodyMesh": {
+     "weighted_max_displacement_m": 0.5007042366438296,
+     "weighted_mean_displacement_m": 0.41501353331416635,
+     "degenerate_faces_rest": 128,
+     "degenerate_faces_posed": 128,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 651,
+     "self_intersections_posed": 653
+    },
+    "HairMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 24,
+     "degenerate_faces_posed": 24,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 16070,
+     "self_intersections_posed": 16070
+    },
+    "Icosphere": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "MetallicTrimMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 32,
+     "self_intersections_posed": 32
+    },
+    "SecondaryAccentMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 9,
+     "self_intersections_posed": 9
+    }
+   },
+   "max_weighted_displacement_m": 0.5007042366438296,
+   "measurable": true
+  },
+  {
+   "pose": "knee_right",
+   "bone": "rightLowerLeg",
+   "angle_deg": 90,
+   "local_axis": 2,
+   "axis_child_tip_deltas_m": [
+    0.5232679676114078,
+    0.38046958735254427,
+    0.5292980574140688
+   ],
+   "bone_tail_delta_m": 0.5380653058923942,
+   "weighted_vertices_by_mesh": {
+    "ArmorAndOutfitMesh": 334,
+    "Cube": 0,
+    "EyesMesh": 0,
+    "FaceAndBodyMesh": 0,
+    "HairMesh": 0,
+    "Icosphere": 0,
+    "MetallicTrimMesh": 28,
+    "SecondaryAccentMesh": 86
+   },
+   "weighted_vertex_total": 448,
+   "meshes": {
+    "ArmorAndOutfitMesh": {
+     "weighted_max_displacement_m": 0.6133202414214736,
+     "weighted_mean_displacement_m": 0.2898929733302573,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 1376,
+     "self_intersections_posed": 2447
+    },
+    "Cube": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "EyesMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 80,
+     "degenerate_faces_posed": 80,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "FaceAndBodyMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 128,
+     "degenerate_faces_posed": 128,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 651,
+     "self_intersections_posed": 651
+    },
+    "HairMesh": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 24,
+     "degenerate_faces_posed": 24,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 16070,
+     "self_intersections_posed": 16070
+    },
+    "Icosphere": {
+     "weighted_max_displacement_m": null,
+     "weighted_mean_displacement_m": null,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 0,
+     "self_intersections_posed": 0
+    },
+    "MetallicTrimMesh": {
+     "weighted_max_displacement_m": 0.5202860346086782,
+     "weighted_mean_displacement_m": 0.5090447742059006,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 32,
+     "self_intersections_posed": 31
+    },
+    "SecondaryAccentMesh": {
+     "weighted_max_displacement_m": 0.6333199615057501,
+     "weighted_mean_displacement_m": 0.41079621976188596,
+     "degenerate_faces_rest": 0,
+     "degenerate_faces_posed": 0,
+     "degenerate_delta": 0,
+     "self_intersections_rest": 9,
+     "self_intersections_posed": 9
+    }
+   },
+   "max_weighted_displacement_m": 0.6333199615057501,
+   "measurable": true
+  }
+ ],
+ "synthetic_control": {
+  "description": "four points on a two-bone cylinder, child rotated 90 degrees around local Z",
+  "max_displacement_m": 0.14142135623730956,
+  "pass": true
+ }
+}
