@@ -164,7 +164,12 @@ def _is_int(v: Any) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
 
 
-def _validate_vrm0_extras(vrm0: Dict[str, Any], texture_count: int) -> List[str]:
+def _validate_vrm0_extras(
+    vrm0: Dict[str, Any],
+    texture_count: int,
+    material_names: Optional[List[str]] = None,
+    warnings: Optional[List[str]] = None,
+) -> List[str]:
     errs: List[str] = []
     meta = vrm0.get("meta")
     if isinstance(meta, dict):
@@ -216,12 +221,20 @@ def _validate_vrm0_extras(vrm0: Dict[str, Any], texture_count: int) -> List[str]
                         ):
                             errs.append(f"blendShapeGroups[{i}].materialValues has a malformed entry")
                             break
+                        if mv["materialName"] not in (material_names or []):
+                            errs.append(
+                                f"blendShapeGroups[{i}].materialValues references unknown material \"{mv['materialName']}\""
+                            )
 
     if "materialProperties" in vrm0:
         mps = vrm0["materialProperties"]
         if not isinstance(mps, list):
             errs.append("materialProperties must be an array")
         else:
+            if warnings is not None and len(mps) != len(material_names or []):
+                warnings.append(
+                    f"materialProperties has {len(mps)} entries but the glTF has {len(material_names or [])} materials"
+                )
             for i, mp in enumerate(mps):
                 if not isinstance(mp, dict):
                     errs.append(f"materialProperties[{i}] is not an object")
@@ -371,6 +384,7 @@ def validate_vrm_bytes(
         return {"valid": False, "error": "Missing JSON or BIN chunk."}
 
     errors: List[str] = []
+    extra_warnings: List[str] = []
     extensions = gltf_json.get("extensions", {})
     extensions_used = gltf_json.get("extensionsUsed", [])
     vrm0 = extensions.get("VRM")
@@ -459,7 +473,14 @@ def validate_vrm_bytes(
                 errors.append(f"Invalid commercialUssageName {m0['commercialUssageName']}")
             if "licenseName" in m0 and m0["licenseName"] not in VRM0_LICENSE_NAMES:
                 errors.append(f"Invalid licenseName {m0['licenseName']}")
-        errors.extend(_validate_vrm0_extras(vrm0, len(textures)))
+        errors.extend(
+            _validate_vrm0_extras(
+                vrm0,
+                len(textures),
+                [m.get("name", "") for m in materials if isinstance(m, dict)],
+                extra_warnings,
+            )
+        )
 
         raw_bones = vrm0.get("humanoid", {}).get("humanBones")
         if not isinstance(raw_bones, list):
@@ -504,7 +525,7 @@ def validate_vrm_bytes(
                 seen_nodes1[ref["node"]] = bname
                 mapped_map[bname] = ref["node"]
 
-    warnings = _humanoid_hierarchy_warnings(mapped_map, nodes)
+    warnings = _humanoid_hierarchy_warnings(mapped_map, nodes) + extra_warnings
     missing = [b for b in REQUIRED_HUMANOID_BONES if b not in mapped_map]
     invalid_nodes = [b for b, idx in mapped_map.items() if idx < 0 or idx >= node_count]
 
@@ -692,6 +713,12 @@ def validate_vrm_bytes(
                     errors.append(f"boneGroups[{b_idx}].{key} must be a finite non-negative number")
             if _is_num(bg.get("dragForce")) and bg["dragForce"] > 1:
                 errors.append(f"boneGroups[{b_idx}].dragForce must be within 0..1")
+            gd = bg.get("gravityDir")
+            if gd is not None:
+                if not isinstance(gd, dict) or not all(_is_num(gd.get(ax)) for ax in ("x", "y", "z")):
+                    errors.append(f"boneGroups[{b_idx}].gravityDir must be an object {{x,y,z}} of finite numbers")
+                elif math.hypot(gd["x"], gd["y"], gd["z"]) == 0 and _is_num(bg.get("gravityPower")) and bg["gravityPower"] != 0:
+                    warnings.append(f"boneGroups[{b_idx}].gravityDir has zero length but gravityPower is {bg['gravityPower']}")
             center = bg.get("center")
             if center is not None and (not isinstance(center, int) or center < -1 or center >= node_count):
                 errors.append(f"boneGroups[{b_idx}] invalid center {center}")

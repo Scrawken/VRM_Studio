@@ -588,6 +588,58 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(res["valid"], res["errors"])
         self.assertEqual(res["warnings"], [])
 
+    def test_conformance_15_blendshape_material_refs(self):
+        def _mv(name):
+            def _mut(gltf: dict, _buf: bytearray):
+                gltf["extensions"]["VRM"]["blendShapeMaster"]["blendShapeGroups"][1]["materialValues"] = [
+                    {"materialName": name, "propertyName": "_Color", "targetValue": [1, 0, 0, 1]}
+                ]
+            return _mut
+
+        res, _ = self._errors_vrm0(_mv("DefaultMat"))
+        self.assertTrue(res["valid"], res["errors"])
+        res, msg = self._errors_vrm0(_mv("NoSuchMaterial"))
+        self.assertFalse(res["valid"])
+        self.assertIn('unknown material "NoSuchMaterial"', msg)
+
+    def test_conformance_16_material_properties_count_is_warning(self):
+        res, _ = self._errors_vrm0(None)
+        self.assertFalse(any("materialProperties has" in w for w in res["warnings"]))
+
+        def _two(gltf: dict, _buf: bytearray):
+            gltf["extensions"]["VRM"]["materialProperties"] = [{"name": "DefaultMat"}, {"name": "Extra"}]
+        res, _ = self._errors_vrm0(_two)
+        self.assertTrue(res["valid"], res["errors"])
+        self.assertTrue(any("2 entries but the glTF has 1 materials" in w for w in res["warnings"]), res["warnings"])
+
+        def _one(gltf: dict, _buf: bytearray):
+            gltf["extensions"]["VRM"]["materialProperties"] = [{"name": "DefaultMat"}]
+        res, _ = self._errors_vrm0(_one)
+        self.assertFalse(any("materialProperties has" in w for w in res["warnings"]))
+
+    def test_conformance_17_spring_gravity_dir_and_center(self):
+        def _bg(**kw):
+            def _mut(gltf: dict, _buf: bytearray):
+                gltf["extensions"]["VRM"]["secondaryAnimation"]["boneGroups"][0].update(kw)
+            return _mut
+
+        for bad in ([0, -1, 0], "down", {"x": 0, "y": -1}, {"x": 0, "y": "a", "z": 0}, {"x": 0, "y": None, "z": 0}):
+            res, msg = self._errors_vrm0(_bg(gravityDir=bad))
+            self.assertFalse(res["valid"], bad)
+            self.assertIn("gravityDir must be an object", msg)
+        res, _ = self._errors_vrm0(_bg(gravityDir={"x": 0, "y": -1, "z": 0}, gravityPower=0.3))
+        self.assertTrue(res["valid"], res["errors"])
+        self.assertFalse(any("gravityDir" in w for w in res["warnings"]))
+        res, _ = self._errors_vrm0(_bg(gravityDir={"x": 0, "y": 0, "z": 0}, gravityPower=0.3))
+        self.assertTrue(res["valid"], "zero-length gravityDir is only a warning")
+        self.assertTrue(any("zero length" in w for w in res["warnings"]), res["warnings"])
+        res, _ = self._errors_vrm0(_bg(gravityDir={"x": 0, "y": 0, "z": 0}, gravityPower=0))
+        self.assertFalse(any("zero length" in w for w in res["warnings"]))
+        for c in (-2, 9999, 1.5):
+            res, msg = self._errors_vrm0(_bg(center=c))
+            self.assertFalse(res["valid"], c)
+            self.assertIn("center", msg)
+
     def test_blender_pipeline_fails_explicitly_when_python_validator_missing(self):
         root = Path(__file__).resolve().parent.parent
         scripts_dir = str(root / "blender_scripts")

@@ -276,3 +276,77 @@ test('VRM 0.0 meta, firstPerson, blendShape and spring gaps are rejected', () =>
     assert.match(check(r, 'spring_bones')!.detail, re);
   }
 });
+
+// ---- V2: materialValues material refs, materialProperties count, spring gravityDir/center ----
+
+test('blendShape materialValues must reference an existing glTF material name', () => {
+  const withMv = (name: string) =>
+    validateVrmBinary(
+      buildVrm0(({ gltf }) => {
+        gltf.extensions.VRM.blendShapeMaster.blendShapeGroups[1].materialValues = [
+          { materialName: name, propertyName: '_Color', targetValue: [1, 0, 0, 1] },
+        ];
+      }),
+      '0.0'
+    );
+  const ok = withMv('DefaultMat');
+  assert.equal(ok.valid, true, JSON.stringify(ok.checks));
+  const bad = withMv('NoSuchMaterial');
+  assert.equal(bad.valid, false);
+  assert.match(check(bad, 'vrm_metadata')!.detail, /unknown material "NoSuchMaterial"/);
+});
+
+test('materialProperties length mismatch is a warning, never an error', () => {
+  const none = validateVrmBinary(buildVrm0(), '0.0'); // fixture has no materialProperties
+  assert.equal(check(none, 'vrm0_material_properties'), undefined);
+  const r = validateVrmBinary(
+    buildVrm0(({ gltf }) => {
+      gltf.extensions.VRM.materialProperties = [{ name: 'DefaultMat' }, { name: 'Extra' }];
+    }),
+    '0.0'
+  );
+  assert.equal(r.valid, true, JSON.stringify(r.checks));
+  assert.equal(check(r, 'vrm0_material_properties')!.status, 'warn');
+  assert.match(check(r, 'vrm0_material_properties')!.detail, /2 entries but the glTF has 1 materials/);
+  const match = validateVrmBinary(
+    buildVrm0(({ gltf }) => {
+      gltf.extensions.VRM.materialProperties = [{ name: 'DefaultMat' }];
+    }),
+    '0.0'
+  );
+  assert.equal(check(match, 'vrm0_material_properties'), undefined);
+});
+
+test('spring boneGroup gravityDir must be finite {x,y,z}; zero length warns; centre range is checked', () => {
+  const mutate = (fn: (bg: Gltf) => void) =>
+    validateVrmBinary(buildVrm0(({ gltf }) => fn(gltf.extensions.VRM.secondaryAnimation.boneGroups[0])), '0.0');
+  const badDirs: unknown[] = [[0, -1, 0], 'down', { x: 0, y: -1 }, { x: 0, y: 'a', z: 0 }, { x: 0, y: null, z: 0 }];
+  for (const d of badDirs) {
+    const r = mutate((bg) => (bg.gravityDir = d));
+    assert.equal(r.valid, false, JSON.stringify(d));
+    assert.match(check(r, 'spring_bones')!.detail, /gravityDir must be an object/);
+  }
+  const good = mutate((bg) => {
+    bg.gravityDir = { x: 0, y: -1, z: 0 };
+    bg.gravityPower = 0.3;
+  });
+  assert.equal(good.valid, true);
+  assert.equal(check(good, 'spring_bones')!.status, 'pass');
+  const zero = mutate((bg) => {
+    bg.gravityDir = { x: 0, y: 0, z: 0 };
+    bg.gravityPower = 0.3;
+  });
+  assert.equal(zero.valid, true, 'zero-length gravityDir is only a warning');
+  assert.equal(check(zero, 'spring_bones')!.status, 'warn');
+  assert.match(check(zero, 'spring_bones')!.detail, /zero length/);
+  const zeroPower = mutate((bg) => {
+    bg.gravityDir = { x: 0, y: 0, z: 0 };
+    bg.gravityPower = 0;
+  });
+  assert.equal(check(zeroPower, 'spring_bones')!.status, 'pass');
+  for (const c of [-2, 9999, 1.5]) {
+    const r = mutate((bg) => (bg.center = c));
+    assert.equal(r.valid, false, String(c));
+    assert.match(check(r, 'spring_bones')!.detail, /center/);
+  }
+});

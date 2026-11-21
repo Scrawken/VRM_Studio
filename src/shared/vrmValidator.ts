@@ -99,6 +99,7 @@ interface GltfJson {
           dragForce?: number;
           hitRadius?: number;
           center?: number;
+          gravityDir?: unknown;
           bones?: number[];
           colliderGroups?: number[];
         }>;
@@ -307,7 +308,12 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> =>
 const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
 /** VRM 0.0 checks beyond the permission enums: meta types, firstPerson enums, blendShape and material schema. */
-function validateVrm0Extras(vrm0: Record<string, unknown>, textureCount: number): string[] {
+function validateVrm0Extras(
+  vrm0: Record<string, unknown>,
+  textureCount: number,
+  materialNames: string[] = [],
+  warnings: string[] = []
+): string[] {
   const errs: string[] = [];
   const meta = vrm0.meta;
   if (isPlainObject(meta)) {
@@ -366,6 +372,11 @@ function validateVrm0Extras(vrm0: Record<string, unknown>, textureCount: number)
               errs.push(`blendShapeGroups[${i}].materialValues has a malformed entry`);
               break;
             }
+            if (!materialNames.includes(mv.materialName)) {
+              errs.push(
+                `blendShapeGroups[${i}].materialValues references unknown material "${mv.materialName}"`
+              );
+            }
           }
         }
       }
@@ -377,6 +388,11 @@ function validateVrm0Extras(vrm0: Record<string, unknown>, textureCount: number)
     if (!Array.isArray(mps)) {
       errs.push('materialProperties must be an array');
     } else {
+      if (mps.length !== materialNames.length) {
+        warnings.push(
+          `materialProperties has ${mps.length} entries but the glTF has ${materialNames.length} materials`
+        );
+      }
       mps.forEach((mp, i) => {
         if (!isPlainObject(mp)) {
           errs.push(`materialProperties[${i}] is not an object`);
@@ -502,6 +518,7 @@ export function validateVrmBinary(
   expectedVersion?: VrmExportVersion
 ): VrmValidationReport {
   const checks: ValidationCheck[] = [];
+  const vrm0MaterialWarnings: string[] = [];
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
   const failReport = (reason: string): VrmValidationReport => ({
@@ -661,7 +678,14 @@ export function validateVrmBinary(
       if (m0.licenseName !== undefined && !VRM0_LICENSE_SET.has(m0.licenseName)) {
         metaErrors.push(`Invalid licenseName "${m0.licenseName}"`);
       }
-      metaErrors.push(...validateVrm0Extras(vrm0Ext as unknown as Record<string, unknown>, (gltf.textures ?? []).length));
+      metaErrors.push(
+        ...validateVrm0Extras(
+          vrm0Ext as unknown as Record<string, unknown>,
+          (gltf.textures ?? []).length,
+          (gltf.materials ?? []).map((m: { name?: string }) => m?.name ?? ''),
+          vrm0MaterialWarnings
+        )
+      );
     }
     checks.push({
       id: 'vrm_metadata',
@@ -805,6 +829,15 @@ export function validateVrmBinary(
             ? `Missing required bones: ${missingRequiredBones.join(', ')}`
             : `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${Math.max(0, mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length)} optional/finger bones mapped`,
   });
+
+  if (vrm0MaterialWarnings.length > 0) {
+    checks.push({
+      id: 'vrm0_material_properties',
+      label: 'VRM 0.0 materialProperties vs glTF materials',
+      status: 'warn',
+      detail: vrm0MaterialWarnings.join('; '),
+    });
+  }
 
   const hierarchyWarnings = humanoidHierarchyWarnings(boneMap, nodes);
   if (hierarchyWarnings.length > 0) {
@@ -1199,6 +1232,7 @@ export function validateVrmBinary(
   let springStatus: 'pass' | 'warn' | 'fail' = 'warn';
   let springDetail = '';
   const springErrors: string[] = [];
+  const springWarnings: string[] = [];
 
   if (isVrm0) {
     const boneGroups = vrm0Ext?.secondaryAnimation?.boneGroups ?? [];
@@ -1242,6 +1276,19 @@ export function validateVrmBinary(
       if (isFiniteNumber(bg.dragForce) && bg.dragForce > 1) {
         springErrors.push(`boneGroups[${bIdx}].dragForce must be within 0..1`);
       }
+      const gd: unknown = bg.gravityDir;
+      if (gd !== undefined) {
+        const g = gd as { x?: unknown; y?: unknown; z?: unknown };
+        if (!isPlainObject(gd) || !isFiniteNumber(g.x) || !isFiniteNumber(g.y) || !isFiniteNumber(g.z)) {
+          springErrors.push(`boneGroups[${bIdx}].gravityDir must be an object {x,y,z} of finite numbers`);
+        } else if (
+          Math.hypot(g.x, g.y, g.z) === 0 &&
+          isFiniteNumber(bg.gravityPower) &&
+          bg.gravityPower !== 0
+        ) {
+          springWarnings.push(`boneGroups[${bIdx}].gravityDir has zero length but gravityPower is ${bg.gravityPower}`);
+        }
+      }
       if (bg.center !== undefined && (!Number.isInteger(bg.center) || bg.center < -1 || bg.center >= nodeCount)) {
         springErrors.push(`boneGroups[${bIdx}] has out-of-range center node ${bg.center}`);
       }
@@ -1264,13 +1311,17 @@ export function validateVrmBinary(
     springStatus =
       springErrors.length > 0
         ? 'fail'
-        : springBoneJointCount > 0 || secondaryBoneGroupCount === 0
-          ? 'pass'
-          : 'warn';
+        : springWarnings.length > 0
+          ? 'warn'
+          : springBoneJointCount > 0 || secondaryBoneGroupCount === 0
+            ? 'pass'
+            : 'warn';
     springDetail =
       springErrors.length > 0
         ? springErrors.slice(0, 3).join('; ')
-        : `${secondaryBoneGroupCount} boneGroups (${springBoneJointCount} physics roots) · ${colliderGroupCount} colliderGroups`;
+        : springWarnings.length > 0
+          ? springWarnings.slice(0, 3).join('; ')
+          : `${secondaryBoneGroupCount} boneGroups (${springBoneJointCount} physics roots) · ${colliderGroupCount} colliderGroups`;
   } else {
     const sb = gltf.extensions?.VRMC_springBone;
     const springs = sb?.springs ?? [];
