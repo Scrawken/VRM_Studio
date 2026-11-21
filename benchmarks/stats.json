@@ -1,0 +1,1024 @@
+[
+ {
+  "file": "src/armored_paladin_aurelia/character.vrm",
+  "bytes": 3613000,
+  "triangles": 31044,
+  "vertices": 17423,
+  "materials": 7,
+  "textures": 12,
+  "images": [
+   {
+    "name": "skin_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 60004
+   },
+   {
+    "name": "iris_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 132285
+   },
+   {
+    "name": "hair_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 145828
+   },
+   {
+    "name": "armor_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 118295
+   },
+   {
+    "name": "trim_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 115056
+   },
+   {
+    "name": "cloak_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 92174
+   },
+   {
+    "name": "secondary_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 100091
+   },
+   {
+    "name": "iris_emissive",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 95851
+   },
+   {
+    "name": "skin_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 52491
+   },
+   {
+    "name": "hair_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 80214
+   },
+   {
+    "name": "armor_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 16194
+   },
+   {
+    "name": "cloak_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 132294
+   }
+  ],
+  "morph_targets_total": 34,
+  "nodes": 73,
+  "skin_joints": 65,
+  "max_influences": 2,
+  "influence_histogram": {
+   "1": 6129,
+   "2": 11294
+  },
+  "meshes": [
+   {
+    "name": "FaceAndBodyMesh",
+    "verts": 3701,
+    "tris": 6944,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Skin_Material"
+   },
+   {
+    "name": "EyesMesh",
+    "verts": 714,
+    "tris": 1280,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Eyes_Material"
+   },
+   {
+    "name": "HairMesh",
+    "verts": 4129,
+    "tris": 7232,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Hair_Material"
+   },
+   {
+    "name": "ArmorAndOutfitMesh",
+    "verts": 3921,
+    "tris": 6936,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Armor_Outfit_Material"
+   },
+   {
+    "name": "MetallicTrimMesh",
+    "verts": 729,
+    "tris": 1264,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Metallic_Trim_Material"
+   },
+   {
+    "name": "CloakAndFabricMesh",
+    "verts": 2787,
+    "tris": 4892,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Cloak_Fabric_Material"
+   },
+   {
+    "name": "SecondaryAccentMesh",
+    "verts": 1442,
+    "tris": 2496,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Secondary_Accent_Material"
+   }
+  ],
+  "vrm": {
+   "specVersion": "0.0",
+   "humanoid_bones": 55,
+   "blendShapeGroups": [
+    "neutral",
+    "joy",
+    "angry",
+    "sorrow",
+    "fun",
+    "unknown",
+    "blink",
+    "blink_l",
+    "blink_r",
+    "lookup",
+    "lookdown",
+    "lookleft",
+    "lookright",
+    "a",
+    "i",
+    "u",
+    "e",
+    "o"
+   ],
+   "springBoneGroups": 4,
+   "colliderGroups": 2
+  }
+ },
+ {
+  "file": "src/dark_elf_vaelith/character.vrm",
+  "bytes": 2948584,
+  "triangles": 30596,
+  "vertices": 17146,
+  "materials": 7,
+  "textures": 12,
+  "images": [
+   {
+    "name": "skin_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 22073
+   },
+   {
+    "name": "iris_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 36576
+   },
+   {
+    "name": "hair_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 25654
+   },
+   {
+    "name": "armor_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 15877
+   },
+   {
+    "name": "trim_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 33395
+   },
+   {
+    "name": "cloak_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 19214
+   },
+   {
+    "name": "secondary_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 34030
+   },
+   {
+    "name": "iris_emissive",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 28879
+   },
+   {
+    "name": "skin_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 52491
+   },
+   {
+    "name": "hair_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 80214
+   },
+   {
+    "name": "armor_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 16194
+   },
+   {
+    "name": "cloak_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 132294
+   }
+  ],
+  "morph_targets_total": 34,
+  "nodes": 73,
+  "skin_joints": 65,
+  "max_influences": 2,
+  "influence_histogram": {
+   "1": 6129,
+   "2": 11017
+  },
+  "meshes": [
+   {
+    "name": "FaceAndBodyMesh",
+    "verts": 3701,
+    "tris": 6944,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Skin_Material"
+   },
+   {
+    "name": "EyesMesh",
+    "verts": 714,
+    "tris": 1280,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Eyes_Material"
+   },
+   {
+    "name": "HairMesh",
+    "verts": 6190,
+    "tris": 10832,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Hair_Material"
+   },
+   {
+    "name": "ArmorAndOutfitMesh",
+    "verts": 3921,
+    "tris": 6936,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Armor_Outfit_Material"
+   },
+   {
+    "name": "MetallicTrimMesh",
+    "verts": 499,
+    "tris": 864,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Metallic_Trim_Material"
+   },
+   {
+    "name": "CloakAndFabricMesh",
+    "verts": 679,
+    "tris": 1244,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Cloak_Fabric_Material"
+   },
+   {
+    "name": "SecondaryAccentMesh",
+    "verts": 1442,
+    "tris": 2496,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Secondary_Accent_Material"
+   }
+  ],
+  "vrm": {
+   "specVersion": "0.0",
+   "humanoid_bones": 55,
+   "blendShapeGroups": [
+    "neutral",
+    "joy",
+    "angry",
+    "sorrow",
+    "fun",
+    "unknown",
+    "blink",
+    "blink_l",
+    "blink_r",
+    "lookup",
+    "lookdown",
+    "lookleft",
+    "lookright",
+    "a",
+    "i",
+    "u",
+    "e",
+    "o"
+   ],
+   "springBoneGroups": 4,
+   "colliderGroups": 2
+  }
+ },
+ {
+  "file": "src/realistic_human_marcus/character.vrm",
+  "bytes": 2568844,
+  "triangles": 21824,
+  "vertices": 12287,
+  "materials": 7,
+  "textures": 12,
+  "images": [
+   {
+    "name": "skin_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 20942
+   },
+   {
+    "name": "iris_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 36037
+   },
+   {
+    "name": "hair_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 14045
+   },
+   {
+    "name": "armor_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 22013
+   },
+   {
+    "name": "trim_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 27285
+   },
+   {
+    "name": "cloak_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 14097
+   },
+   {
+    "name": "secondary_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 17243
+   },
+   {
+    "name": "iris_emissive",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 27499
+   },
+   {
+    "name": "skin_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 52491
+   },
+   {
+    "name": "hair_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 80214
+   },
+   {
+    "name": "armor_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 16194
+   },
+   {
+    "name": "cloak_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 132294
+   }
+  ],
+  "morph_targets_total": 34,
+  "nodes": 72,
+  "skin_joints": 65,
+  "max_influences": 2,
+  "influence_histogram": {
+   "1": 7798,
+   "2": 4489
+  },
+  "meshes": [
+   {
+    "name": "FaceAndBodyMesh",
+    "verts": 4135,
+    "tris": 7672,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Skin_Material"
+   },
+   {
+    "name": "EyesMesh",
+    "verts": 714,
+    "tris": 1280,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Eyes_Material"
+   },
+   {
+    "name": "HairMesh",
+    "verts": 4811,
+    "tris": 8352,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Hair_Material"
+   },
+   {
+    "name": "ArmorAndOutfitMesh",
+    "verts": 1932,
+    "tris": 3312,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Armor_Outfit_Material"
+   },
+   {
+    "name": "MetallicTrimMesh",
+    "verts": 161,
+    "tris": 280,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Metallic_Trim_Material"
+   },
+   {
+    "name": "SecondaryAccentMesh",
+    "verts": 534,
+    "tris": 928,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Secondary_Accent_Material"
+   }
+  ],
+  "vrm": {
+   "specVersion": "0.0",
+   "humanoid_bones": 55,
+   "blendShapeGroups": [
+    "neutral",
+    "joy",
+    "angry",
+    "sorrow",
+    "fun",
+    "unknown",
+    "blink",
+    "blink_l",
+    "blink_r",
+    "lookup",
+    "lookdown",
+    "lookleft",
+    "lookright",
+    "a",
+    "i",
+    "u",
+    "e",
+    "o"
+   ],
+   "springBoneGroups": 3,
+   "colliderGroups": 2
+  }
+ },
+ {
+  "file": "src/armored_paladin_aurelia/character.glb",
+  "bytes": 3605392,
+  "triangles": 31044,
+  "vertices": 17423,
+  "materials": 7,
+  "textures": 12,
+  "images": [
+   {
+    "name": "skin_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 60004
+   },
+   {
+    "name": "iris_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 132285
+   },
+   {
+    "name": "hair_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 145828
+   },
+   {
+    "name": "armor_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 118295
+   },
+   {
+    "name": "trim_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 115056
+   },
+   {
+    "name": "cloak_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 92174
+   },
+   {
+    "name": "secondary_albedo",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 100091
+   },
+   {
+    "name": "iris_emissive",
+    "w": 512,
+    "h": 512,
+    "fmt": "png",
+    "bytes": 95851
+   },
+   {
+    "name": "skin_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 52491
+   },
+   {
+    "name": "hair_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 80214
+   },
+   {
+    "name": "armor_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 16194
+   },
+   {
+    "name": "cloak_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 132294
+   }
+  ],
+  "morph_targets_total": 34,
+  "nodes": 73,
+  "skin_joints": 65,
+  "max_influences": 2,
+  "influence_histogram": {
+   "1": 6129,
+   "2": 11294
+  },
+  "meshes": [
+   {
+    "name": "FaceAndBodyMesh",
+    "verts": 3701,
+    "tris": 6944,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Skin_Material"
+   },
+   {
+    "name": "EyesMesh",
+    "verts": 714,
+    "tris": 1280,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Eyes_Material"
+   },
+   {
+    "name": "HairMesh",
+    "verts": 4129,
+    "tris": 7232,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Hair_Material"
+   },
+   {
+    "name": "ArmorAndOutfitMesh",
+    "verts": 3921,
+    "tris": 6936,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Armor_Outfit_Material"
+   },
+   {
+    "name": "MetallicTrimMesh",
+    "verts": 729,
+    "tris": 1264,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Metallic_Trim_Material"
+   },
+   {
+    "name": "CloakAndFabricMesh",
+    "verts": 2787,
+    "tris": 4892,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Cloak_Fabric_Material"
+   },
+   {
+    "name": "SecondaryAccentMesh",
+    "verts": 1442,
+    "tris": 2496,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Secondary_Accent_Material"
+   }
+  ]
+ },
+ {
+  "file": "src/dark_elf_vaelith/character.glb",
+  "bytes": 2940976,
+  "triangles": 30596,
+  "vertices": 17146,
+  "materials": 7,
+  "textures": 12,
+  "images": [
+   {
+    "name": "skin_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 22073
+   },
+   {
+    "name": "iris_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 36576
+   },
+   {
+    "name": "hair_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 25654
+   },
+   {
+    "name": "armor_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 15877
+   },
+   {
+    "name": "trim_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 33395
+   },
+   {
+    "name": "cloak_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 19214
+   },
+   {
+    "name": "secondary_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 34030
+   },
+   {
+    "name": "iris_emissive",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 28879
+   },
+   {
+    "name": "skin_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 52491
+   },
+   {
+    "name": "hair_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 80214
+   },
+   {
+    "name": "armor_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 16194
+   },
+   {
+    "name": "cloak_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 132294
+   }
+  ],
+  "morph_targets_total": 34,
+  "nodes": 73,
+  "skin_joints": 65,
+  "max_influences": 2,
+  "influence_histogram": {
+   "1": 6129,
+   "2": 11017
+  },
+  "meshes": [
+   {
+    "name": "FaceAndBodyMesh",
+    "verts": 3701,
+    "tris": 6944,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Skin_Material"
+   },
+   {
+    "name": "EyesMesh",
+    "verts": 714,
+    "tris": 1280,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Eyes_Material"
+   },
+   {
+    "name": "HairMesh",
+    "verts": 6190,
+    "tris": 10832,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Hair_Material"
+   },
+   {
+    "name": "ArmorAndOutfitMesh",
+    "verts": 3921,
+    "tris": 6936,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Armor_Outfit_Material"
+   },
+   {
+    "name": "MetallicTrimMesh",
+    "verts": 499,
+    "tris": 864,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Metallic_Trim_Material"
+   },
+   {
+    "name": "CloakAndFabricMesh",
+    "verts": 679,
+    "tris": 1244,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Cloak_Fabric_Material"
+   },
+   {
+    "name": "SecondaryAccentMesh",
+    "verts": 1442,
+    "tris": 2496,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Secondary_Accent_Material"
+   }
+  ]
+ },
+ {
+  "file": "src/realistic_human_marcus/character.glb",
+  "bytes": 2561420,
+  "triangles": 21824,
+  "vertices": 12287,
+  "materials": 7,
+  "textures": 12,
+  "images": [
+   {
+    "name": "skin_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 20942
+   },
+   {
+    "name": "iris_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 36037
+   },
+   {
+    "name": "hair_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 14045
+   },
+   {
+    "name": "armor_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 22013
+   },
+   {
+    "name": "trim_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 27285
+   },
+   {
+    "name": "cloak_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 14097
+   },
+   {
+    "name": "secondary_albedo",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 17243
+   },
+   {
+    "name": "iris_emissive",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 27499
+   },
+   {
+    "name": "skin_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 52491
+   },
+   {
+    "name": "hair_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 80214
+   },
+   {
+    "name": "armor_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 16194
+   },
+   {
+    "name": "cloak_normal",
+    "w": 256,
+    "h": 256,
+    "fmt": "png",
+    "bytes": 132294
+   }
+  ],
+  "morph_targets_total": 34,
+  "nodes": 72,
+  "skin_joints": 65,
+  "max_influences": 2,
+  "influence_histogram": {
+   "1": 7798,
+   "2": 4489
+  },
+  "meshes": [
+   {
+    "name": "FaceAndBodyMesh",
+    "verts": 4135,
+    "tris": 7672,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Skin_Material"
+   },
+   {
+    "name": "EyesMesh",
+    "verts": 714,
+    "tris": 1280,
+    "morph_targets": 17,
+    "max_influences": 2,
+    "material": "Eyes_Material"
+   },
+   {
+    "name": "HairMesh",
+    "verts": 4811,
+    "tris": 8352,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Hair_Material"
+   },
+   {
+    "name": "ArmorAndOutfitMesh",
+    "verts": 1932,
+    "tris": 3312,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Armor_Outfit_Material"
+   },
+   {
+    "name": "MetallicTrimMesh",
+    "verts": 161,
+    "tris": 280,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Metallic_Trim_Material"
+   },
+   {
+    "name": "SecondaryAccentMesh",
+    "verts": 534,
+    "tris": 928,
+    "morph_targets": 0,
+    "max_influences": 2,
+    "material": "Secondary_Accent_Material"
+   }
+  ]
+ }
+]
