@@ -43,7 +43,18 @@ For each sample, capture the exact `.vrm` SHA-256, UE version, VRM4U version, im
 - [ ] **PASS:** lit viewport shows non-missing, correctly oriented albedo/base color and expected roughness/metallic values.
 - [ ] **PASS:** masked/translucent hair, lashes and overlays have no dark silhouettes, missing backfaces or sorting failure; capture lit screenshots.
 
-## U1 execution matrix (2026-11-21)
+## U2 execution matrix (2026-11-21)
+
+| Route/item | Status | Evidence |
+|---|---|---|
+| `AssetImportTask` automated route | FAIL/BLOCKED | `benchmarks/UNREAL_U2_EVIDENCE.md`; SlateCore `CurrentBaseApplication.IsValid()` assertion |
+| Rendered editor + post-tick route | FAIL/BLOCKED | `benchmarks/UNREAL_U2_EVIDENCE.md`; callback registered, no import result before editor exit |
+| VRM4U commandlet route | UNTESTED/UNAVAILABLE | no commandlet implementation found in plugin source |
+| Four requested inputs imported | UNTESTED | no route produced a trustworthy import result |
+| Skeletal mesh/bones/morph/material/physics/meta evidence | UNTESTED | no saved imported assets |
+
+The U2 alternatives did not establish model incompatibility. The cheapest next step is a supported interactive editor import with the Slate application left alive through completion, or a project C++ commandlet that invokes the VRM4U factory without ContentBrowser/Slate.
+
 
 | Item | Status | Evidence |
 |---|---|---|
