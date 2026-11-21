@@ -46567,7 +46567,7 @@ var require_websocket_server = __commonJS({
 
 // server.ts
 var import_config = __toESM(require_config(), 1);
-var import_node_child_process3 = require("node:child_process");
+var import_node_child_process4 = require("node:child_process");
 var import_node_crypto2 = __toESM(require("node:crypto"), 1);
 var import_node_fs6 = __toESM(require("node:fs"), 1);
 var import_node_path6 = __toESM(require("node:path"), 1);
@@ -81723,6 +81723,7 @@ function parseAndValidateGlbAsset(payload) {
   let sourceVrmMeta;
   let existingVrmSprings;
   let existingVrmColliderGroups;
+  const colliderImportWarnings = [];
   const vrm0Ext = gltfJson.extensions?.VRM;
   const vrm1Ext = gltfJson.extensions?.VRMC_vrm;
   const vrm1SpringExt = gltfJson.extensions?.VRMC_springBone;
@@ -81785,10 +81786,16 @@ function parseAndValidateGlbAsset(payload) {
       };
     }
     const cgGroups = vrm0Ext.secondaryAnimation?.colliderGroups || [];
+    const cgSourceToMapped = /* @__PURE__ */ new Map();
     if (cgGroups.length > 0) {
-      existingVrmColliderGroups = cgGroups.map((cg) => {
+      existingVrmColliderGroups = cgGroups.map((cg, srcIdx) => {
         const cgNode = typeof cg.node === "number" ? gltfNodes[cg.node] : void 0;
-        if (!cgNode || typeof cg.node !== "number") return null;
+        if (!cgNode || typeof cg.node !== "number") {
+          colliderImportWarnings.push(
+            `Dropped source collider group #${srcIdx}: node ${String(cg.node)} does not exist.`
+          );
+          return null;
+        }
         const colliders = (cg.colliders || []).map((col) => ({
           offset: [
             Number.isFinite(col?.offset?.x) ? Number(col.offset.x) : 0,
@@ -81798,21 +81805,22 @@ function parseAndValidateGlbAsset(payload) {
           radius: Number.isFinite(col?.radius) ? Math.max(0, Number(col.radius)) : 0.05
         }));
         return {
-          nodeName: cgNode.name || `node_${cg.node}`,
-          colliders
+          srcIdx,
+          group: {
+            nodeName: cgNode.name || `node_${cg.node}`,
+            colliders
+          }
         };
-      }).filter((cg) => Boolean(cg));
+      }).filter((e2) => Boolean(e2)).map((e2, mappedIdx) => {
+        cgSourceToMapped.set(e2.srcIdx, mappedIdx);
+        return e2.group;
+      });
     }
     if (Array.isArray(vrm0Ext.secondaryAnimation?.boneGroups)) {
       existingVrmSprings = vrm0Ext.secondaryAnimation.boneGroups.map((bg) => {
         const boneNames = (bg.bones || []).map((nodeIdx) => gltfNodes[nodeIdx] ? gltfNodes[nodeIdx].name || `node_${nodeIdx}` : null).filter((n) => Boolean(n));
-        const colliderGroupIndices = (bg.colliderGroups || []).filter(
-          (cgIdx) => typeof cgIdx === "number" && cgIdx >= 0 && cgIdx < cgGroups.length
-        );
-        const colliderGroupNodeNames = colliderGroupIndices.map((cgIdx) => {
-          const cgNodeIdx = cgGroups[cgIdx]?.node;
-          return cgNodeIdx !== void 0 && gltfNodes[cgNodeIdx] ? gltfNodes[cgNodeIdx].name || `node_${cgNodeIdx}` : null;
-        }).filter((n) => Boolean(n));
+        const colliderGroupIndices = (bg.colliderGroups || []).map((cgIdx) => typeof cgIdx === "number" ? cgSourceToMapped.get(cgIdx) : void 0).filter((m2) => m2 !== void 0);
+        const colliderGroupNodeNames = colliderGroupIndices.map((mIdx) => existingVrmColliderGroups?.[mIdx]?.nodeName).filter((n) => Boolean(n));
         return {
           comment: bg.comment,
           stiffiness: typeof bg.stiffiness === "number" ? bg.stiffiness : 0.65,
@@ -81877,11 +81885,13 @@ function parseAndValidateGlbAsset(payload) {
       };
     }
     if (vrm1SpringExt && typeof vrm1SpringExt === "object") {
+      let v1ColliderMap = /* @__PURE__ */ new Map();
       const flatColliders = vrm1SpringExt.colliders || [];
       const cgList = vrm1SpringExt.colliderGroups || [];
       if (cgList.length > 0 && flatColliders.length > 0) {
         const mappedGroups = [];
-        cgList.forEach((cg) => {
+        const v1SourceToMapped = /* @__PURE__ */ new Map();
+        cgList.forEach((cg, srcIdx) => {
           const colIndices = cg.colliders || [];
           const byNode = /* @__PURE__ */ new Map();
           for (const ci of colIndices) {
@@ -81899,14 +81909,23 @@ function parseAndValidateGlbAsset(payload) {
             byNode.set(c.node, list);
           }
           for (const [nodeIdx, cols] of byNode.entries()) {
+            const list = v1SourceToMapped.get(srcIdx) ?? [];
+            list.push(mappedGroups.length);
+            v1SourceToMapped.set(srcIdx, list);
             mappedGroups.push({
               nodeName: gltfNodes[nodeIdx].name || `node_${nodeIdx}`,
               colliders: cols
             });
           }
+          if (!v1SourceToMapped.has(srcIdx)) {
+            colliderImportWarnings.push(
+              `Dropped source collider group #${srcIdx}: none of its colliders resolve to an existing node.`
+            );
+          }
         });
         if (mappedGroups.length > 0) {
           existingVrmColliderGroups = mappedGroups;
+          v1ColliderMap = v1SourceToMapped;
         }
       }
       if (Array.isArray(vrm1SpringExt.springs)) {
@@ -81917,8 +81936,10 @@ function parseAndValidateGlbAsset(payload) {
           if (joints.length === 0) return null;
           const chainBoneNames = joints.map((j) => gltfNodes[j.node].name || `node_${j.node}`);
           const j0 = joints[0];
-          const cgIndices = (sp.colliderGroups || []).filter(
-            (idx) => typeof idx === "number" && idx >= 0 && idx < (existingVrmColliderGroups?.length ?? 0)
+          const cgIndices = Array.from(
+            new Set(
+              (sp.colliderGroups || []).filter((idx) => typeof idx === "number").flatMap((idx) => v1ColliderMap.get(idx) ?? [])
+            )
           );
           return {
             comment: sp.name,
@@ -81967,7 +81988,7 @@ function parseAndValidateGlbAsset(payload) {
   let hasMorphTargets = false;
   let hasVertexColors = false;
   let hasMultiInfluenceSkin = false;
-  const unsupportedFeatures = /* @__PURE__ */ new Set();
+  const unsupportedFeatures = new Set(colliderImportWarnings);
   let minX = Infinity;
   let minY = Infinity;
   let minZ = Infinity;
@@ -82696,6 +82717,44 @@ function configureBlenderExecutablePath(candidatePath, options) {
     };
   }
 }
+function findRepoToolsRoot() {
+  let dir = process.cwd();
+  for (let i2 = 0; i2 < 4; i2 += 1) {
+    const candidate = import_node_path3.default.join(dir, "_tools");
+    if (import_node_fs3.default.existsSync(candidate)) return candidate;
+    const parent = import_node_path3.default.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return import_node_path3.default.join(process.cwd(), "_tools");
+}
+function getRepoToolBlenderPaths(toolsRoot = findRepoToolsRoot()) {
+  const exeName = import_node_os2.default.platform() === "win32" ? "blender.exe" : "blender";
+  const found = [];
+  try {
+    for (const entry of import_node_fs3.default.readdirSync(toolsRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^blender-/i.test(entry.name)) continue;
+      const dir = import_node_path3.default.join(toolsRoot, entry.name);
+      const direct = import_node_path3.default.join(dir, exeName);
+      if (import_node_fs3.default.existsSync(direct)) found.push(direct);
+      for (const sub of import_node_fs3.default.readdirSync(dir, { withFileTypes: true })) {
+        if (sub.isDirectory()) {
+          const nested = import_node_path3.default.join(dir, sub.name, exeName);
+          if (import_node_fs3.default.existsSync(nested)) found.push(nested);
+        }
+      }
+    }
+  } catch {
+    return [];
+  }
+  const rank = (p) => {
+    const m2 = /blender-(\d+)\.(\d+)/i.exec(p);
+    if (!m2) return -1;
+    const v = Number(m2[1]) * 100 + Number(m2[2]);
+    return v === 402 ? Number.MAX_SAFE_INTEGER : v;
+  };
+  return found.sort((a, b) => rank(b) - rank(a));
+}
 function getCandidateBlenderPaths() {
   const candidates = [];
   const saved = getSavedBlenderExecutablePath();
@@ -82709,6 +82768,13 @@ function getCandidateBlenderPaths() {
     if (check.valid && check.normalizedPath) {
       candidates.push(check.normalizedPath);
     }
+  }
+  for (const toolPath of getRepoToolBlenderPaths()) {
+    const check = validateBlenderExecutablePath(toolPath, {
+      allowCustomFolderIfVerified: true,
+      requireExistingFile: true
+    });
+    if (check.valid && check.normalizedPath) candidates.push(check.normalizedPath);
   }
   const platform = import_node_os2.default.platform();
   if (platform === "win32") {
@@ -82753,7 +82819,8 @@ function probeBlenderVrmAddon(executablePath) {
 }
 function detectBlenderInstallation() {
   const platform = `${import_node_os2.default.platform()} ${import_node_os2.default.arch()}`;
-  const candidates = getCandidateBlenderPaths();
+  const discoveryDisabled = process.env.VRM_FORGE_DISABLE_BLENDER_DISCOVERY === "1";
+  const candidates = discoveryDisabled ? [] : getCandidateBlenderPaths();
   const searchedPaths = [];
   for (const candidate of candidates) {
     searchedPaths.push(candidate);
@@ -83967,6 +84034,12 @@ function resolveBlenderScriptsDir() {
 }
 async function runHeadlessBlenderPipeline(params) {
   const t0 = performance.now();
+  const finalReportPath = resolveSafePathWithinRoot(params.outDir, "blender_report.json");
+  const finalVrmPath = resolveSafePathWithinRoot(params.outDir, "character_blender.vrm");
+  const finalBlendPath = resolveSafePathWithinRoot(params.outDir, "character_blender.blend");
+  import_node_fs4.default.rmSync(finalReportPath, { force: true });
+  import_node_fs4.default.rmSync(finalVrmPath, { force: true });
+  import_node_fs4.default.rmSync(finalBlendPath, { force: true });
   const detection = params.blenderOverride ?? detectBlenderInstallation();
   if (params.signal?.aborted) {
     return {
@@ -84040,12 +84113,6 @@ async function runHeadlessBlenderPipeline(params) {
     import_node_path4.default.join("_blender_runs", runId)
   );
   import_node_fs4.default.mkdirSync(isolatedRunDir, { recursive: true });
-  const finalReportPath = resolveSafePathWithinRoot(params.outDir, "blender_report.json");
-  const finalVrmPath = resolveSafePathWithinRoot(params.outDir, "character_blender.vrm");
-  const finalBlendPath = resolveSafePathWithinRoot(params.outDir, "character_blender.blend");
-  import_node_fs4.default.rmSync(finalReportPath, { force: true });
-  import_node_fs4.default.rmSync(finalVrmPath, { force: true });
-  import_node_fs4.default.rmSync(finalBlendPath, { force: true });
   const args = [
     "--background",
     // Uncaught Python exceptions must produce a non-zero exit code (Blender defaults to 0).
@@ -84424,7 +84491,14 @@ function prepareSpecAndBaseBuild(spec, externalGeometry) {
   } else if (import_node_fs5.default.existsSync(blenderContextPath)) {
     import_node_fs5.default.rmSync(blenderContextPath, { force: true });
   }
-  import_node_fs5.default.writeFileSync(specJsonPath, JSON.stringify(spec, null, 2));
+  const resolvedVrmMetadata = resolveEffectiveVrmMetadata(
+    spec,
+    externalGeometry?.parsedMesh.sourceVrmMeta
+  );
+  import_node_fs5.default.writeFileSync(
+    specJsonPath,
+    JSON.stringify({ ...spec, vrmMetadata: resolvedVrmMetadata }, null, 2)
+  );
   import_node_fs5.default.writeFileSync(resolveSafePathWithinRoot(dir, "blender_build.py"), blenderScript);
   const blenderPrepMs = Math.max(1, Math.round(performance.now() - tPrep0));
   return {
@@ -84670,6 +84744,34 @@ function seedInitialProjectsIfEmpty() {
   }
 }
 
+// server/pythonInterpreter.ts
+var import_node_child_process3 = require("node:child_process");
+function works(c) {
+  try {
+    const r2 = (0, import_node_child_process3.spawnSync)(c.command, [...c.prefixArgs, "-c", "import sys"], { stdio: "ignore", timeout: 5e3 });
+    return r2.status === 0 && !r2.error;
+  } catch {
+    return false;
+  }
+}
+function candidatePythonInterpreters() {
+  const out = [];
+  const override = process.env.VRM_FORGE_PYTHON?.trim();
+  if (override) out.push({ command: override, prefixArgs: [] });
+  const win = process.platform === "win32";
+  out.push({ command: win ? "python" : "python3", prefixArgs: [] });
+  out.push({ command: win ? "python3" : "python", prefixArgs: [] });
+  if (win) out.push({ command: "py", prefixArgs: ["-3"] });
+  return out;
+}
+function resolvePythonInterpreter() {
+  const candidates = candidatePythonInterpreters();
+  for (const c of candidates) if (works(c)) return c;
+  throw new Error(
+    `No working Python interpreter found (tried: ${candidates.map((c) => [c.command, ...c.prefixArgs].join(" ")).join(", ")}). Set VRM_FORGE_PYTHON.`
+  );
+}
+
 // server.ts
 var DEFAULT_PORT = 3e3;
 function parseListenPort() {
@@ -84796,7 +84898,7 @@ async function startServer() {
       import_node_fs6.default.mkdirSync(outDir, { recursive: true });
       const reportPath = resolveSafePathWithinRoot(outDir, "milestone2_report.json");
       try {
-        const stdout = (0, import_node_child_process3.execFileSync)(
+        const stdout = (0, import_node_child_process4.execFileSync)(
           blender.executablePath,
           [
             "--background",
@@ -84861,10 +84963,10 @@ async function startServer() {
       }
     }
     try {
-      const pyExec = process.platform === "win32" ? "python" : "python3";
-      const pyTestOut = (0, import_node_child_process3.execFileSync)(
-        pyExec,
-        ["-m", "unittest", "discover", "-s", backendDir, "-p", "test_*.py", "-v"],
+      const py = resolvePythonInterpreter();
+      const pyTestOut = (0, import_node_child_process4.execFileSync)(
+        py.command,
+        [...py.prefixArgs, "-m", "unittest", "discover", "-s", backendDir, "-p", "test_*.py", "-v"],
         { timeout: 1e4, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
       );
       return res.json({
