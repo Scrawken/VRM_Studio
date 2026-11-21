@@ -1,9 +1,9 @@
-# E1 benchmarks
+# E3 corrected benchmarks
 
 `mesh_stats.py` parses GLB2 containers (including VRM files, which are GLB2) and writes computed geometry/material/texture/skin/morph statistics.
 
-`deform_bench.py` is a Blender 4.2 headless Workbench benchmark. It imports a `.glb`, renders front/side/face/back views, applies fixed joint rotations, and writes JSON metrics. Use copies of source assets; never modify `projects/*` originals. `.vrm` import requires the `io_scene_vrm` add-on in the portable Blender installation. The supplied runtime lacked that add-on, so E1 runtime evidence uses the identical GLB payload and records the limitation.
+`deform_bench_v2.py` is the corrected Blender 4.2 headless benchmark. Run Blender without `--factory-startup`; the portable install provides VRM Format 4.10.5 as `bl_ext.user_default.vrm`. The script imports both `.vrm` and `.glb`, selects a valid local pose axis by verifying descendant motion, measures vertices weighted >0.3 to the target or descendants, reports per-mesh baseline/posed degenerate faces and weights, and runs a synthetic two-bone control. Use read-only source assets or copies; never modify `projects/*` originals.
 
-The report is `REPORT.md`; rendered evidence and JSON outputs are under `assets/` and `benchmarks/` respectively. Unreal/VRM4U is covered by the untested acceptance protocol in `../docs/UNREAL_VRM4U_CHECKLIST.md`.
+The report is `REPORT.md`; corrected JSON outputs are `*_deform_v2.json`. Prior E1 renders remain under `assets/`. Unreal/VRM4U is covered by the acceptance protocol in `../docs/UNREAL_VRM4U_CHECKLIST.md` and remains untested.
 
 All thresholds in the report are proposals, not product requirements.

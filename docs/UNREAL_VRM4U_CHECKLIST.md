@@ -1,6 +1,6 @@
 # Unreal + VRM4U Acceptance Protocol
 
-**Status:** Protocol prepared; all Unreal/VRM4U items are **UNTESTED** on this machine. Unreal Engine executables were found in standard Epic locations (`UE_5.7`, `UE_5.8`), but no VRM4U plugin or configured VRM4U project was found in the inspected project/engine folders. No Unreal Editor or VRM4U import was run. The three first test inputs are `aurelia`, `vaelith`, and `marcus` under `projects/`.
+**Status:** Protocol prepared; all Unreal/VRM4U items are **UNTESTED** on this machine. Blender 4.2.23 VRM Format 4.10.5 was verified separately and imported all three `.vrm` files; that is not Unreal/VRM4U evidence. Unreal Engine executables were found in standard Epic locations (`UE_5.7`, `UE_5.8`), but no VRM4U plugin or configured VRM4U project was found in the inspected project/engine folders. No Unreal Editor or VRM4U import was run. The three first test inputs are `aurelia`, `vaelith`, and `marcus` under `projects/`.
 
 ## Evidence rules
 
