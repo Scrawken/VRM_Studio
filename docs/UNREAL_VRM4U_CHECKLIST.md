@@ -53,7 +53,17 @@ For each sample, capture the exact `.vrm` SHA-256, UE version, VRM4U version, im
 | Four requested inputs imported | UNTESTED | no route produced a trustworthy import result |
 | Skeletal mesh/bones/morph/material/physics/meta evidence | UNTESTED | no saved imported assets |
 
-The U2 alternatives did not establish model incompatibility. The cheapest next step is a supported interactive editor import with the Slate application left alive through completion, or a project C++ commandlet that invokes the VRM4U factory without ContentBrowser/Slate.
+## U3 final bounded retry (2026-11-21)
+
+| Route/item | Status | Evidence |
+|---|---|---|
+| Rendered editor + `-ExecutePythonScript`, 120-tick wait | FAIL/BLOCKED | `benchmarks/UNREAL_U3_EVIDENCE.md`; marker stopped at tick 1 |
+| Retained post-tick callback handle | FAIL/BLOCKED | same evidence; no tick 120/import result |
+| Project `StartupScripts` route | FAIL/BLOCKED | script entry was discovered, but no marker/result was written |
+| Four requested inputs imported | UNTESTED | no import reached completion |
+| Unreal assets/bones/morphs/physics/meta | UNTESTED | no saved imported assets |
+
+This is the final bounded Python attempt. The remaining route is a human-launched interactive editor run or compiled C++ automation; do not infer VRM4U compatibility from these runs.
 
 
 | Item | Status | Evidence |
