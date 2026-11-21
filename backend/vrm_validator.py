@@ -690,6 +690,13 @@ def validate_vrm_bytes(
             else:
                 non_empty_exprs += 1
 
+    # Parity with the TS validator: a model whose expressions bind to no real morph delta has no working
+    # facial expressions (e.g. a VRM 1.0 export where presets exist but morphTargetBinds are empty).
+    if non_empty_exprs == 0:
+        errors.append(
+            f"No non-empty expressions: {expr_count} expression(s) defined but none binds to a morph target with real deltas"
+        )
+
     # Secondary Animation / SpringBone & Colliders
     humanoid_node_set = set(mapped_map.values())
     if is_vrm0:

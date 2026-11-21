@@ -299,3 +299,35 @@ test('importer (VRM 1.0): spring collider refs map through split/dropped source 
   assert.deepEqual(sp.colliderGroupNodeNames, ['head']);
   assert.ok(parsed.unsupportedFeatures?.some((w) => w.includes('Dropped source collider group #0')));
 });
+
+test('builder spring gravityDir: explicit source kept verbatim (incl. deliberate zero), missing falls back to straight down', () => {
+  const run = (gravityDir: unknown, gravityPower: number) => {
+    const built = buildWith('0.0', (p) => {
+      p.existingVrmSprings = [
+        {
+          comment: 'G',
+          stiffiness: 0.5,
+          gravityPower,
+          gravityDir: gravityDir as [number, number, number],
+          dragForce: 0.2,
+          hitRadius: 0.01,
+          boneNames: ['hairBackRoot'],
+          colliderGroupIndices: [],
+          colliderGroupNodeNames: [],
+        },
+      ];
+    });
+    const sec = readJson(built.vrmBuffer).extensions.VRM.secondaryAnimation;
+    const g = sec.boneGroups.find((x: any) => x.comment === 'G');
+    assert.ok(g, 'spring group survives');
+    return g.gravityDir as { x: number; y: number; z: number };
+  };
+  const abs = (d: { x: number; y: number; z: number }) => [Math.abs(d.x), Math.abs(d.y), Math.abs(d.z)];
+  assert.deepEqual(run(undefined, 0.25).y, -1, 'missing direction defaults to {0,-1,0}');
+  assert.deepEqual(run([NaN, 0, 0], 0.25).y, -1, 'non-finite direction defaults to {0,-1,0}');
+  assert.deepEqual(run([1, 2], 0.25).y, -1, 'short vector defaults to {0,-1,0}');
+  const explicit = run([0.2, -0.9, 0.3], 0.3);
+  assert.deepEqual(abs(explicit), [0.2, 0.9, 0.3], 'explicit source direction preserved');
+  assert.deepEqual(abs(run([0, 0, 0], 0)), [0, 0, 0], 'deliberate zero with gravityPower 0 preserved');
+  assert.deepEqual(abs(run([0, 0, 0], 0.25)), [0, 0, 0], 'explicit zero is not silently rewritten');
+});

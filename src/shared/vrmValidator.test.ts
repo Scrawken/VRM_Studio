@@ -350,3 +350,28 @@ test('spring boneGroup gravityDir must be finite {x,y,z}; zero length warns; cen
     assert.match(check(r, 'spring_bones')!.detail, /center/);
   }
 });
+
+test('VRM 1.0 with presets but no morphTargetBinds (Blender add-on export shape) is invalid, binding fixes it', () => {
+  const build = (binds: unknown[]) =>
+    buildVrm0(({ gltf, addVec3 }) => {
+      const zero = addVec3(ZEROS);
+      const nz = addVec3(NONZERO);
+      gltf.meshes[0].primitives[0].targets = [{ POSITION: zero, NORMAL: nz }];
+      const humanBones: Record<string, { node: number }> = {};
+      VRM_REQUIRED_HUMANOID_BONES.forEach((b, i) => (humanBones[b] = { node: i }));
+      delete gltf.extensions.VRM;
+      gltf.extensionsUsed = ['VRMC_vrm'];
+      const preset: Record<string, unknown> = {};
+      for (const n of ['neutral', 'happy', 'blink', 'aa']) {
+        preset[n] = { isBinary: false, overrideBlink: 'none', overrideLookAt: 'none', overrideMouth: 'none', morphTargetBinds: n === 'happy' ? binds : [] };
+      }
+      gltf.extensions.VRMC_vrm = { specVersion: '1.0', humanoid: { humanBones }, expressions: { preset } };
+    });
+  const unbound = validateVrmBinary(build([]), '1.0');
+  assert.equal(unbound.valid, false);
+  assert.equal(check(unbound, 'facial_expressions')!.status, 'fail');
+  assert.deepEqual(unbound.nonEmptyExpressions, []);
+  const bound = validateVrmBinary(build([{ node: 18, index: 0, weight: 1 }]), '1.0');
+  assert.equal(bound.valid, true, JSON.stringify(bound.checks));
+  assert.deepEqual(bound.nonEmptyExpressions, ['happy']);
+});

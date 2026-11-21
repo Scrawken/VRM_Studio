@@ -2415,9 +2415,17 @@ export function buildRiggedVrmFromExternalMesh(
       if (rootNodes.length === 0) continue;
       springJointCount += rootNodes.length;
       const centerNode = sp.centerNodeName ? (jointIdxByName.get(sp.centerNodeName) ?? -1) : -1;
+      // Explicit source directions are kept verbatim (even a deliberate zero); only a missing or
+      // non-finite vector falls back to the spec default straight down, never an invented zero.
+      const srcDir: [number, number, number] =
+        Array.isArray(sp.gravityDir) &&
+        sp.gravityDir.length >= 3 &&
+        sp.gravityDir.slice(0, 3).every((v) => typeof v === 'number' && Number.isFinite(v))
+          ? [sp.gravityDir[0], sp.gravityDir[1], sp.gravityDir[2]]
+          : [0, -1, 0];
       const gDir = rotateVrmY180
-        ? [negZeroClean(sp.gravityDir[0]), sp.gravityDir[1], negZeroClean(sp.gravityDir[2])]
-        : sp.gravityDir;
+        ? [negZeroClean(srcDir[0]), srcDir[1], negZeroClean(srcDir[2])]
+        : srcDir;
 
       // Source refs are authoritative: remap them past skipped groups; an empty list stays empty
       // (never inject default head/chest colliders into a spring the source had none for).
