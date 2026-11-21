@@ -53025,7 +53025,8 @@ function buildRiggedVrmFromExternalMesh(spec, externalAsset, rawExternalGlbBuffe
       if (rootNodes.length === 0) continue;
       springJointCount += rootNodes.length;
       const centerNode = sp.centerNodeName ? jointIdxByName.get(sp.centerNodeName) ?? -1 : -1;
-      const gDir = rotateVrmY180 ? [negZeroClean(sp.gravityDir[0]), sp.gravityDir[1], negZeroClean(sp.gravityDir[2])] : sp.gravityDir;
+      const srcDir = Array.isArray(sp.gravityDir) && sp.gravityDir.length >= 3 && sp.gravityDir.slice(0, 3).every((v) => typeof v === "number" && Number.isFinite(v)) ? [sp.gravityDir[0], sp.gravityDir[1], sp.gravityDir[2]] : [0, -1, 0];
+      const gDir = rotateVrmY180 ? [negZeroClean(srcDir[0]), srcDir[1], negZeroClean(srcDir[2])] : srcDir;
       const hasSourceRefs = sp.colliderGroupIndices !== void 0 || sp.colliderGroupNodeNames !== void 0;
       const remapped = (sp.colliderGroupIndices ?? []).map((idx) => colliderGroupRemap.get(idx)).filter((idx) => idx !== void 0);
       const byNode = (sp.colliderGroupNodeNames ?? []).map((nName) => {
