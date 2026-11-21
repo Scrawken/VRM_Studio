@@ -622,8 +622,8 @@ export function appendCurvedHairStrand(
     const cb = colorRoot[2] * (1 - t) + colorTip[2] * t;
 
     ringStarts.push(prim.positions.length / 3);
-    for (let k = 0; k <= profLen; k++) {
-      const [pu, pv] = profileTemplate[k % profLen];
+    for (let k = 0; k < profLen; k++) {
+      const [pu, pv] = profileTemplate[k];
       const ru = (pu * cosTw - pv * sinTw) * width;
       const rv = (pu * sinTw + pv * cosTw) * thick;
       const vx = pt[0] + bx * ru + ox * rv;
@@ -647,9 +647,9 @@ export function appendCurvedHairStrand(
     const b0 = ringStarts[s + 1];
     for (let k = 0; k < profLen; k++) {
       const i0 = a0 + k;
-      const i1 = a0 + k + 1;
+      const i1 = a0 + (k + 1) % profLen;
       const i2 = b0 + k;
-      const i3 = b0 + k + 1;
+      const i3 = b0 + (k + 1) % profLen;
       prim.indices.push(i0, i1, i2, i1, i3, i2);
     }
   }
@@ -680,8 +680,8 @@ export function appendCurvedHairStrand(
     [colorTip[0], colorTip[1], colorTip[2], 1]
   );
   for (let k = 0; k < profLen; k++) {
-    prim.indices.push(rootCenter, firstRing + k + 1, firstRing + k);
-    prim.indices.push(tipCenter, lastRing + k, lastRing + k + 1);
+    prim.indices.push(rootCenter, firstRing + (k + 1) % profLen, firstRing + k);
+    prim.indices.push(tipCenter, lastRing + k, lastRing + (k + 1) % profLen);
   }
 
   recomputeNormalsRange(prim, startVert, startIdx);

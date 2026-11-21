@@ -502,7 +502,8 @@ export function sculptAnatomicalHeadAndFace(
     for (let j = 0; j < lon; j++) {
       const a = startVert + i * stride + j;
       const b = a + stride;
-      skinPrim.indices.push(a, b, a + 1, a + 1, b, b + 1);
+      if (i > 0) skinPrim.indices.push(a, b, a + 1);
+      if (i < lat - 1) skinPrim.indices.push(a + 1, b, b + 1);
     }
   }
   recomputeNormalsRange(skinPrim, startVert, startIdx);
@@ -565,7 +566,8 @@ export function sculptAnatomicalHeadAndFace(
       for (let j = 0; j < eLon; j++) {
         const a = eStart + i * eStride + j;
         const b = a + eStride;
-        eyePrim.indices.push(a, b, a + 1, a + 1, b, b + 1);
+        if (i > 0) eyePrim.indices.push(a, b, a + 1);
+        if (i < eLat - 1) eyePrim.indices.push(a + 1, b, b + 1);
       }
     }
     recomputeNormalsRange(eyePrim, eStart, eIdxStart);

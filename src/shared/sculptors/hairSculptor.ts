@@ -70,7 +70,8 @@ export function sculptLayeredHairSystem(
     for (let j = 0; j < capLon; j++) {
       const a = cStart + i * cStride + j;
       const b = a + cStride;
-      hairPrim.indices.push(a, b, a + 1, a + 1, b, b + 1);
+      if (i > 0) hairPrim.indices.push(a, b, a + 1);
+      if (i < capLat - 1) hairPrim.indices.push(a + 1, b, b + 1);
     }
   }
   recomputeNormalsRange(hairPrim, cStart, cIdx);
