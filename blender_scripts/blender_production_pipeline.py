@@ -578,6 +578,130 @@ def _bind_vrm1_expressions(ext, mesh_objs, info):
         info["vrm1_expressions_warning"] = "no shape key produced a non-empty VRM 1.0 expression"
 
 
+def _gravity_vrm0_to_addon_vrm1(gd):
+    """VRM 0.0 gravityDir -> add-on spring_bone1 joint.gravity_dir property.
+
+    0.0 -> 1.0 negates x and z (0.0 faces -Z); the add-on exporter writes (p0, p2, -p1),
+    so the property is p = (x1, -z1, y1).
+    """
+    x1, y1, z1 = -float(gd[0]), float(gd[1]), -float(gd[2])
+    return (x1, -z1, y1)
+
+
+def _spring_chain(arm_obj, root, mapped_real_bones, explicit=None):
+    if explicit:
+        names = [n for n in explicit if n in arm_obj.data.bones and n not in mapped_real_bones]
+        if names:
+            return names
+    out = []
+    queue = [arm_obj.data.bones[root]]
+    while queue:
+        b = queue.pop(0)
+        if b.name in mapped_real_bones:
+            continue
+        out.append(b.name)
+        queue.extend(b.children)
+    return out
+
+
+def _export_springs_vrm1(arm_obj, ext, bone_map, blender_context, info):
+    """Source VRM 0.0 springs/colliders -> VRMC_springBone via ext.spring_bone1 (sphere colliders only)."""
+    import uuid as _uuid
+    sb = ext.spring_bone1
+    mapped_real_bones = set(bone_map.values())
+    arm_bone_names = {b.name for b in arm_obj.data.bones}
+    cgs = blender_context.get("preservedVrmColliderGroups") or []
+    sgs = blender_context.get("preservedVrmSprings") or []
+    info.update({
+        "colliders_skipped": [], "collider_groups_created": 0, "colliders_created": 0,
+        "springs_created": 0, "springs_skipped": [], "spring_warnings": [], "joints_created": 0,
+    })
+    src_to_group_uuid = {}
+    for src_i, cg_def in enumerate(cgs):
+        node_name = cg_def.get("nodeName")
+        if not node_name or node_name not in arm_bone_names:
+            info["colliders_skipped"].append({
+                "source_index": src_i, "nodeName": node_name,
+                "reason": "node name is not a bone of the exported armature",
+                "collider_count": len(cg_def.get("colliders", [])),
+            })
+            continue
+        group = sb.collider_groups.add()
+        group.uuid = _uuid.uuid4().hex
+        group.vrm_name = f"ColliderGroup{src_i}_{node_name}"
+        for ci, col_def in enumerate(cg_def.get("colliders", [])):
+            col = sb.colliders.add()
+            col.uuid = _uuid.uuid4().hex
+            col.node.bone_name = node_name
+            col.shape_type = col.SHAPE_TYPE_SPHERE.identifier
+            col.bpy_object = _create_collider_empty(arm_obj, node_name, col_def, f"vrm1_collider_{src_i}_{ci}")
+            group.colliders.add().collider_uuid = col.uuid
+            info["colliders_created"] += 1
+        src_to_group_uuid[src_i] = group.uuid
+        info["collider_groups_created"] += 1
+
+    if not sgs:
+        sec_roots = [
+            b.name for b in arm_obj.data.bones
+            if b.name not in mapped_real_bones
+            and re.match(r"^(j_sec_|hair|cloak|cape|skirt|ribbon|tail|ear)", b.name, re.I)
+            and (b.parent is None or b.parent.name in mapped_real_bones)
+        ]
+        if sec_roots:
+            sgs = [{"comment": "SecondaryHairCloakSpring", "gravityDir": [0.0, -1.0, 0.0], "boneNames": sec_roots}]
+
+    for si, sg in enumerate(sgs):
+        roots = []
+        for bn in sg.get("boneNames", []):
+            if bn not in arm_bone_names:
+                info["spring_warnings"].append(f"spring {si}: bone '{bn}' not in armature")
+            elif bn in mapped_real_bones:
+                info["spring_warnings"].append(f"spring {si}: bone '{bn}' is a humanoid bone, excluded")
+            else:
+                roots.append(bn)
+        if not roots:
+            info["springs_skipped"].append({"index": si, "comment": sg.get("comment"), "reason": "no usable root bones"})
+            continue
+        gd = _gravity_vrm0_to_addon_vrm1(sg.get("gravityDir") or [0.0, -1.0, 0.0])
+        # One VRM spring per root so every joint chain stays linear (branches would be ambiguous).
+        for ri, root in enumerate(roots):
+            spring = sb.springs.add()
+            base = str(sg.get("comment") or "PreservedSpring")
+            spring.vrm_name = base if len(roots) == 1 else f"{base}.{ri}"
+            explicit = sg.get("chainBoneNames") if len(roots) == 1 else None
+            for bn in _spring_chain(arm_obj, root, mapped_real_bones, explicit):
+                j = spring.joints.add()
+                j.node.bone_name = bn
+                j.hit_radius = max(0.0, float(sg.get("hitRadius", 0.025)))
+                j.stiffness = max(0.0, float(sg.get("stiffiness", 0.6)))
+                j.gravity_power = max(0.0, float(sg.get("gravityPower", 0.25)))
+                j.gravity_dir = gd
+                j.drag_force = max(0.0, float(sg.get("dragForce", 0.4)))
+                info["joints_created"] += 1
+            center = sg.get("centerNodeName")
+            if center:
+                if center in arm_bone_names:
+                    spring.center.bone_name = center
+                else:
+                    info["spring_warnings"].append(f"spring {si}: center '{center}' not in armature, center dropped")
+            if sg.get("colliderGroupIndices") is not None:
+                wanted = list(sg.get("colliderGroupIndices") or [])
+            else:
+                names = sg.get("colliderGroupNodeNames") or []
+                wanted = [i for i, c in enumerate(cgs) if c.get("nodeName") in names]
+            for ci in wanted:
+                u = src_to_group_uuid.get(ci)
+                if u is None:
+                    info["spring_warnings"].append(f"spring {si}: collider group {ci} was not exported (unresolved node)")
+                    continue
+                spring.collider_groups.add().collider_group_uuid = u
+            info["springs_created"] += 1
+    info["spring_warnings"].append(
+        "VRM 1.0: one spring per root bone (descendants as joints); the add-on drops a center that is not an "
+        "ancestor of the first joint; only sphere colliders are produced"
+    )
+
+
 def _configure_vrm_extension(
     arm_obj,
     mesh_objs,
@@ -661,9 +785,7 @@ def _configure_vrm_extension(
                 unassigned.append(canonical)
         if unassigned:
             export_info["vrm1_unassigned_bones"] = unassigned
-        export_info["spring_warnings"] = [
-            "VRM 1.0: source VRM 0.0 springs/colliders are not exported by the Blender path"
-        ]
+        _export_springs_vrm1(arm_obj, ext, bone_map, blender_context, export_info)
     return export_info
 
 
