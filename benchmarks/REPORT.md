@@ -8,9 +8,43 @@ The corrected harness now imports both `.vrm` and `.glb` for Aurelia, Vaelith an
 
 The appearance assessment remains unchanged: the samples are stylized and do not meet the proposed “detailed, realistic humanoids” bar. The deformation result is now evidence-based, but no product pass/fail threshold was silently promoted to a requirement.
 
+## S1 root cause and fix
+
+The repeated triangles came from three systematic generator patterns:
+
+- `src/shared/sculptors/faceSculptor.ts:285-306,500-506` emitted both triangles at the north and south poles of the head latitude grid. At each pole, all longitude vertices coincide; the 64-longitude head therefore emitted 128 zero-area triangles.
+- `src/shared/sculptors/faceSculptor.ts:539-568` repeated the same sphere-cap pattern for each eye. Two eyes × 20-longitude pole triangles × two poles emitted 80 zero-area triangles.
+- `src/shared/sculptors/hairSculptor.ts:42-73` emitted the first cap row of the cranial cap at `phi = 0`, where every longitude vertex coincides, producing 24 zero-area triangles.
+- `src/shared/sculptors/meshOps.ts:624-685` emitted a ninth hair-profile vertex equal to profile vertex zero, then connected both as separate profile edges. The index-based E1 count did not include this in the three repeated baseline counts for the sampled outputs, but it was the same class of systematic seam defect. The fix makes the profile eight vertices and closes it with modulo indexing.
+
+The minimal fix skips only pole triangles and removes only the duplicated hair-profile vertex. Vertex attributes remain aligned; no morph/weight entry is dropped independently of its vertex. `benchmarks/degenerate_report.py` records the pre-fix indices/positions and generator mapping.
+
+## Before/after geometry
+
+| Sample | Before: FaceAndBody / Eyes / Hair | After: FaceAndBody / Eyes / Hair | Total after |
+|---|---:|---:|---:|
+| Aurelia | 128 / 80 / 24 | 0 / 0 / 0 | 0 |
+| Vaelith | 128 / 80 / 24 | 0 / 0 / 0 | 0 |
+| Marcus | 128 / 80 / 24 | 0 / 0 / 0 | 0 |
+
+The regenerated scratch VRMs and GLBs are under `_staging/tmp/s1`; they were never written over `projects/*`. Corrected benchmark JSON evidence is committed as `benchmarks/s1_*_deform_v2.json`. The regenerated Blender run reported zero degenerate faces for every mesh in every sample.
+
+The regenerated VRM mesh statistics are lower only where the invalid topology was removed: Aurelia 31,044→30,788 triangles and 17,423→16,663 vertices; Vaelith 30,596→30,340 triangles and 17,146→16,411 vertices; Marcus 21,824→21,568 triangles and 12,287→11,802 vertices. Materials, textures, morph target entries, 65 armature bones and max two influences remain unchanged. The vertex reduction is primarily the duplicate profile seam vertices in generated hair; all remaining per-vertex arrays were checked aligned by the unit test.
+
+
+## Visual comparison
+
+The pole/duplicate-triangle fix is topology-only. Before/after front and face renders are included for review; no intentional visual change was observed.
+
+| Sample | Before | After |
+|---|---|---|
+| Aurelia | `assets/aurelia_front.png`, `assets/aurelia_face.png` | `assets/s1_after/aurelia_front.png`, `assets/s1_after/aurelia_face.png` |
+| Vaelith | `assets/vaelith_front.png`, `assets/vaelith_face.png` | `assets/s1_after/vaelith_front.png`, `assets/s1_after/vaelith_face.png` |
+| Marcus | `assets/marcus_front.png`, `assets/marcus_face.png` | `assets/s1_after/marcus_front.png`, `assets/s1_after/marcus_face.png` |
+
 ## Exact commands
 
-The work used read-only source assets and wrote scratch results to `_staging/tmp/e3`:
+The work used read-only source assets and wrote scratch results to `_staging/tmp/s1`:
 
 ```bash
 BL=F:/Projects/vrm-forge-studio/_tools/blender-4.2/blender-4.2.23-windows-x64/blender.exe
@@ -64,15 +98,7 @@ The corrected results disprove E1's “zero body displacement” and “axis deg
 
 The old `FaceAndBodyMesh`-only measurement was misleading: limb weights are primarily in outfit/armor meshes for these generated characters. Corrected target/descendant coverage includes, for example, Aurelia elbow: 407 armor + 28 secondary-accent vertices; Aurelia shoulder: 765 armor + 158 secondary-accent vertices; Marcus shoulder: 119 armor + 217 body vertices. Full per-mesh maps are in the JSON evidence.
 
-Rest-state degenerate-face counts are stable across pose tests and are not the 128 universal pose failures reported by E1:
-
-| Sample | Rest degenerate faces found |
-|---|---|
-| Aurelia | FaceAndBodyMesh 128; EyesMesh 80; HairMesh 24; other meshes 0 |
-| Vaelith | FaceAndBodyMesh 128; EyesMesh 80; HairMesh 24; other meshes 0 |
-| Marcus | FaceAndBodyMesh 128; EyesMesh 80; HairMesh 24; other meshes 0 |
-
-No tested pose increased these degenerate-face counts in the corrected run. They are genuine baseline asset-geometry findings, but the old report incorrectly presented the FaceAndBody count as a pose-created failure. BVH overlap counts remain diagnostic only because coincident separate meshes can inflate them.
+Rest-state degenerate-face counts from E3 were a genuine generator-quality finding. S1 removed the systematic triangles; the corrected regenerated outputs report zero in every mesh. The E1/E3 BVH overlap count remains diagnostic only because coincident separate meshes can inflate it.
 
 ## Synthetic control
 
@@ -89,6 +115,20 @@ The corrected deformation harness does not change the visual assessment. Aurelia
 3. Keep the corrected benchmark as the regression harness: local-axis selection, target/descendant weights, target-tail movement check, per-mesh degeneracy, and synthetic control. Proposed file: `benchmarks/deform_bench_v2.py`.
 4. Add a pinned VRM extension/runtime preflight to the benchmark README or local CI.
 
-## Remaining untested
+## Validation
 
-Unreal Engine/VRM4U import, retargeting, morph playback, spring physics and UE material behavior remain untested. The updated acceptance protocol is in `docs/UNREAL_VRM4U_CHECKLIST.md`.
+The new unit test `src/shared/sculptorGeometry.test.ts` builds all three sample specifications through `parseCharacterPromptFallback`, `buildHumanoidSkeleton` and `buildHighDetailCharacterGeometry`, and checks zero degenerate triangles plus aligned positions/joints/weights/normals/UVs. It passes after the fix. The negative control was the pre-fix sample GLB run through `python -I benchmarks/degenerate_report.py`, which measured 128/80/24; scratch negative-control files were removed.
+
+Commands and results:
+
+```text
+npx tsx --test src/shared/sculptorGeometry.test.ts                         PASS
+npm run lint                                                               PASS
+npx tsx --test server/hostAllowlist.test.ts server/routes.smoke.test.ts \
+  src/shared/vrmPipeline.test.ts src/shared/vrmValidator.test.ts \
+  src/shared/vrmMetadata.test.ts src/shared/sculptorGeometry.test.ts      54 pass, 1 skipped
+npm run test:backend                                                       20 pass, 1 skipped
+python -I backend/vrm_validator.py <each regenerated character.vrm> 0.0    3 valid
+```
+
+The corrected deformation values are effectively unchanged from E3: the maximum weighted displacement values remain within rounding-level differences in the regenerated outputs (for example Aurelia hip 1.016m, Vaelith hip 1.147m, Marcus hip 0.956m). No deformation regression was observed. Unreal Engine/VRM4U import, retargeting, morph playback, spring physics and UE material behavior remain untested.
