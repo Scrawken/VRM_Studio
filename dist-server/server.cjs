@@ -47795,8 +47795,8 @@ function appendCurvedHairStrand(prim, controlPoints, segments = 10, twistRad = 0
     const cg = colorRoot[1] * (1 - t2) + colorTip[1] * t2;
     const cb = colorRoot[2] * (1 - t2) + colorTip[2] * t2;
     ringStarts.push(prim.positions.length / 3);
-    for (let k = 0; k <= profLen; k++) {
-      const [pu, pv] = profileTemplate[k % profLen];
+    for (let k = 0; k < profLen; k++) {
+      const [pu, pv] = profileTemplate[k];
       const ru = (pu * cosTw - pv * sinTw) * width;
       const rv = (pu * sinTw + pv * cosTw) * thick;
       const vx = pt[0] + bx * ru + ox * rv;
@@ -47819,9 +47819,9 @@ function appendCurvedHairStrand(prim, controlPoints, segments = 10, twistRad = 0
     const b0 = ringStarts[s2 + 1];
     for (let k = 0; k < profLen; k++) {
       const i0 = a0 + k;
-      const i1 = a0 + k + 1;
+      const i1 = a0 + (k + 1) % profLen;
       const i2 = b0 + k;
-      const i3 = b0 + k + 1;
+      const i3 = b0 + (k + 1) % profLen;
       prim.indices.push(i0, i1, i2, i1, i3, i2);
     }
   }
@@ -47850,8 +47850,8 @@ function appendCurvedHairStrand(prim, controlPoints, segments = 10, twistRad = 0
     [colorTip[0], colorTip[1], colorTip[2], 1]
   );
   for (let k = 0; k < profLen; k++) {
-    prim.indices.push(rootCenter, firstRing + k + 1, firstRing + k);
-    prim.indices.push(tipCenter, lastRing + k, lastRing + k + 1);
+    prim.indices.push(rootCenter, firstRing + (k + 1) % profLen, firstRing + k);
+    prim.indices.push(tipCenter, lastRing + k, lastRing + (k + 1) % profLen);
   }
   recomputeNormalsRange(prim, startVert, startIdx);
 }
@@ -48181,7 +48181,8 @@ function sculptAnatomicalHeadAndFace(skinPrim, eyePrim, hairPrim, _trimPrim, spe
     for (let j = 0; j < lon; j++) {
       const a = startVert + i2 * stride + j;
       const b = a + stride;
-      skinPrim.indices.push(a, b, a + 1, a + 1, b, b + 1);
+      if (i2 > 0) skinPrim.indices.push(a, b, a + 1);
+      if (i2 < lat - 1) skinPrim.indices.push(a + 1, b, b + 1);
     }
   }
   recomputeNormalsRange(skinPrim, startVert, startIdx);
@@ -48239,7 +48240,8 @@ function sculptAnatomicalHeadAndFace(skinPrim, eyePrim, hairPrim, _trimPrim, spe
       for (let j = 0; j < eLon; j++) {
         const a = eStart + i2 * eStride + j;
         const b = a + eStride;
-        eyePrim.indices.push(a, b, a + 1, a + 1, b, b + 1);
+        if (i2 > 0) eyePrim.indices.push(a, b, a + 1);
+        if (i2 < eLat - 1) eyePrim.indices.push(a + 1, b, b + 1);
       }
     }
     recomputeNormalsRange(eyePrim, eStart, eIdxStart);
@@ -48397,7 +48399,8 @@ function sculptLayeredHairSystem(hairPrim, trimPrim, spec, _bones, B, headCenter
     for (let j = 0; j < capLon; j++) {
       const a = cStart + i2 * cStride + j;
       const b = a + cStride;
-      hairPrim.indices.push(a, b, a + 1, a + 1, b, b + 1);
+      if (i2 > 0) hairPrim.indices.push(a, b, a + 1);
+      if (i2 < capLat - 1) hairPrim.indices.push(a + 1, b, b + 1);
     }
   }
   recomputeNormalsRange(hairPrim, cStart, cIdx);
@@ -53364,7 +53367,7 @@ var VRM0_FIRST_PERSON_FLAGS = /* @__PURE__ */ new Set(["Auto", "Both", "ThirdPer
 var VRM0_LOOK_AT_TYPES = /* @__PURE__ */ new Set(["None", "Bone", "BlendShape"]);
 var isPlainObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 var isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
-function validateVrm0Extras(vrm0, textureCount) {
+function validateVrm0Extras(vrm0, textureCount, materialNames = [], warnings = []) {
   const errs = [];
   const meta = vrm0.meta;
   if (isPlainObject(meta)) {
@@ -53415,6 +53418,11 @@ function validateVrm0Extras(vrm0, textureCount) {
               errs.push(`blendShapeGroups[${i2}].materialValues has a malformed entry`);
               break;
             }
+            if (!materialNames.includes(mv.materialName)) {
+              errs.push(
+                `blendShapeGroups[${i2}].materialValues references unknown material "${mv.materialName}"`
+              );
+            }
           }
         }
       }
@@ -53425,6 +53433,11 @@ function validateVrm0Extras(vrm0, textureCount) {
     if (!Array.isArray(mps)) {
       errs.push("materialProperties must be an array");
     } else {
+      if (mps.length !== materialNames.length) {
+        warnings.push(
+          `materialProperties has ${mps.length} entries but the glTF has ${materialNames.length} materials`
+        );
+      }
       mps.forEach((mp, i2) => {
         if (!isPlainObject(mp)) {
           errs.push(`materialProperties[${i2}] is not an object`);
@@ -53527,6 +53540,7 @@ function morphTargetHasDelta(targetEntry, accessors, bufferViews, binChunk, binV
 }
 function validateVrmBinary(bytes, expectedVersion) {
   const checks = [];
+  const vrm0MaterialWarnings = [];
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const failReport = (reason) => ({
     valid: false,
@@ -53654,7 +53668,14 @@ function validateVrmBinary(bytes, expectedVersion) {
       if (m0.licenseName !== void 0 && !VRM0_LICENSE_SET.has(m0.licenseName)) {
         metaErrors.push(`Invalid licenseName "${m0.licenseName}"`);
       }
-      metaErrors.push(...validateVrm0Extras(vrm0Ext, (gltf.textures ?? []).length));
+      metaErrors.push(
+        ...validateVrm0Extras(
+          vrm0Ext,
+          (gltf.textures ?? []).length,
+          (gltf.materials ?? []).map((m2) => m2?.name ?? ""),
+          vrm0MaterialWarnings
+        )
+      );
     }
     checks.push({
       id: "vrm_metadata",
@@ -53771,6 +53792,14 @@ function validateVrmBinary(bytes, expectedVersion) {
     status: humanoidErrors.length === 0 && missingRequiredBones.length === 0 && invalidBoneNodes.length === 0 ? "pass" : "fail",
     detail: humanoidErrors.length > 0 ? humanoidErrors.slice(0, 3).join("; ") : invalidBoneNodes.length > 0 ? `Invalid node indices for bones: ${invalidBoneNodes.join(", ")}` : missingRequiredBones.length > 0 ? `Missing required bones: ${missingRequiredBones.join(", ")}` : `All ${VRM_REQUIRED_HUMANOID_BONES.length} required bones + ${Math.max(0, mappedHumanoidBones.length - VRM_REQUIRED_HUMANOID_BONES.length)} optional/finger bones mapped`
   });
+  if (vrm0MaterialWarnings.length > 0) {
+    checks.push({
+      id: "vrm0_material_properties",
+      label: "VRM 0.0 materialProperties vs glTF materials",
+      status: "warn",
+      detail: vrm0MaterialWarnings.join("; ")
+    });
+  }
   const hierarchyWarnings = humanoidHierarchyWarnings(boneMap, nodes);
   if (hierarchyWarnings.length > 0) {
     checks.push({
@@ -54059,6 +54088,7 @@ function validateVrmBinary(bytes, expectedVersion) {
   let springStatus = "warn";
   let springDetail = "";
   const springErrors = [];
+  const springWarnings = [];
   if (isVrm0) {
     const boneGroups = vrm0Ext?.secondaryAnimation?.boneGroups ?? [];
     const colliderGroups = vrm0Ext?.secondaryAnimation?.colliderGroups ?? [];
@@ -54091,6 +54121,15 @@ function validateVrmBinary(bytes, expectedVersion) {
       if (isFiniteNumber(bg.dragForce) && bg.dragForce > 1) {
         springErrors.push(`boneGroups[${bIdx}].dragForce must be within 0..1`);
       }
+      const gd = bg.gravityDir;
+      if (gd !== void 0) {
+        const g = gd;
+        if (!isPlainObject(gd) || !isFiniteNumber(g.x) || !isFiniteNumber(g.y) || !isFiniteNumber(g.z)) {
+          springErrors.push(`boneGroups[${bIdx}].gravityDir must be an object {x,y,z} of finite numbers`);
+        } else if (Math.hypot(g.x, g.y, g.z) === 0 && isFiniteNumber(bg.gravityPower) && bg.gravityPower !== 0) {
+          springWarnings.push(`boneGroups[${bIdx}].gravityDir has zero length but gravityPower is ${bg.gravityPower}`);
+        }
+      }
       if (bg.center !== void 0 && (!Number.isInteger(bg.center) || bg.center < -1 || bg.center >= nodeCount)) {
         springErrors.push(`boneGroups[${bIdx}] has out-of-range center node ${bg.center}`);
       }
@@ -54109,8 +54148,8 @@ function validateVrmBinary(bytes, expectedVersion) {
         }
       }
     }
-    springStatus = springErrors.length > 0 ? "fail" : springBoneJointCount > 0 || secondaryBoneGroupCount === 0 ? "pass" : "warn";
-    springDetail = springErrors.length > 0 ? springErrors.slice(0, 3).join("; ") : `${secondaryBoneGroupCount} boneGroups (${springBoneJointCount} physics roots) \xB7 ${colliderGroupCount} colliderGroups`;
+    springStatus = springErrors.length > 0 ? "fail" : springWarnings.length > 0 ? "warn" : springBoneJointCount > 0 || secondaryBoneGroupCount === 0 ? "pass" : "warn";
+    springDetail = springErrors.length > 0 ? springErrors.slice(0, 3).join("; ") : springWarnings.length > 0 ? springWarnings.slice(0, 3).join("; ") : `${secondaryBoneGroupCount} boneGroups (${springBoneJointCount} physics roots) \xB7 ${colliderGroupCount} colliderGroups`;
   } else {
     const sb = gltf.extensions?.VRMC_springBone;
     const springs = sb?.springs ?? [];
