@@ -519,6 +519,65 @@ def _export_springs_vrm0(arm_obj, ext, bone_map, blender_context, info):
             info["springs_created"] += 1
 
 
+VRM1_PRESET_ATTR = {
+    "happy": "happy", "joy": "happy", "angry": "angry", "sad": "sad", "sorrow": "sad",
+    "relaxed": "relaxed", "fun": "relaxed", "surprised": "surprised", "neutral": "neutral",
+    "aa": "aa", "a": "aa", "ih": "ih", "i": "ih", "ou": "ou", "u": "ou", "ee": "ee", "e": "ee",
+    "oh": "oh", "o": "oh", "blink": "blink", "blinkleft": "blink_left", "blink_l": "blink_left",
+    "blinkright": "blink_right", "blink_r": "blink_right", "lookup": "look_up",
+    "lookdown": "look_down", "lookleft": "look_left", "lookright": "look_right",
+}
+
+
+def _shape_key_has_delta(kb, eps=1e-7):
+    basis = kb.relative_key
+    try:
+        for a, b in zip(kb.data, basis.data):
+            if abs(a.co.x - b.co.x) > eps or abs(a.co.y - b.co.y) > eps or abs(a.co.z - b.co.z) > eps:
+                return True
+    except Exception:
+        return False
+    return False
+
+
+def _bind_vrm1_expressions(ext, mesh_objs, info):
+    """Populate ext.vrm1.expressions.preset.<name>.morph_target_binds from shape keys.
+
+    Binds every mesh that carries the key with a non-zero delta; all-zero keys are skipped (the validators
+    treat those as empty). Add-on API: expression.morph_target_binds.add() -> .node.mesh_object_name, .index
+    (shape key name), .weight (0..1).
+    """
+    preset = ext.vrm1.expressions.preset
+    bound, skipped = {}, []
+    for m_obj in mesh_objs:
+        sk = getattr(m_obj.data, "shape_keys", None)
+        if not sk:
+            continue
+        for kb in sk.key_blocks:
+            if kb.name == sk.reference_key.name:
+                continue
+            attr = VRM1_PRESET_ATTR.get(kb.name.lower())
+            if attr is None:
+                skipped.append({"mesh": m_obj.name, "key": kb.name, "reason": "not a VRM 1.0 preset name"})
+                continue
+            if not _shape_key_has_delta(kb):
+                skipped.append({"mesh": m_obj.name, "key": kb.name, "reason": "all-zero delta on this mesh"})
+                continue
+            expr = getattr(preset, attr, None)
+            if expr is None:
+                skipped.append({"mesh": m_obj.name, "key": kb.name, "reason": f"add-on has no preset '{attr}'"})
+                continue
+            bind = expr.morph_target_binds.add()
+            bind.node.mesh_object_name = m_obj.name
+            bind.index = kb.name
+            bind.weight = 1.0
+            bound.setdefault(attr, []).append(m_obj.name)
+    info["vrm1_expressions_bound"] = bound
+    info["vrm1_expressions_skipped"] = skipped
+    if not bound:
+        info["vrm1_expressions_warning"] = "no shape key produced a non-empty VRM 1.0 expression"
+
+
 def _configure_vrm_extension(
     arm_obj,
     mesh_objs,
@@ -590,6 +649,7 @@ def _configure_vrm_extension(
         if hasattr(ext.vrm0, "secondary_animation"):
             _export_springs_vrm0(arm_obj, ext, bone_map, blender_context, export_info)
     else:
+        _bind_vrm1_expressions(ext, mesh_objs, export_info)
         human_bones = ext.vrm1.humanoid.human_bones
         unassigned = []
         for canonical, real_bone in bone_map.items():
@@ -907,7 +967,14 @@ def _run_production_pipeline_impl(
                     python_validator_available = True
                     vrm_reload_report = validator_fn(vrm_bytes, expected_version=vrm_version)
                     binary_valid = bool(vrm_reload_report.get("valid"))
-                    if not binary_valid:
+                    nonempty = vrm_reload_report.get("non_empty_expression_count")
+                    if binary_valid and nonempty == 0:
+                        binary_valid = False
+                        vrm_note = (
+                            f"Exported VRM {vrm_version} has {vrm_reload_report.get('expression_count')} expressions but "
+                            "ZERO non-empty ones (no morph target binds with non-zero deltas); export rejected."
+                        )
+                    if not binary_valid and not vrm_note:
                         errs = vrm_reload_report.get("errors") or []
                         vrm_note = f"Independent VRM {vrm_version} validator failed: {'; '.join(errs) or vrm_reload_report.get('error', 'schema violation')}"
 
