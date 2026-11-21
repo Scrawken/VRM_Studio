@@ -132,3 +132,15 @@ python -I backend/vrm_validator.py <each regenerated character.vrm> 0.0    3 val
 ```
 
 The corrected deformation values are effectively unchanged from E3: the maximum weighted displacement values remain within rounding-level differences in the regenerated outputs (for example Aurelia hip 1.016m, Vaelith hip 1.147m, Marcus hip 0.956m). No deformation regression was observed. Unreal Engine/VRM4U import, retargeting, morph playback, spring physics and UE material behavior remain untested.
+
+## U1 Unreal/VRM4U attempt
+
+A matching VRM4U UE5.7 binary was downloaded and SHA-256 verified. Unreal 5.7.4 loaded the project-local plugin and Python reflection exposed the non-interactive `VrmImporterBPFunctionLibrary.import_vrm_file_with_options` API. The first import attempt reached VRM4U but Unreal aborted in headless mode on `CurrentApplication.IsValid()` at `SlateApplication.h:321`, through ContentBrowser → VRM4ULoader → VRM4UImporter. Therefore no Unreal import, skeletal mesh, bone, morph, physics, spring or metadata result is claimed for any sample. Full evidence, versions, hashes and paths are in `benchmarks/UNREAL_U1_EVIDENCE.md`.
+
+| Sample | Unreal/VRM4U result |
+|---|---|
+| Aurelia | UNTESTED/BLOCKED by headless Slate assertion |
+| Vaelith | UNTESTED/BLOCKED; first process crashed before a trustworthy call |
+| Marcus | UNTESTED/BLOCKED; first process crashed before a trustworthy call |
+
+This does not change the Blender 4.2 or appearance findings. GUI editor import and all Unreal acceptance items remain untested.

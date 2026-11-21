@@ -1,0 +1,1 @@
+{"FileVersion":3,"EngineAssociation":"5.7","Category":"VRM4U Test","Description":"Minimal VRM4U import evidence project","Modules":[],"Plugins":[{"Name":"VRM4U","Enabled":true},{"Name":"PythonScriptPlugin","Enabled":true}]}

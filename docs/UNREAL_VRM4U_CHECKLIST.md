@@ -1,6 +1,6 @@
 # Unreal + VRM4U Acceptance Protocol
 
-**Status:** Protocol prepared; all Unreal/VRM4U items are **UNTESTED** on this machine. Blender 4.2.23 VRM Format 4.10.5 was verified separately and imported all three `.vrm` files; that is not Unreal/VRM4U evidence. Unreal Engine executables were found in standard Epic locations (`UE_5.7`, `UE_5.8`), but no VRM4U plugin or configured VRM4U project was found in the inspected project/engine folders. No Unreal Editor or VRM4U import was run. The three first test inputs are `aurelia`, `vaelith`, and `marcus` under `projects/`.
+**Status:** U1 obtained a matching VRM4U UE5.7 binary and verified the plugin/API loads in Unreal Engine 5.7.4. The first real import attempt is **BLOCKED/UNTESTED**: VRM4U reaches its importer from Python, then Unreal aborts in headless mode on `CurrentApplication.IsValid()` at `SlateApplication.h:321` through ContentBrowser/VRM4ULoader. No skeletal mesh, bone, morph, physics or metadata result is claimed. Full evidence: `benchmarks/UNREAL_U1_EVIDENCE.md`. Blender 4.2.23 VRM Format 4.10.5 imported all three `.vrm` files separately; that is not Unreal/VRM4U evidence. The three first test inputs are `aurelia`, `vaelith`, and `marcus` under `projects/`.
 
 ## Evidence rules
 
@@ -43,6 +43,21 @@ For each sample, capture the exact `.vrm` SHA-256, UE version, VRM4U version, im
 - [ ] **PASS:** lit viewport shows non-missing, correctly oriented albedo/base color and expected roughness/metallic values.
 - [ ] **PASS:** masked/translucent hair, lashes and overlays have no dark silhouettes, missing backfaces or sorting failure; capture lit screenshots.
 
-## Required test matrix
+## U1 execution matrix (2026-11-21)
+
+| Item | Status | Evidence |
+|---|---|---|
+| UE5.7.4 executable available | PASS | `benchmarks/UNREAL_U1_EVIDENCE.md` |
+| VRM4U UE5.7 binary downloaded and hash matched | PASS | release URL/hash in evidence |
+| Project-local plugin enabled | PASS | `unreal_test/VRM4UTest.uproject`; scratch project log |
+| Python commandlet/API reflection | PASS | `VRM4UImporterBPFunctionLibrary` and `ImportOptionData` exposed |
+| Aurelia import and generated skeletal mesh | UNTESTED/BLOCKED | headless Slate assertion |
+| Vaelith import and generated skeletal mesh | UNTESTED/BLOCKED | first import process aborted |
+| Marcus import and generated skeletal mesh | UNTESTED/BLOCKED | first import process aborted |
+| Bone/morph/physics/meta asset counts | UNTESTED | no trustworthy imported asset result |
+| GUI import, deformation, retargeting, morphs, spring physics, materials | UNTESTED | no supported completed GUI evidence |
+
+The headless route is not a model failure: the importer reached VRM4U and then accessed Slate/ContentBrowser without a valid Slate application. Do not mark any import or asset-quality item PASS until an interactive editor run or a plugin commandlet-safe route produces saved assets and logs.
+
 
 Run all sections for `aurelia/character.vrm`, `vaelith/character.vrm`, and `marcus/character.vrm`. Store evidence as `evidence/<sample>/<section>/...`; record PASS/FAIL/UNTESTED and the exact file path for each item.
